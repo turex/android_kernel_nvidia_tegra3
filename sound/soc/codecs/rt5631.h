@@ -89,7 +89,7 @@
 #define RT5631_R_EN_SHIFT				6
 #define RT5631_VOL_MASK				0x1f
 #define RT5631_L_VOL_SHIFT				8
-#define RT5631_R_VOL_SHIFT				0
+#define RT5631_R_VOL_SHIFT				8
 
 /* Speaker Output Control(0x02) */
 #define RT5631_SPK_L_VOL_SEL_MASK			(0x1 << 14)
