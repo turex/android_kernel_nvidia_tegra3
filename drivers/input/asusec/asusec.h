@@ -1,5 +1,5 @@
-#ifndef _ASUSDEC_H
-#define _ASUSDEC_H
+#ifndef _ASUSEC_H
+#define _ASUSEC_H
 
 #include <linux/switch.h>
 #include <linux/wakelock.h>
@@ -7,8 +7,7 @@
 /*
  * compiler option
  */
-#define ASUSDEC_DEBUG			0
-#define FACTORY_MODE                    0
+#define FACTORY_MODE			0
 #define TOUCHPAD_MODE			1	// 0: relative mode, 1: absolute mode
 #define DOCK_USB				1	// 0: not ready, 1: ready
 #define BATTERY_DRIVER			1	// 0: not ready, 1: ready
@@ -16,41 +15,37 @@
 /*
  * Debug Utility
  */
-#if ASUSDEC_DEBUG
-#define ASUSDEC_INFO(format, arg...)	\
-	printk(KERN_INFO "asusdec: [%s] " format , __FUNCTION__ , ## arg)
-#define ASUSDEC_I2C_DATA(array, i)	\
-					do {		\
-						for (i = 0; i < array[0]+1; i++) \
-							ASUSDEC_INFO("ec_data[%d] = 0x%x\n", i, array[i]);	\
-					} while(0)
-#else
-#define ASUSDEC_INFO(format, arg...)
-#define ASUSDEC_I2C_DATA(array, i)
-#endif
 
-#define ASUSDEC_NOTICE(format, arg...)	\
-	printk(KERN_NOTICE "asusdec: [%s] " format , __FUNCTION__ , ## arg)
+#define ASUSEC_INFO(format, arg...)	\
+	pr_info("asusec: [%s] " format , __FUNCTION__ , ## arg)
 
-#define ASUSDEC_ERR(format, arg...)	\
-	printk(KERN_ERR "asusdec: [%s] " format , __FUNCTION__ , ## arg)
+#define ASUSEC_NOTICE(format, arg...)	\
+	pr_notice("asusdec: [%s] " format , __FUNCTION__ , ## arg)
+
+#define ASUSEC_ERR(format, arg...)	\
+	pr_err("asusdec: [%s] " format , __FUNCTION__ , ## arg)
 
 //-----------------------------------------
 
-#define DRIVER_DESC     		"ASUS Dock EC Driver"
+#define ASUSDEC_DRIVER_DESC		"ASUS Dock EC Driver"
+#define ASUSPEC_DRIVER_DESC		"ASUS PAD EC driver"
 #define DOCK_SDEV_NAME			"dock"
-#define CONVERSION_TIME_MS		50
+#define PAD_SDEV_NAME			"pad"
+#define APOWER_SDEV_NAME		"apower"
+
+#define DELAY_TIME_MS		50
 
 #define ASUSDEC_I2C_ERR_TOLERANCE	8
-#define ASUSDEC_RETRY_COUNT		3
+#define ASUSPEC_I2C_ERR_TOLERANCE	32
+#define ASUSEC_RETRY_COUNT		3
 #define ASUSDEC_POLLING_RATE		80
 
-#define ASUSDEC_OBF_MASK		0x1
-#define ASUSDEC_KEY_MASK		0x4
-#define ASUSDEC_KBC_MASK		0x8
-#define ASUSDEC_AUX_MASK		0x20
-#define ASUSDEC_SCI_MASK		0x40
-#define ASUSDEC_SMI_MASK		0x80
+#define ASUSEC_OBF_MASK			0x1
+#define ASUSEC_KEY_MASK			0x4
+#define ASUSEC_KBC_MASK			0x8
+#define ASUSEC_AUX_MASK			0x20
+#define ASUSEC_SCI_MASK			0x40
+#define ASUSEC_SMI_MASK			0x80
 
 #define ASUSDEC_RELATIVE_MODE		0
 #define ASUSDEC_ABSOLUTE_MODE		1
@@ -169,41 +164,53 @@
 #define ASUSDEC_EUROPE_2				0x61
 /********************************/
 
-
 #define ASUSDEC_KEYPAD_LOCK			0xE071
-
 #define ASUSDEC_KEYPAD_KEY_BREAK   	0xF0
 #define ASUSDEC_KEYPAD_KEY_EXTEND   	0xE0
 
-/*************scan 2 make code mapping***************/
 
 /************* SMI event ********************/
-#define ASUSDEC_SMI_HANDSHAKING		0x50
-#define ASUSDEC_SMI_WAKE			0x53
-#define ASUSDEC_SMI_RESET			0x5F
-#define ASUSDEC_SMI_ADAPTER_EVENT	0x60
-#define ASUSDEC_SMI_BACKLIGHT_ON	0x63
-#define ASUSDEC_SMI_AUDIO_DOCK_IN	0x70
+#define ASUSEC_SMI_HANDSHAKING		0x50
+#define ASUSEC_SMI_WAKE			0x53
+#define ASUSEC_SMI_RESET			0x5F
+#define ASUSEC_SMI_ADAPTER_EVENT	0x60
+#define ASUSEC_SMI_BACKLIGHT_ON	0x63
+#define ASUSEC_SMI_AUDIO_DOCK_IN	0x70
+
+/*************APOWER ************************/
+#define APOWER_IDLE			0
+#define APOWER_RESUME			1
+#define APOWER_SUSPEND			2
+#define APOWER_POWEROFF			3
+#define APOWER_NOTIFY_SHUTDOWN		4
+#define APOWER_SMI_S3				0x83
+#define APOWER_SMI_S5				0x85
+#define APOWER_SMI_NOTIFY_SHUTDOWN		0x90
+#define APOWER_SMI_RESUME			0x91
+
 /*************IO control setting***************/
-#define ASUSDEC_IOCTL_HEAVY	2
-#define ASUSDEC_IOCTL_NORMAL	1
-#define ASUSDEC_IOCTL_END	0
+#define ASUSEC_IOCTL_HEAVY	2
+#define ASUSEC_IOCTL_NORMAL	1
+#define ASUSEC_IOCTL_END	0
+#define ASUSEC_IOC_MAGIC	0xf4
+#define ASUSDEC_IOC_MAXNR	7
+#define ASUSPEC_IOC_MAXNR	11
+#define ASUSEC_POLLING_DATA 	_IOR(ASUSEC_IOC_MAGIC,	1,	int)
+#define ASUSEC_FW_UPDATE 		_IOR(ASUSEC_IOC_MAGIC,	2,	int)
+#define ASUSEC_INIT 			_IOR(ASUSEC_IOC_MAGIC,	3,	int)
+#define ASUSDEC_INIT			_IOR(ASUSEC_IOC_MAGIC,	4,	int)
+#define ASUSDEC_TP_CONTROL		_IOR(ASUSEC_IOC_MAGIC,	5,	int)
+#define ASUSDEC_EC_WAKEUP		_IOR(ASUSEC_IOC_MAGIC,	6,	int)
+#define ASUSEC_FW_DUMMY			_IOR(ASUSEC_IOC_MAGIC,	7,	int)
+#define ASUSEC_SWITCH_HDMI		_IOR(ASUSEC_IOC_MAGIC,	10,	int)
+#define ASUSEC_WIN_SHUTDOWN		_IOR(ASUSEC_IOC_MAGIC,	11,	int)
+
 #define ASUSDEC_CPAS_LED_ON	1
 #define ASUSDEC_CPAS_LED_OFF	0
 #define ASUSDEC_TP_ON	1
 #define ASUSDEC_TP_OFF	0
 #define ASUSDEC_EC_ON	1
 #define ASUSDEC_EC_OFF	0
-#define ASUSDEC_IOC_MAGIC	0xf4
-#define ASUSDEC_IOC_MAXNR	7
-#define ASUSDEC_POLLING_DATA	_IOR(ASUSDEC_IOC_MAGIC,	1,	int)
-#define ASUSDEC_FW_UPDATE 		_IOR(ASUSDEC_IOC_MAGIC,	2,	int)
-#define ASUSDEC_CPASLOCK_LED	_IOR(ASUSDEC_IOC_MAGIC,	3,	int)
-#define ASUSDEC_INIT			_IOR(ASUSDEC_IOC_MAGIC,	4,	int)
-#define ASUSDEC_TP_CONTROL		_IOR(ASUSDEC_IOC_MAGIC,	5,	int)
-#define ASUSDEC_EC_WAKEUP		_IOR(ASUSDEC_IOC_MAGIC,	6,	int)
-#define ASUSDEC_FW_DUMMY		_IOR(ASUSDEC_IOC_MAGIC, 7,	int)
-/*************IO control setting***************/
 
 /************* Dock Defifition ***********/
 #define DOCK_UNKNOWN		0
@@ -228,6 +235,12 @@
 /************* EC FW update ***********/
 #define EC_BUFF_LEN  256
 /********************** ***********/
+
+/*****************************************/
+#define ASUSPEC_MAGIC_NUM	0x19850604
+
+/********************** ***********/
+#define MB 1024*1024
 
 /*
  * The x/y limits are taken from the Synaptics TouchPad interfacing Guide,
@@ -336,6 +349,42 @@ struct asusdec_chip {
 	int ec_in_s3;		// 0: normal mode, 1: ec in deep sleep mode
 	int susb_on;	// 0: susb off, 1: susb on
 	int dock_type; //0: unknown, 1: mobile_dock, 2: audio_dock, 3: audio_stand
+};
+
+struct asuspec_chip {
+	struct input_dev	*indev;
+	struct switch_dev 	pad_sdev;
+	struct switch_dev 	apower_sdev;
+	struct i2c_client	*client;
+	struct mutex		lock;
+	struct mutex		irq_lock;
+	struct mutex		state_change_lock;
+	struct delayed_work asuspec_fw_update_work;
+	struct delayed_work asuspec_init_work;
+	struct delayed_work asuspec_work;
+	struct delayed_work asuspec_enter_s3_work;
+	struct wake_lock 	wake_lock;
+	struct timer_list	asuspec_timer;
+	int polling_rate;
+	int status;
+	int ret_val;
+	u8 ec_data[32];
+	u8 i2c_data[32];
+	u8 i2c_dm_data[32];
+	u8 i2c_dm_battery[32];
+	u8 i2c_dm_storage[32];
+	char ec_model_name[32];
+	char ec_version[32];
+	char ec_pcba[32];
+	int op_mode;	// 0: normal mode, 1: fw update mode
+	int ec_ram_init;	// 0: not init, MAGIC_NUM: init successfully
+	int ec_in_s3;	// 0: normal mode, 1: ec in deep sleep mode
+	int i2c_err_count;
+	int apwake_disabled;	// 0: normal mode, 1: apwake gets disabled
+	unsigned long storage_total;
+	unsigned long storage_avail;
+	unsigned int pad_pid;
+	int apower_state;
 };
 
 #endif

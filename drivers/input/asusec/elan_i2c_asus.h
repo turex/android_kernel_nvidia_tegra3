@@ -1,9 +1,7 @@
 #ifndef _ELAN_I2C_ASUS_H
 #define _ELAN_I2C_ASUS_H
 
-#include "asusdec.h"
-
-#define CONVERSION_TIME_MS		50
+#include "asusec.h"
 
 #define ELAN_RETRY_COUNT		3
 

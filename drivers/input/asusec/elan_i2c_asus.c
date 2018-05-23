@@ -34,7 +34,7 @@ static int elan_i2c_asus_cmd(struct i2c_client *client, unsigned char *param, in
 		pr_err("elan_i2c_asus: %s: write to device fails status %x\n", __func__, ret);
 		return ret;
 	}
-	msleep(CONVERSION_TIME_MS);
+	msleep(DELAY_TIME_MS);
 
 	while(retry-- > 0){
 		ret = i2c_smbus_read_i2c_block_data(client, 0x6A, 8, i2c_data);
@@ -42,8 +42,8 @@ static int elan_i2c_asus_cmd(struct i2c_client *client, unsigned char *param, in
 			pr_err("elan_i2c_asus: %s: fail to read data, status %d\n", __func__, ret);
 			return ret;
 		}
-		if ((i2c_data[1] & ASUSDEC_OBF_MASK) &&
-			(i2c_data[1] & ASUSDEC_AUX_MASK)){
+		if ((i2c_data[1] & ASUSEC_OBF_MASK) &&
+			(i2c_data[1] & ASUSEC_AUX_MASK)){
 			if (i2c_data[2] == PSMOUSE_RET_ACK){
 				break;
 			}
@@ -51,7 +51,7 @@ static int elan_i2c_asus_cmd(struct i2c_client *client, unsigned char *param, in
 				goto fail_elan_touchpad_i2c;
 			}
 		}
-		msleep(CONVERSION_TIME_MS/5);
+		msleep(DELAY_TIME_MS/5);
 	}
 
 	retry_data_count = (command & 0x0f00) >> 8;
