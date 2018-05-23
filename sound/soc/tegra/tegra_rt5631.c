@@ -21,7 +21,6 @@
 #include <mach/board-transformer-misc.h>
 #include <mach/tegra_asoc_pdata.h>
 
-#include "../drivers/input/asusec/asusdec.h"
 #include "../gpio-names.h"
 
 #define DRV_NAME "tegra-snd-codec"
@@ -33,12 +32,7 @@
 struct tegra_rt5631 {
 	struct tegra_asoc_utils_data util_data;
 	struct tegra_asoc_platform_data *pdata;
-	struct regulator *spk_reg;
-	struct regulator *dmic_reg;
-	int gpio_requested;
 };
-
-extern void audio_dock_init(void);
 
 static int tegra_rt5631_hw_params(struct snd_pcm_substream *substream,
 					struct snd_pcm_hw_params *params)
@@ -194,12 +188,11 @@ static __devinit int tegra_rt5631_driver_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &snd_soc_tegra_rt5631;
 	struct tegra_rt5631 *machine;
-	struct tegra_asoc_platform_data *pdata;
+	struct tegra_asoc_platform_data *pdata = pdev->dev.platform_data;
 
 	int ret;
 
-	pdata = pdev->dev.platform_data;
-	if (!pdata) {
+	if (!pdata && !pdev->dev.of_node) {
 		dev_err(&pdev->dev, "No platform data supplied\n");
 		return -EINVAL;
 	}
@@ -210,7 +203,8 @@ static __devinit int tegra_rt5631_driver_probe(struct platform_device *pdev)
 	if (pdata->codec_dai_name)
 		card->dai_link->codec_dai_name = pdata->codec_dai_name;
 
-	machine = kzalloc(sizeof(struct tegra_rt5631), GFP_KERNEL);
+	machine = devm_kzalloc(&pdev->dev, sizeof(struct tegra_rt5631),
+			       GFP_KERNEL);
 	if (!machine) {
 		dev_err(&pdev->dev, "Can't allocate tegra_rt5631 struct\n");
 		return -ENOMEM;
@@ -240,7 +234,6 @@ static __devinit int tegra_rt5631_driver_probe(struct platform_device *pdev)
 		goto err_unregister_card;
 	}
 
-#ifndef CONFIG_ARCH_TEGRA_2x_SOC
 	ret = tegra_asoc_utils_set_parent(&machine->util_data,
 				pdata->i2s_param[HIFI_CODEC].is_i2s_master);
 	if (ret) {
@@ -248,7 +241,6 @@ static __devinit int tegra_rt5631_driver_probe(struct platform_device *pdev)
 			ret);
 		goto err_unregister_card;
 	}
-#endif
 
 	return 0;
 
@@ -267,9 +259,7 @@ static int __devexit tegra_rt5631_driver_remove(struct platform_device *pdev)
 	struct tegra_rt5631 *machine = snd_soc_card_get_drvdata(card);
 
 	snd_soc_unregister_card(card);
-
 	tegra_asoc_utils_fini(&machine->util_data);
-
 	kfree(machine);
 
 	return 0;
@@ -289,7 +279,6 @@ static int __init tegra_rt5631_modinit(void)
 {
 	if(tegra3_get_project_id() != TEGRA3_PROJECT_TF300T) {
 		printk("tegra_rt5631: codec is supported\n");
-		audio_dock_init();
 		return platform_driver_register(&tegra_rt5631_driver);
 	} else {
 		return 0;
