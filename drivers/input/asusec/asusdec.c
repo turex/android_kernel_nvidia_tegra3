@@ -692,7 +692,7 @@ static int asusdec_chip_init(struct i2c_client *client)
 
 	asusdec_keypad_disable(client);
 
-#if TOUCHPAD_ELAN && TOUCHPAD_MODE
+#if TOUCHPAD_MODE
 	if (1){
 		asusdec_clear_i2c_buffer(client);
 		if ((!elantech_detect(ec_chip)) && (!elantech_init(ec_chip))){

@@ -10,7 +10,6 @@
 #define ASUSDEC_DEBUG			0
 #define FACTORY_MODE                    0
 #define TOUCHPAD_MODE			1	// 0: relative mode, 1: absolute mode
-#define TOUCHPAD_ELAN			1	// 0: not elan, 1:elantech
 #define DOCK_USB				1	// 0: not ready, 1: ready
 #define BATTERY_DRIVER			1	// 0: not ready, 1: ready
 
