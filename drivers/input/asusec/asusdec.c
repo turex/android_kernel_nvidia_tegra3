@@ -140,7 +140,6 @@ static int asusdec_major = 0 ;
 static int asusdec_minor = 0 ;
 
 static struct workqueue_struct *asusdec_wq;
-struct delayed_work asusdec_stress_work;
 
 static const struct i2c_device_id asusdec_id[] = {
 	{"asusdec", 0},
@@ -362,7 +361,6 @@ static int asusdec_keypad_get_response(struct i2c_client *client, int res)
 
 	while(retry-- > 0){
 		asusdec_i2c_read_data(client);
-		ASUSDEC_I2C_DATA(ec_chip->i2c_data, ec_chip->index);
 		if ((ec_chip->i2c_data[1] & ASUSEC_OBF_MASK) &&
 			(!(ec_chip->i2c_data[1] & ASUSEC_AUX_MASK))){
 			if (ec_chip->i2c_data[2]  == res){
@@ -438,7 +436,6 @@ static int asusdec_touchpad_get_response(struct i2c_client *client, int res)
 	msleep(DELAY_TIME_MS);
 	while(retry-- > 0){
 		asusdec_i2c_read_data(client);
-		ASUSDEC_I2C_DATA(ec_chip->i2c_data, ec_chip->index);
 		if ((ec_chip->i2c_data[1] & ASUSEC_OBF_MASK) &&
 			(ec_chip->i2c_data[1] & ASUSEC_AUX_MASK)){
 			if (ec_chip->i2c_data[2] == res){
@@ -789,7 +786,7 @@ static int asusdec_irq_hall_sensor(struct i2c_client *client)
 	}
 	ASUSEC_INFO("GPIO = %d , state = %d\n", gpio, gpio_get_value(gpio));
 
-	rc = request_irq(irq, asusdec_interrupt_handler,IRQF_SHARED|IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING/*|IRQF_TRIGGER_HIGH|IRQF_TRIGGER_LOW*/, label, client);
+	rc = request_irq(irq, asusdec_interrupt_handler, IRQF_SHARED|IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING, label, client);
 	if (rc < 0) {
 		ASUSEC_ERR("Could not register for %s interrupt, irq = %d, rc = %d\n", label, irq, rc);
 		rc = -EIO;
@@ -826,7 +823,6 @@ static int asusdec_irq_dock_in(struct i2c_client *client)
 	unsigned irq = gpio_to_irq(asusdec_dock_in_gpio);
 	const char* label = "asusdec_dock_in" ;
 
-	ASUSEC_INFO("gpio = %d, irq = %d\n", gpio, irq);
 	ASUSEC_INFO("GPIO = %d , state = %d\n", gpio, gpio_get_value(gpio));
 
 	rc = gpio_request(gpio, label);
@@ -841,7 +837,7 @@ static int asusdec_irq_dock_in(struct i2c_client *client)
 	}
 	ASUSEC_INFO("GPIO = %d , state = %d\n", gpio, gpio_get_value(gpio));
 
-	rc = request_irq(irq, asusdec_interrupt_handler,IRQF_SHARED|IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING/*|IRQF_TRIGGER_HIGH|IRQF_TRIGGER_LOW*/, label, client);
+	rc = request_irq(irq, asusdec_interrupt_handler, IRQF_SHARED|IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING, label, client);
 	if (rc < 0) {
 		ASUSEC_ERR("Could not register for %s interrupt, irq = %d, rc = %d\n", label, irq, rc);
 		rc = -EIO;
@@ -880,7 +876,7 @@ static int asusdec_irq(struct i2c_client *client)
 	}
 	ASUSEC_INFO("GPIO = %d , state = %d\n", gpio, gpio_get_value(gpio));
 
-	rc = request_irq(irq, asusdec_interrupt_handler,/*IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING|IRQF_TRIGGER_HIGH|*/IRQF_TRIGGER_LOW, label, client);
+	rc = request_irq(irq, asusdec_interrupt_handler, IRQF_TRIGGER_LOW, label, client);
 	if (rc < 0) {
 		ASUSEC_ERR("Could not register for %s interrupt, irq = %d, rc = %d\n", label, irq, rc);
 		rc = -EIO;
@@ -1270,7 +1266,6 @@ static void asusdec_touchpad_processing(void){
 	int i;
 	int length = 0;
 	int tp_start = 0;
-	ASUSDEC_I2C_DATA(ec_chip->i2c_data,ec_chip->index);
 
 #if TOUCHPAD_MODE
 	length = ec_chip->i2c_data[0];
@@ -1442,7 +1437,6 @@ static void asusdec_kp_key(void){
 
 static void asusdec_keypad_processing(void){
 
-	ASUSDEC_I2C_DATA(ec_chip->i2c_data,ec_chip->index);
 	if (ec_chip->i2c_data[1] & ASUSEC_KBC_MASK)
 		asusdec_kp_kbc();
 	else if (ec_chip->i2c_data[1] & ASUSEC_SCI_MASK)
@@ -1485,20 +1479,6 @@ static void asusdec_lid_report_function(struct work_struct *dat)
 	input_report_switch(ec_chip->lid_indev, SW_LID, !value);
 	input_sync(ec_chip->lid_indev);
 	ASUSEC_NOTICE("SW_LID report value = %d\n", !value);
-}
-
-static void asusdec_stresstest_work_function(struct work_struct *dat)
-{
-	asusdec_i2c_read_data(ec_chip->client);
-	if (ec_chip->i2c_data[1] & ASUSEC_OBF_MASK){
-		if (ec_chip->i2c_data[1] & ASUSEC_AUX_MASK){
-			asusdec_touchpad_processing();
-		}else{
-			asusdec_keypad_processing();
-		}
-	}
-
-	queue_delayed_work(asusdec_wq, &asusdec_stress_work, HZ/ec_chip->polling_rate);
 }
 
 static void asusdec_dock_init_work_function(struct work_struct *dat)
@@ -1805,7 +1785,6 @@ static int __devinit asusdec_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_fw_update_work, asusdec_fw_update_work_function);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_led_on_work, asusdec_keypad_led_on);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_led_off_work, asusdec_keypad_led_off);
-	INIT_DELAYED_WORK_DEFERRABLE(&asusdec_stress_work, asusdec_stresstest_work_function);
 	asusdec_irq_dock_in(client);
 	asusdec_irq_ec_request(client);
 	asusdec_irq_hall_sensor(client);
@@ -1824,7 +1803,6 @@ static int __devexit asusdec_remove(struct i2c_client *client)
 {
 	struct asusdec_chip *chip = i2c_get_clientdata(client);
 
-	dev_dbg(&client->dev, "%s()\n", __func__);
 	input_unregister_device(chip->indev);
 	kfree(chip);
 	return 0;
@@ -1924,7 +1902,7 @@ static ssize_t asusdec_led_show(struct device *class,struct device_attribute *at
 		return sprintf(buf, "EC LED Blink\n");
 }
 
-static ssize_t asusdec_show_ec_wakeup(struct device *class,struct device_attribute *attr,char *buf)
+static ssize_t asusdec_show_ec_wakeup(struct device *class,struct device_attribute *attr, char *buf)
 {
 	if (ec_chip->ec_wakeup == 0) {
 		return sprintf(buf, "0\n");
@@ -1933,7 +1911,7 @@ static ssize_t asusdec_show_ec_wakeup(struct device *class,struct device_attribu
 	}
 }
 
-static ssize_t asusdec_store_ec_wakeup(struct device *class,struct device_attribute *attr,const char *buf, size_t count)
+static ssize_t asusdec_store_ec_wakeup(struct device *class,struct device_attribute *attr, const char *buf, size_t count)
 {
 	if (buf[0] == '0'){
 		ec_chip->ec_wakeup = 0;
@@ -2178,27 +2156,9 @@ static long asusdec_ioctl(struct file *flip,
 	if (err) return -EFAULT;
 
 	 switch (cmd) {
-        case ASUSEC_POLLING_DATA:
-			if (arg == ASUSEC_IOCTL_HEAVY){
-				ASUSEC_NOTICE("heavy polling\n");
-				ec_chip->polling_rate = 80;
-				queue_delayed_work(asusdec_wq, &asusdec_stress_work, HZ/ec_chip->polling_rate);
-			}
-			else if (arg == ASUSEC_IOCTL_NORMAL){
-				ASUSEC_NOTICE("normal polling\n");
-				ec_chip->polling_rate = 10;
-				queue_delayed_work(asusdec_wq, &asusdec_stress_work, HZ/ec_chip->polling_rate);
-			}
-			else if  (arg == ASUSEC_IOCTL_END){
-				ASUSEC_NOTICE("polling end\n");
-		    	cancel_delayed_work_sync(&asusdec_stress_work) ;
-			}
-			else
-				return -ENOTTY;
-			break;
 		case ASUSEC_FW_UPDATE:
 			if (ec_chip->dock_in){
-				ASUSEC_NOTICE("ASUSEC_FW_UPDATE\n");
+				ASUSEC_NOTICE("ASUSDEC_FW_UPDATE\n");
 				buff_in_ptr = 0;
 				buff_out_ptr = 0;
 				h2ec_count = 0;
@@ -2227,7 +2187,7 @@ static long asusdec_ioctl(struct file *flip,
 			ec_chip->op_mode = 0;
 			queue_delayed_work(asusdec_wq, &ec_chip->asusdec_dock_init_work, 0);
 			msleep(2500);
-			ASUSEC_NOTICE("ASUSEC_INIT - EC version: %s\n", ec_chip->ec_version);
+			ASUSEC_NOTICE("ASUSDEC_INIT - EC version: %s\n", ec_chip->ec_version);
 			length = strlen(ec_chip->ec_version);
 			ec_chip->ec_version[length] = NULL;
 			snprintf(name_buf, sizeof(name_buf), "SWITCH_NAME=%s", ec_chip->ec_version);
@@ -2236,7 +2196,7 @@ static long asusdec_ioctl(struct file *flip,
 			kobject_uevent_env(&ec_chip->dock_sdev.dev->kobj, KOBJ_CHANGE, envp);
 			break;
 		case ASUSEC_TP_CONTROL:
-			ASUSEC_NOTICE("ASUSEC_TP_CONTROL\n");
+			ASUSEC_NOTICE("ASUSDEC_TP_CONTROL\n");
 			if ((ec_chip->op_mode == 0) && ec_chip->dock_in){
 				err = asusdec_tp_control(arg);
 				return err;
@@ -2245,7 +2205,7 @@ static long asusdec_ioctl(struct file *flip,
 				return -ENOTTY;
 		case ASUSEC_EC_WAKEUP:
 			msleep(500);
-			ASUSEC_NOTICE("ASUSEC_EC_WAKEUP, arg = %ld\n", arg);
+			ASUSEC_NOTICE("ASUSDEC_EC_WAKEUP, arg = %ld\n", arg);
 			if (arg == ASUSDEC_EC_OFF){
 				ec_chip->ec_wakeup = 0;
 				ASUSEC_NOTICE("Set EC shutdown when PAD in LP0\n");
@@ -2261,7 +2221,7 @@ static long asusdec_ioctl(struct file *flip,
 				return -ENOTTY;
 			}
 		case ASUSEC_FW_DUMMY:
-			ASUSEC_NOTICE("ASUSEC_FW_DUMMY\n");
+			ASUSEC_NOTICE("ASUSDEC_FW_DUMMY\n");
 			ec_chip->i2c_dm_data[0] = 0x02;
 			ec_chip->i2c_dm_data[1] = 0x55;
 			ec_chip->i2c_dm_data[2] = 0xAA;
