@@ -46,17 +46,8 @@ static void asuspec_work_function(struct work_struct *dat);
 static int __devinit asuspec_probe(struct i2c_client *client,
 		const struct i2c_device_id *id);
 static int __devexit asuspec_remove(struct i2c_client *client);
-static ssize_t asuspec_battery_show(struct device *class,
-		struct device_attribute *attr,char *buf);
-static ssize_t asuspec_send_ec_req_show(struct device *class,
-		struct device_attribute *attr,char *buf);
-static ssize_t asuspec_enter_normal_mode_show(struct device *class,
-		struct device_attribute *attr,char *buf);
-static ssize_t apower_switch_name(struct switch_dev *sdev, char *buf);
-static ssize_t apower_switch_state(struct switch_dev *sdev, char *buf);
 static int asuspec_suspend(struct device *dev);
 static int asuspec_resume(struct device *dev);
-static void asuspec_switch_apower_state(int state);
 static void asuspec_enter_normal_mode(void);
 
 /*
@@ -99,21 +90,6 @@ static struct i2c_driver asuspec_driver = {
 	},
 };
 
-static DEVICE_ATTR(ec_battery, S_IWUSR | S_IRUGO, asuspec_battery_show, NULL);
-static DEVICE_ATTR(ec_request, S_IWUSR | S_IRUGO, asuspec_send_ec_req_show, NULL);
-static DEVICE_ATTR(ec_normal_mode, S_IWUSR | S_IRUGO, asuspec_enter_normal_mode_show, NULL);
-
-static struct attribute *asuspec_smbus_attributes[] = {
-	&dev_attr_ec_battery.attr,
-	&dev_attr_ec_request.attr,
-	&dev_attr_ec_normal_mode.attr,
-NULL
-};
-
-static const struct attribute_group asuspec_smbus_group = {
-	.attrs = asuspec_smbus_attributes,
-};
-
 /*
  * functions definition
  */
@@ -129,8 +105,7 @@ int asuspec_battery_monitor(char *cmd){
 	if (ret_val == -1){
 		ASUSEC_ERR("Fail to access battery info.\n");
 		return -1;
-	}
-	else {
+	} else {
 		if (!strcmp(cmd, "status"))
 			ret_val = (ec_chip->i2c_dm_battery[2] << 8 ) | ec_chip->i2c_dm_battery[1];
 		else if (!strcmp(cmd, "temperature"))
@@ -435,26 +410,17 @@ static void asuspec_send_ec_req(void){
 
 static void asuspec_smi(void){
 	if (ec_chip->i2c_data[2] == ASUSEC_SMI_HANDSHAKING){
-		ASUSEC_NOTICE("ASUSEC_SMI_HANDSHAKING\n");
+		ASUSEC_NOTICE("ASUSPEC_SMI_HANDSHAKING\n");
 		if(ec_chip->status == 0){
 			asuspec_chip_init(ec_chip->client);
 		}
 		ec_chip->ec_in_s3 = 0;
 	} else if (ec_chip->i2c_data[2] == ASUSEC_SMI_RESET){
-		ASUSEC_NOTICE("ASUSEC_SMI_RESET\n");
+		ASUSEC_NOTICE("ASUSPEC_SMI_RESET\n");
 		queue_delayed_work(asuspec_wq, &ec_chip->asuspec_init_work, 0);
 	} else if (ec_chip->i2c_data[2] == ASUSEC_SMI_WAKE){
-		ASUSEC_NOTICE("ASUSEC_SMI_WAKE\n");
-	} else if (ec_chip->i2c_data[2] == APOWER_SMI_S5){
-		ASUSEC_NOTICE("APOWER_POWEROFF\n");
-		asuspec_switch_apower_state(APOWER_POWEROFF);
-	} else if (ec_chip->i2c_data[2] == APOWER_SMI_NOTIFY_SHUTDOWN){
-		ASUSEC_NOTICE("APOWER_NOTIFY_SHUTDOWN\n");
-		asuspec_switch_apower_state(APOWER_NOTIFY_SHUTDOWN);
-	} else if (ec_chip->i2c_data[2] == APOWER_SMI_RESUME){
-		ASUSEC_NOTICE("APOWER_SMI_RESUME\n");
-		asuspec_switch_apower_state(APOWER_RESUME);
-	}
+		ASUSEC_NOTICE("ASUSPEC_SMI_WAKE\n");
+	} 
 }
 
 static void asuspec_enter_s3_work_function(struct work_struct *dat)
@@ -529,11 +495,6 @@ static int __devinit asuspec_probe(struct i2c_client *client,
 	int err = 0;
 
 	ASUSEC_INFO("asuspec probe\n");
-	err = sysfs_create_group(&client->dev.kobj, &asuspec_smbus_group);
-	if (err) {
-		ASUSEC_ERR("Unable to create the sysfs\n");
-		goto exit;
-	}
 
 	ec_chip = kzalloc(sizeof (struct asuspec_chip), GFP_KERNEL);
 	if (!ec_chip) {
@@ -561,15 +522,6 @@ static int __devinit asuspec_probe(struct i2c_client *client,
 	ec_chip->apwake_disabled = 0;
 	asuspec_dockram_init(client);
 
-	ec_chip->apower_sdev.name = APOWER_SDEV_NAME;
-	ec_chip->apower_sdev.print_name = apower_switch_name;
-	ec_chip->apower_sdev.print_state = apower_switch_state;
-	ec_chip->apower_state = 0;
-	if(switch_dev_register(&ec_chip->apower_sdev) < 0){
-		ASUSEC_ERR("switch_dev_register for apower failed!\n");
-	}
-	switch_set_state(&ec_chip->apower_sdev, ec_chip->apower_state);
-
 	asuspec_wq = create_singlethread_workqueue("asuspec_wq");
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asuspec_work, asuspec_work_function);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asuspec_init_work, asuspec_init_work_function);
@@ -577,6 +529,7 @@ static int __devinit asuspec_probe(struct i2c_client *client,
 
 	asuspec_irq_ec_request(client);
 	asuspec_irq_ec_apwake(client);
+
 	queue_delayed_work(asuspec_wq, &ec_chip->asuspec_init_work, 0);
 
 	return 0;
@@ -595,62 +548,6 @@ static int __devexit asuspec_remove(struct i2c_client *client)
 	return 0;
 }
 
-static ssize_t asuspec_battery_show(struct device *class,struct device_attribute *attr,char *buf)
-{
-	int bat_status, bat_temp, bat_vol, bat_current, bat_capacity, remaining_cap;
-	int ret_val = 0;
-	char temp_buf[64];
-
-	bat_status = asuspec_battery_monitor("status");
-	bat_temp = asuspec_battery_monitor("temperature");
-	bat_vol = asuspec_battery_monitor("voltage");
-	bat_current = asuspec_battery_monitor("current");
-	bat_capacity = asuspec_battery_monitor("capacity");
-	remaining_cap = asuspec_battery_monitor("remaining_capacity");
-
-	if (ret_val < 0)
-		return sprintf(buf, "fail to get battery info\n");
-	else {
-		sprintf(temp_buf, "status = 0x%x\n", bat_status);
-		strcpy(buf, temp_buf);
-		sprintf(temp_buf, "temperature = %d\n", bat_temp);
-		strcat(buf, temp_buf);
-		sprintf(temp_buf, "voltage = %d\n", bat_vol);
-		strcat(buf, temp_buf);
-		sprintf(temp_buf, "current = %d\n", bat_current);
-		strcat(buf, temp_buf);
-		sprintf(temp_buf, "capacity = %d\n", bat_capacity);
-		strcat(buf, temp_buf);
-		sprintf(temp_buf, "remaining capacity = %d\n", remaining_cap);
-		strcat(buf, temp_buf);
-
-		return strlen(buf);
-	}
-}
-
-static ssize_t asuspec_send_ec_req_show(struct device *class,struct device_attribute *attr,char *buf)
-{
-	asuspec_send_ec_req();
-	return sprintf(buf, "EC_REQ is sent\n");
-}
-
-
-static ssize_t asuspec_enter_normal_mode_show(struct device *class,struct device_attribute *attr,char *buf)
-{
-	asuspec_enter_normal_mode();
-	return sprintf(buf, "Entering normal mode\n");
-}
-
-static ssize_t apower_switch_name(struct switch_dev *sdev, char *buf)
-{
-	return sprintf(buf, "%s\n", APOWER_SDEV_NAME);
-}
-
-static ssize_t apower_switch_state(struct switch_dev *sdev, char *buf)
-{
-	return sprintf(buf, "%d\n", ec_chip->apower_state);
-}
-
 static int asuspec_suspend(struct device *dev)
 {
 	printk("asuspec_suspend+\n");
@@ -666,13 +563,6 @@ static int asuspec_resume(struct device *dev)
 	ec_chip->i2c_err_count = 0;
 	printk("asuspec_resume-\n");
 	return 0;
-}
-
-static void asuspec_switch_apower_state(int state){
-	ec_chip->apower_state = state;
-	switch_set_state(&ec_chip->apower_sdev, ec_chip->apower_state);
-	ec_chip->apower_state = APOWER_IDLE;
-	switch_set_state(&ec_chip->apower_sdev, ec_chip->apower_state);
 }
 
 static void asuspec_enter_normal_mode(void){
@@ -763,7 +653,6 @@ static void __exit asuspec_exit(void)
 	class_destroy(asuspec_class) ;
 	i2c_del_driver(&asuspec_driver);
 	unregister_chrdev_region(asuspec_dev, 1);
-	switch_dev_unregister(&ec_chip->apower_sdev);
 }
 module_exit(asuspec_exit);
 
