@@ -31,26 +31,6 @@
 #include "asusec.h"
 
 /*
- * functions declaration
- */
-static int asuspec_dockram_write_data(int cmd, int length);
-static int asuspec_dockram_read_data(int cmd);
-static int asuspec_dockram_read_battery(int cmd);
-static int asuspec_i2c_write_data(struct i2c_client *client, u16 data);
-static int asuspec_i2c_read_data(struct i2c_client *client);
-static int asuspec_chip_init(struct i2c_client *client);
-static void asuspec_send_ec_req(void);
-static void asuspec_enter_s3_timer(unsigned long data);
-static void asuspec_enter_s3_work_function(struct work_struct *dat);
-static void asuspec_work_function(struct work_struct *dat);
-static int __devinit asuspec_probe(struct i2c_client *client,
-		const struct i2c_device_id *id);
-static int __devexit asuspec_remove(struct i2c_client *client);
-static int asuspec_suspend(struct device *dev);
-static int asuspec_resume(struct device *dev);
-static void asuspec_enter_normal_mode(void);
-
-/*
  * global variable
  */
 static unsigned int asuspec_apwake_gpio = TEGRA_GPIO_PS2;
@@ -58,81 +38,20 @@ static unsigned int asuspec_ecreq_gpio = TEGRA_GPIO_PQ1;
 
 struct i2c_client dockram_client;
 static struct class *asuspec_class;
-static struct device *asuspec_device ;
+static struct device *asuspec_device;
 static struct asuspec_chip *ec_chip;
 
-static dev_t asuspec_dev ;
-static int asuspec_major = 0 ;
-static int asuspec_minor = 0 ;
+static dev_t asuspec_dev;
+static int asuspec_major = 0;
+static int asuspec_minor = 0;
 
 static struct workqueue_struct *asuspec_wq;
-
-static const struct i2c_device_id asuspec_id[] = {
-	{"asuspec", 0},
-	{}
-};
-MODULE_DEVICE_TABLE(i2c, asuspec_id);
-
-static struct dev_pm_ops asuspec_dev_pm_ops ={
-	.suspend = asuspec_suspend,
-	.resume = asuspec_resume,
-};
-
-static struct i2c_driver asuspec_driver = {
-	.class	= I2C_CLASS_HWMON,
-	.probe	 = asuspec_probe,
-	.remove	 = __devexit_p(asuspec_remove),
-	.id_table = asuspec_id,
-	.driver	 = {
-		.name = "asuspec",
-		.owner = THIS_MODULE,
-		.pm = &asuspec_dev_pm_ops,
-	},
-};
 
 /*
  * functions definition
  */
-int asuspec_battery_monitor(char *cmd){
-	int ret_val = 0;
-
-	if (ec_chip->ec_in_s3){
-		asuspec_send_ec_req();
-		msleep(200);
-	}
-	ret_val = asuspec_dockram_read_battery(0x14);
-
-	if (ret_val == -1){
-		ASUSEC_ERR("Fail to access battery info.\n");
-		return -1;
-	} else {
-		if (!strcmp(cmd, "status"))
-			ret_val = (ec_chip->i2c_dm_battery[2] << 8 ) | ec_chip->i2c_dm_battery[1];
-		else if (!strcmp(cmd, "temperature"))
-			ret_val = (ec_chip->i2c_dm_battery[8] << 8 ) | ec_chip->i2c_dm_battery[7];
-		else if (!strcmp(cmd, "voltage"))
-			ret_val = (ec_chip->i2c_dm_battery[10] << 8 ) | ec_chip->i2c_dm_battery[9];
-		else if (!strcmp(cmd, "current"))
-			ret_val = (ec_chip->i2c_dm_battery[12] << 8 ) | ec_chip->i2c_dm_battery[11];
-		else if (!strcmp(cmd, "capacity"))
-			ret_val = (ec_chip->i2c_dm_battery[14] << 8 ) | ec_chip->i2c_dm_battery[13];
-		else if (!strcmp(cmd, "remaining_capacity"))
-			ret_val = (ec_chip->i2c_dm_battery[16] << 8 ) | ec_chip->i2c_dm_battery[15];
-		else if (!strcmp(cmd, "avg_time_to_empty"))
-			ret_val = (ec_chip->i2c_dm_battery[18] << 8 ) | ec_chip->i2c_dm_battery[17];
-		else if (!strcmp(cmd, "avg_time_to_full"))
-			ret_val = (ec_chip->i2c_dm_battery[20] << 8 ) | ec_chip->i2c_dm_battery[19];
-		else {
-			ASUSEC_ERR("Unknown command\n");
-			ret_val = -2;
-		}
-		ASUSEC_INFO("cmd %s, return %d\n", cmd, ret_val);
-		return ret_val;
-	}
-}
-EXPORT_SYMBOL(asuspec_battery_monitor);
-
-static void asuspec_dockram_init(struct i2c_client *client){
+static void asuspec_dockram_init(struct i2c_client *client)
+{
 	dockram_client.adapter = client->adapter;
 	dockram_client.addr = 0x17;
 	dockram_client.detected = client->detected;
@@ -216,6 +135,53 @@ static int asuspec_dockram_read_battery(int cmd)
 	return ret;
 }
 
+static void asuspec_send_ec_req(void)
+{
+	ASUSEC_NOTICE("send EC_Request\n");
+	gpio_set_value(asuspec_ecreq_gpio, 0);
+	msleep(DELAY_TIME_MS);
+	gpio_set_value(asuspec_ecreq_gpio, 1);
+}
+
+int asuspec_battery_monitor(char *cmd)
+{
+	int ret_val = 0;
+
+	if (ec_chip->ec_in_s3){
+		asuspec_send_ec_req();
+		msleep(200);
+	}
+	
+	ret_val = asuspec_dockram_read_battery(0x14);
+	if (ret_val == -1){
+		ASUSEC_ERR("Fail to access battery info.\n");
+		return -1;
+	} else {
+		if (!strcmp(cmd, "status"))
+			ret_val = (ec_chip->i2c_dm_battery[2] << 8 ) | ec_chip->i2c_dm_battery[1];
+		else if (!strcmp(cmd, "temperature"))
+			ret_val = (ec_chip->i2c_dm_battery[8] << 8 ) | ec_chip->i2c_dm_battery[7];
+		else if (!strcmp(cmd, "voltage"))
+			ret_val = (ec_chip->i2c_dm_battery[10] << 8 ) | ec_chip->i2c_dm_battery[9];
+		else if (!strcmp(cmd, "current"))
+			ret_val = (ec_chip->i2c_dm_battery[12] << 8 ) | ec_chip->i2c_dm_battery[11];
+		else if (!strcmp(cmd, "capacity"))
+			ret_val = (ec_chip->i2c_dm_battery[14] << 8 ) | ec_chip->i2c_dm_battery[13];
+		else if (!strcmp(cmd, "remaining_capacity"))
+			ret_val = (ec_chip->i2c_dm_battery[16] << 8 ) | ec_chip->i2c_dm_battery[15];
+		else if (!strcmp(cmd, "avg_time_to_empty"))
+			ret_val = (ec_chip->i2c_dm_battery[18] << 8 ) | ec_chip->i2c_dm_battery[17];
+		else if (!strcmp(cmd, "avg_time_to_full"))
+			ret_val = (ec_chip->i2c_dm_battery[20] << 8 ) | ec_chip->i2c_dm_battery[19];
+		else {
+			ASUSEC_ERR("Unknown command\n");
+			ret_val = -2;
+		}
+		return ret_val;
+	}
+}
+EXPORT_SYMBOL(asuspec_battery_monitor);
+
 static int asuspec_i2c_write_data(struct i2c_client *client, u16 data)
 {
 	int ret = 0;
@@ -262,6 +228,38 @@ static int asuspec_i2c_read_data(struct i2c_client *client)
 static int asuspec_i2c_test(struct i2c_client *client)
 {
 	return asuspec_i2c_write_data(client, 0x0000);
+}
+
+static void asuspec_enter_normal_mode(void)
+{
+
+	int ret_val = 0;
+	int i = 0;
+
+	for ( i = 0; i < 3; i++ ){
+		ret_val = asuspec_dockram_read_data(0x0A);
+		if (ret_val < 0){
+			ASUSEC_ERR("fail to get control flag\n");
+			msleep(100);
+		}
+		else
+			break;
+	}
+
+	ec_chip->i2c_dm_data[0] = 8;
+	ec_chip->i2c_dm_data[5] = ec_chip->i2c_dm_data[5] & 0xBF;
+
+	for ( i = 0; i < 3; i++ ){
+		ret_val = asuspec_dockram_write_data(0x0A,9);
+		if (ret_val < 0){
+			ASUSEC_ERR("Entering normal mode fail\n");
+			msleep(100);
+		}
+		else {
+			ASUSEC_NOTICE("Entering normal mode\n");
+			break;
+		}
+	}
 }
 
 static int asuspec_chip_init(struct i2c_client *client)
@@ -311,14 +309,16 @@ static int asuspec_chip_init(struct i2c_client *client)
 	asuspec_enter_normal_mode();
 
 	ec_chip->status = 1;
+
 fail_to_access_ec:
 	return 0;
 
 }
 
-static irqreturn_t asuspec_interrupt_handler(int irq, void *dev_id){
-
+static irqreturn_t asuspec_interrupt_handler(int irq, void *dev_id)
+{
 	ASUSEC_INFO("interrupt irq = %d\n", irq);
+
 	if (irq == gpio_to_irq(asuspec_apwake_gpio)){
 		disable_irq_nosync(irq);
 		queue_delayed_work(asuspec_wq, &ec_chip->asuspec_work, 0);
@@ -330,7 +330,7 @@ static int asuspec_irq_ec_request(struct i2c_client *client)
 {
 	int rc = 0 ;
 	unsigned gpio = asuspec_ecreq_gpio;
-	const char* label = "asuspec_request" ;
+	const char* label = "asuspec_request";
 
 	ASUSEC_INFO("GPIO = %d , state = %d\n", gpio, gpio_get_value(gpio));
 
@@ -340,7 +340,7 @@ static int asuspec_irq_ec_request(struct i2c_client *client)
 		goto err_exit;
 	}
 
-	rc = gpio_direction_output(gpio, 1) ;
+	rc = gpio_direction_output(gpio, 1);
 	if (rc) {
 		ASUSEC_ERR("gpio_direction_output failed for input %d\n", gpio);
 		goto err_exit;
@@ -355,10 +355,10 @@ err_exit:
 
 static int asuspec_irq_ec_apwake(struct i2c_client *client)
 {
-	int rc = 0 ;
+	int rc = 0;
 	unsigned gpio = asuspec_apwake_gpio;
 	int irq = gpio_to_irq(gpio);
-	const char* label = "asuspec_apwake" ;
+	const char* label = "asuspec_apwake";
 
 	ASUSEC_INFO("GPIO = %d, irq = %d\n", gpio, irq);
 	ASUSEC_INFO("GPIO = %d , state = %d\n", gpio, gpio_get_value(gpio));
@@ -369,7 +369,7 @@ static int asuspec_irq_ec_apwake(struct i2c_client *client)
 		goto err_request_input_gpio_failed;
 	}
 
-	rc = gpio_direction_input(gpio) ;
+	rc = gpio_direction_input(gpio);
 	if (rc) {
 		ASUSEC_ERR("gpio_direction_input failed for input %d\n", gpio);
 		goto err_gpio_direction_input_failed;
@@ -380,7 +380,7 @@ static int asuspec_irq_ec_apwake(struct i2c_client *client)
 	if (rc < 0) {
 		ASUSEC_ERR("Could not register for %s interrupt, irq = %d, rc = %d\n", label, irq, rc);
 		rc = -EIO;
-		goto err_gpio_request_irq_fail ;
+		goto err_gpio_request_irq_fail;
 	}
 
 	enable_irq_wake(gpio_to_irq(asuspec_apwake_gpio));
@@ -394,26 +394,20 @@ err_gpio_direction_input_failed:
 err_request_input_gpio_failed :
 	return rc;
 
-	return 0 ;
+	return 0;
 }
 
-static void asuspec_enter_s3_timer(unsigned long data){
+static void asuspec_enter_s3_timer(unsigned long data)
+{
 	queue_delayed_work(asuspec_wq, &ec_chip->asuspec_enter_s3_work, 0);
 }
 
-static void asuspec_send_ec_req(void){
-	ASUSEC_NOTICE("send EC_Request\n");
-	gpio_set_value(asuspec_ecreq_gpio, 0);
-	msleep(DELAY_TIME_MS);
-	gpio_set_value(asuspec_ecreq_gpio, 1);
-}
-
-static void asuspec_smi(void){
+static void asuspec_smi(void)
+{
 	if (ec_chip->i2c_data[2] == ASUSEC_SMI_HANDSHAKING){
 		ASUSEC_NOTICE("ASUSPEC_SMI_HANDSHAKING\n");
-		if(ec_chip->status == 0){
+		if(ec_chip->status == 0)
 			asuspec_chip_init(ec_chip->client);
-		}
 		ec_chip->ec_in_s3 = 0;
 	} else if (ec_chip->i2c_data[2] == ASUSEC_SMI_RESET){
 		ASUSEC_NOTICE("ASUSPEC_SMI_RESET\n");
@@ -478,13 +472,13 @@ static void asuspec_work_function(struct work_struct *dat)
 		ec_chip->i2c_data[1], ec_chip->i2c_data[2], ec_chip->i2c_data[3]);
 
 	if (ret_val < 0){
-		return ;
+		return;
 	}
 
 	if (ec_chip->i2c_data[1] & ASUSEC_OBF_MASK){
 		if (ec_chip->i2c_data[1] & ASUSEC_SMI_MASK){
 			asuspec_smi();
-			return ;
+			return;
 		}
 	}
 }
@@ -494,8 +488,6 @@ static int __devinit asuspec_probe(struct i2c_client *client,
 {
 	int err = 0;
 
-	ASUSEC_INFO("asuspec probe\n");
-
 	ec_chip = kzalloc(sizeof (struct asuspec_chip), GFP_KERNEL);
 	if (!ec_chip) {
 		ASUSEC_ERR("Memory allocation fails\n");
@@ -503,16 +495,14 @@ static int __devinit asuspec_probe(struct i2c_client *client,
 		goto exit;
 	}
 
-	i2c_set_clientdata(client, ec_chip);
 	ec_chip->client = client;
-	ec_chip->client->driver = &asuspec_driver;
-	ec_chip->client->flags = 1;
+	i2c_set_clientdata(client, ec_chip);
 
 	init_timer(&ec_chip->asuspec_timer);
 	ec_chip->asuspec_timer.function = asuspec_enter_s3_timer;
 
 	wake_lock_init(&ec_chip->wake_lock, WAKE_LOCK_SUSPEND, "asuspec_wake");
-	mutex_init(&ec_chip->lock);
+
 	mutex_init(&ec_chip->irq_lock);
 	mutex_init(&ec_chip->state_change_lock);
 
@@ -520,6 +510,7 @@ static int __devinit asuspec_probe(struct i2c_client *client,
 	ec_chip->status = 0;
 	ec_chip->ec_in_s3 = 0;
 	ec_chip->apwake_disabled = 0;
+
 	asuspec_dockram_init(client);
 
 	asuspec_wq = create_singlethread_workqueue("asuspec_wq");
@@ -531,6 +522,8 @@ static int __devinit asuspec_probe(struct i2c_client *client,
 	asuspec_irq_ec_apwake(client);
 
 	queue_delayed_work(asuspec_wq, &ec_chip->asuspec_init_work, 0);
+
+	ASUSEC_INFO("asuspec probed\n");
 
 	return 0;
 
@@ -550,57 +543,46 @@ static int __devexit asuspec_remove(struct i2c_client *client)
 
 static int asuspec_suspend(struct device *dev)
 {
-	printk("asuspec_suspend+\n");
+	pr_info("asuspec_suspend+\n");
 	del_timer_sync(&ec_chip->asuspec_timer);
 	ec_chip->ec_in_s3 = 1;
-	printk("asuspec_suspend-\n");
+	pr_info("asuspec_suspend-\n");
 	return 0;
 }
 
 static int asuspec_resume(struct device *dev)
 {
-	printk("asuspec_resume+\n");
+	pr_info("asuspec_resume+\n");
 	ec_chip->i2c_err_count = 0;
-	printk("asuspec_resume-\n");
+	pr_info("asuspec_resume-\n");
 	return 0;
 }
 
-static void asuspec_enter_normal_mode(void){
+static SIMPLE_DEV_PM_OPS(asuspec_dev_pm_ops, asuspec_suspend, asuspec_resume);
 
-	int ret_val = 0;
-	int i = 0;
+static const struct i2c_device_id asuspec_id[] = {
+	{"asuspec", 0},
+	{}
+};
+MODULE_DEVICE_TABLE(i2c, asuspec_id);
 
-	for ( i = 0; i < 3; i++ ){
-		ret_val = asuspec_dockram_read_data(0x0A);
-		if (ret_val < 0){
-			ASUSEC_ERR("fail to get control flag\n");
-			msleep(100);
-		}
-		else
-			break;
-	}
-
-	ec_chip->i2c_dm_data[0] = 8;
-	ec_chip->i2c_dm_data[5] = ec_chip->i2c_dm_data[5] & 0xBF;
-
-	for ( i = 0; i < 3; i++ ){
-		ret_val = asuspec_dockram_write_data(0x0A,9);
-		if (ret_val < 0){
-			ASUSEC_ERR("Entering normal mode fail\n");
-			msleep(100);
-		}
-		else {
-			ASUSEC_NOTICE("Entering normal mode\n");
-			break;
-		}
-	}
-}
+static struct i2c_driver asuspec_driver = {
+	.class	= I2C_CLASS_HWMON,
+	.probe	 = asuspec_probe,
+	.remove	 = __devexit_p(asuspec_remove),
+	.id_table = asuspec_id,
+	.driver	 = {
+		.name = "asuspec",
+		.owner = THIS_MODULE,
+		.pm = &asuspec_dev_pm_ops,
+	},
+};
 
 static int __init asuspec_init(void)
 {
 	int err_code = 0;
 
-	printk(KERN_INFO "%s+ #####\n", __func__);
+	pr_info("%s+ #####\n", __func__);
 
 	if (asuspec_major) {
 		asuspec_dev = MKDEV(asuspec_major, asuspec_minor);
@@ -630,8 +612,7 @@ static int __init asuspec_init(void)
 		goto device_create_fail ;
 	}
 
-	ASUSEC_INFO("return value %d\n", err_code) ;
-	printk(KERN_INFO "%s- #####\n", __func__);
+	pr_info("%s- #####\n", __func__);
 
 	return 0;
 
@@ -640,11 +621,10 @@ device_create_fail :
 class_create_fail :
 	i2c_del_driver(&asuspec_driver);
 i2c_add_driver_fail :
-	printk(KERN_INFO "%s- #####\n", __func__);
+	pr_info("%s- #####\n", __func__);
 	return err_code;
 
 }
-
 module_init(asuspec_init);
 
 static void __exit asuspec_exit(void)
@@ -656,5 +636,5 @@ static void __exit asuspec_exit(void)
 }
 module_exit(asuspec_exit);
 
-MODULE_DESCRIPTION(ASUSPEC_DRIVER_DESC);
+MODULE_DESCRIPTION("ASUS PAD EC Driver");
 MODULE_LICENSE("GPL");
