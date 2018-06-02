@@ -24,6 +24,15 @@
 #include <../tegra_usb_phy.h>
 #include <mach/board-transformer-misc.h>
 
+/* Enable or disable the callback for the other driver. */
+#define BATTERY_CALLBACK_ENABLED 1
+#define DOCK_EC_ENABLED 1
+#define GET_USB_CABLE_STATUS_ENABLED 1
+
+extern unsigned int previous_cable_status; /* defined in tegra_udc */
+
+void fsl_dock_ec_callback(void); /* Tegra UDC charger export */
+
 /* Battery export */
 void battery_callback(unsigned usb_cable_state);
 int docking_callback(int docking_in);
