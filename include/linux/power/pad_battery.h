@@ -1,0 +1,32 @@
+/*
+ * Asus charger hacks for Transformers
+ *
+ * Copyright (c) 2012, ASUSTek Corporation.
+ * Copyright (c) 2018, Svyatoslav Ryhel
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ */
+
+#ifndef __PAD_BATTERY_H
+#define __PAD_BATTERY_H
+
+#include <linux/gpio.h>
+#include <../gpio-names.h>
+#include <../wakeups-t3.h>
+#include <../tegra_usb_phy.h>
+#include <mach/board-transformer-misc.h>
+
+/* Battery export */
+void battery_callback(unsigned usb_cable_state);
+int docking_callback(int docking_in);
+void register_usb_cable_status_cb(unsigned (*fn) (void));
+
+#endif
