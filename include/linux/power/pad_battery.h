@@ -29,6 +29,7 @@
 #define DOCK_EC_ENABLED 1
 #define GET_USB_CABLE_STATUS_ENABLED 1
 
+extern int usb_suspend_tag; /* defined in tegra-otg */
 extern unsigned int previous_cable_status; /* defined in tegra_udc */
 
 void fsl_dock_ec_callback(void); /* Tegra UDC charger export */

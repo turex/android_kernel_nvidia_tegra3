@@ -220,6 +220,10 @@ void asus_cable_detection_work(void)
 					s_cable_info.cable_status = 0x1; //0001
 				}
 			} else if (dock_in == 1) {// dock in
+				if(usb_suspend_tag == 1) {
+					mutex_unlock(&s_cable_info.cable_info_mutex);
+					return;
+				}
 				while (ask_ec_num < 3) {
 					ask_ec_num ++;
 #if DOCK_EC_ENABLED
@@ -1741,6 +1745,9 @@ static int tegra_vbus_session(struct usb_gadget *gadget, int is_active)
 		dr_controller_reset(udc);
 		udc->vbus_active = 0;
 		udc->usb_state = USB_STATE_DEFAULT;
+#ifdef CONFIG_MACH_TRANSFORMER
+		if(usb_suspend_tag != 1)
+#endif
 		tegra_udc_set_charger_type(udc, CONNECT_TYPE_NONE);
 		spin_unlock_irqrestore(&udc->lock, flags);
 		tegra_usb_phy_power_off(udc->phy);
