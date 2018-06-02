@@ -16,6 +16,7 @@
 #include <linux/slab.h>
 #include <linux/switch.h>
 #include <linux/power_supply.h>
+#include <linux/power/pad_battery.h>
 
 #include <asm/gpio.h>
 #include <asm/ioctl.h>

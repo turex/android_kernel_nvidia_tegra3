@@ -28,18 +28,11 @@
 #include <linux/power_supply.h>
 #include <linux/i2c.h>
 #include <linux/slab.h>
-#include <linux/gpio.h>
 #include <linux/delay.h>
 #include <linux/timer.h>
 #include <linux/interrupt.h>
 #include <linux/wakelock.h>
-
-#include <mach/gpio.h>
-
-#include "../../arch/arm/mach-tegra/gpio-names.h"
-#include "../../arch/arm/mach-tegra/wakeups-t3.h"
-#include <mach/board-transformer-misc.h>
-
+#include <linux/power/pad_battery.h>
 
 #define SMBUS_RETRY                         (3)
 #define GPIOPIN_BATTERY_DETECT              TEGRA_GPIO_PN4
@@ -436,10 +429,10 @@ static irqreturn_t charger_pad_dock_interrupt(int irq, void *dev_id)
 
 static void charger_pad_dock_detection(unsigned long unused)
 {
-//	dock_in_value = gpio_get_value(TEGRA_GPIO_PU4);
-//	charger_pad_dock_value = gpio_get_value(TEGRA_GPIO_PS5);
+	int dock_in = !gpio_get_value(TEGRA_GPIO_PU4);
+	int charger_pad_dock = !gpio_get_value(TEGRA_GPIO_PS5);
 
-	if(docking_status && gpio_get_value(TEGRA_GPIO_PU4) == 0 && gpio_get_value(TEGRA_GPIO_PS5) == 0){
+	if(docking_status && dock_in && charger_pad_dock){
 		battery_docking_status = true;
 	} else {
 		battery_docking_status = false;
@@ -481,7 +474,6 @@ int docking_callback(int docking_in)
 	}
 	return 0;
 }
-EXPORT_SYMBOL(docking_callback);
 
 void init_docking_charging_irq(void)
 {
