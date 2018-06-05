@@ -72,10 +72,11 @@ unsigned battery_driver_ready = 0;
 static int ac_on;
 static int usb_on;
 static int docking_status = 0;
-extern int asuspec_battery_monitor(char *cmd);
+//extern int asuspec_battery_monitor(char *cmd);
 static unsigned int battery_current;
 static unsigned int battery_remaining_capacity;
 struct workqueue_struct *battery_work_queue = NULL;
+struct i2c_client battery_client;
 
 unsigned (*get_usb_cable_status_cb) (void);
 
@@ -229,6 +230,7 @@ static struct power_supply pad_supply[] = {
 
 static struct pad_device_info {
 	struct i2c_client	*client;
+	struct i2c_client	*pad_client;
 	struct delayed_work status_poll_work;
 	struct delayed_work low_low_bat_work;
 	struct wake_lock low_battery_wake_lock;
@@ -252,6 +254,7 @@ static struct pad_device_info {
 	unsigned int temp_err;
 	unsigned int prj_id;
 	bool dock_charger_pad_interrupt_enabled;
+	u8 i2c_dm_battery[32];
 	spinlock_t lock;
 } *pad_device;
 	
@@ -270,7 +273,59 @@ unsigned get_usb_cable_status(void)
 	return get_usb_cable_status_cb();
 }
 
-int pad_smbus_read_data(int reg_offset,int byte)
+static void asuspec_dockram_init(struct i2c_client *client){
+	battery_client.adapter = client->adapter;
+	battery_client.addr = 0x17;
+	battery_client.detected = client->detected;
+	battery_client.dev = client->dev;
+	battery_client.driver = client->driver;
+	battery_client.flags = client->flags;
+	strcpy(battery_client.name, client->name);
+
+	pr_info("%s: battery_client.adapter=%s, battery_client.addr=%d, battery_client.detected=%s, battery_client.dev=%s\n", __func__, battery_client.adapter, battery_client.addr, battery_client.detected, battery_client.dev);
+	pr_info("%s: battery_client.driver=%s, battery_client.flags=%d, battery_client.name=%s\n", __func__, battery_client.driver, battery_client.flags, battery_client.name);
+}
+
+static int asuspec_battery_monitor(char *cmd)
+{
+	int ret_val = 0;
+
+	if(!battery_driver_ready)
+	    pr_warning("pad_battery: %s: driver not ready\n", __func__);
+
+	asuspec_dockram_init(pad_device->pad_client);
+
+	ret_val = i2c_smbus_read_i2c_block_data(&battery_client, 0x14, 32, pad_device->i2c_dm_battery);
+	if (ret_val < 0){
+		pr_err("Fail to access battery info, status %d\n", ret_val);
+		return -1;
+	}
+
+	if (!strcmp(cmd, "status"))
+		ret_val = (pad_device->i2c_dm_battery[2] << 8 ) | pad_device->i2c_dm_battery[1];
+	else if (!strcmp(cmd, "temperature"))
+		ret_val = (pad_device->i2c_dm_battery[8] << 8 ) | pad_device->i2c_dm_battery[7];
+	else if (!strcmp(cmd, "voltage"))
+		ret_val = (pad_device->i2c_dm_battery[10] << 8 ) | pad_device->i2c_dm_battery[9];
+	else if (!strcmp(cmd, "current"))
+		ret_val = (pad_device->i2c_dm_battery[12] << 8 ) | pad_device->i2c_dm_battery[11];
+	else if (!strcmp(cmd, "capacity"))
+		ret_val = (pad_device->i2c_dm_battery[14] << 8 ) | pad_device->i2c_dm_battery[13];
+	else if (!strcmp(cmd, "remaining_capacity"))
+		ret_val = (pad_device->i2c_dm_battery[16] << 8 ) | pad_device->i2c_dm_battery[15];
+	else if (!strcmp(cmd, "avg_time_to_empty"))
+		ret_val = (pad_device->i2c_dm_battery[18] << 8 ) | pad_device->i2c_dm_battery[17];
+	else if (!strcmp(cmd, "avg_time_to_full"))
+		ret_val = (pad_device->i2c_dm_battery[20] << 8 ) | pad_device->i2c_dm_battery[19];
+	else {
+		pr_err("Unknown command\n");
+		ret_val = -2;
+	}
+	pr_info("cmd %s, return %d\n", cmd, ret_val);
+	return ret_val;
+}
+
+/*int pad_smbus_read_data(int reg_offset,int byte)
 {
     s32 ret = -EINVAL;
     int count = 0; 
@@ -282,7 +337,7 @@ int pad_smbus_read_data(int reg_offset,int byte)
 
     }while((ret < 0)&& (++count <= SMBUS_RETRY));
     return ret;
-}
+}*/
 
 static ssize_t show_battery_smbus_status(struct device *dev, struct device_attribute *devattr, char *buf)
 {

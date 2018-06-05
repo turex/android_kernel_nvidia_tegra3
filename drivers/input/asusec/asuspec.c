@@ -55,8 +55,8 @@ static ssize_t asuspec_info_show(struct device *class,
 		struct device_attribute *attr,char *buf);
 static ssize_t asuspec_version_show(struct device *class,
 		struct device_attribute *attr,char *buf);
-static ssize_t asuspec_battery_show(struct device *class,
-		struct device_attribute *attr,char *buf);
+//static ssize_t asuspec_battery_show(struct device *class,
+//		struct device_attribute *attr,char *buf);
 static ssize_t asuspec_control_flag_show(struct device *class,
 		struct device_attribute *attr,char *buf);
 static ssize_t asuspec_send_ec_req_show(struct device *class,
@@ -161,7 +161,7 @@ static struct i2c_driver asuspec_driver = {
 static DEVICE_ATTR(ec_status, S_IWUSR | S_IRUGO, asuspec_status_show,NULL);
 static DEVICE_ATTR(ec_info, S_IWUSR | S_IRUGO, asuspec_info_show,NULL);
 static DEVICE_ATTR(ec_version, S_IWUSR | S_IRUGO, asuspec_version_show,NULL);
-static DEVICE_ATTR(ec_battery, S_IWUSR | S_IRUGO, asuspec_battery_show,NULL);
+//static DEVICE_ATTR(ec_battery, S_IWUSR | S_IRUGO, asuspec_battery_show,NULL);
 static DEVICE_ATTR(ec_control_flag, S_IWUSR | S_IRUGO, asuspec_control_flag_show,NULL);
 static DEVICE_ATTR(ec_request, S_IWUSR | S_IRUGO, asuspec_send_ec_req_show,NULL);
 static DEVICE_ATTR(ec_led, S_IWUSR | S_IRUGO, asuspec_led_show,NULL);
@@ -174,7 +174,7 @@ static struct attribute *asuspec_smbus_attributes[] = {
 	&dev_attr_ec_status.attr,
 	&dev_attr_ec_info.attr,
 	&dev_attr_ec_version.attr,
-	&dev_attr_ec_battery.attr,
+//	&dev_attr_ec_battery.attr,
 	&dev_attr_ec_control_flag.attr,
 	&dev_attr_ec_request.attr,
 	&dev_attr_ec_led.attr,
@@ -229,7 +229,7 @@ int asuspec_is_usb_charger(int charger_enable){
 }
 EXPORT_SYMBOL(asuspec_is_usb_charger);
 
-int asuspec_battery_monitor(char *cmd){
+/*int asuspec_battery_monitor(char *cmd){
 	int ret_val = 0;
 
 	if (ec_chip->ec_in_s3){
@@ -270,7 +270,7 @@ int asuspec_battery_monitor(char *cmd){
 		return ret_val;
 	}
 }
-EXPORT_SYMBOL(asuspec_battery_monitor);
+EXPORT_SYMBOL(asuspec_battery_monitor);*/
 
 static void asuspec_dockram_init(struct i2c_client *client){
 	dockram_client.adapter = client->adapter;
@@ -855,7 +855,7 @@ static ssize_t asuspec_version_show(struct device *class,struct device_attribute
 	return sprintf(buf, "%s\n", ec_chip->ec_version);
 }
 
-static ssize_t asuspec_battery_show(struct device *class,struct device_attribute *attr,char *buf)
+/*static ssize_t asuspec_battery_show(struct device *class,struct device_attribute *attr,char *buf)
 {
 	int bat_status, bat_temp, bat_vol, bat_current, bat_capacity, remaining_cap;
 	int ret_val = 0;
@@ -886,7 +886,7 @@ static ssize_t asuspec_battery_show(struct device *class,struct device_attribute
 
 		return strlen(buf);
 	}
-}
+}*/
 
 static ssize_t asuspec_control_flag_show(struct device *class,struct device_attribute *attr,char *buf)
 {
