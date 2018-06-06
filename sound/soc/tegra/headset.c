@@ -142,19 +142,6 @@ static unsigned int revision;
 static int gpio_dock_in = 0;
 #endif
 
-#ifdef CONFIG_AUDIO_DOCK
-extern int audio_stand_route(bool);
-
-void set_lineout_state(bool status)
-{
-	if(status)
-		switch_set_state(&hs_data->ldev, LINEOUT_IN);
-	else
-		switch_set_state(&hs_data->ldev, NO_DEVICE);
-}
-EXPORT_SYMBOL(set_lineout_state);
-#endif
-
 #ifdef CONFIG_MACH_TRANSFORMER
 static ssize_t lineout_name_show(struct switch_dev *ldev, char *buf)
 {
@@ -425,17 +412,9 @@ static void lineout_work_queue(struct work_struct *work)
 	if (gpio_get_value(lineout_gpio) == 0){
 		printk("HEADSET: LINEOUT: LineOut inserted\n");
 		lineout_alive = true;
-#ifdef CONFIG_AUDIO_DOCK
-		audio_stand_route(true);
-		switch_set_state(&hs_data->ldev, LINEOUT_IN);
-#endif
 	}else if(gpio_get_value(lineout_gpio)){
 		printk("HEADSET: LINEOUT: LineOut removed\n");
 		lineout_alive = false;
-#ifdef CONFIG_AUDIO_DOCK
-		audio_stand_route(false);
-		switch_set_state(&hs_data->ldev, NO_DEVICE);
-#endif
 	}
 
 }
@@ -492,16 +471,8 @@ static int lineout_config_gpio(u32 project_info)
 #endif
 	if (gpio_get_value(lineout_gpio) == 0){
 		lineout_alive = true;
-#ifdef CONFIG_AUDIO_DOCK
-		audio_stand_route(true);
-		switch_set_state(&hs_data->ldev, LINEOUT_IN);
-#endif
 	}else{
 		lineout_alive = false;
-#ifdef CONFIG_AUDIO_DOCK
-		audio_stand_route(false);
-		switch_set_state(&hs_data->ldev, NO_DEVICE);
-#endif
 	}
 	return 0;
 }
