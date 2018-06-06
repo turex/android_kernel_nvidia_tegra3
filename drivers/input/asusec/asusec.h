@@ -20,10 +20,10 @@
 	pr_info("asusec: [%s] " format , __FUNCTION__ , ## arg)
 
 #define ASUSEC_NOTICE(format, arg...)	\
-	pr_notice("asusdec: [%s] " format , __FUNCTION__ , ## arg)
+	pr_notice("asusec: [%s] " format , __FUNCTION__ , ## arg)
 
 #define ASUSEC_ERR(format, arg...)	\
-	pr_err("asusdec: [%s] " format , __FUNCTION__ , ## arg)
+	pr_err("asusec: [%s] " format , __FUNCTION__ , ## arg)
 
 //-----------------------------------------
 
@@ -290,7 +290,6 @@ struct asusdec_touchpad_absolute{
 
 struct asusdec_chip {
 	struct input_dev	*indev;
-	struct input_dev	*lid_indev;
 	struct switch_dev 	dock_sdev;
 	struct i2c_client	*client;
 	struct mutex		lock;
@@ -304,7 +303,6 @@ struct asusdec_chip {
 	struct delayed_work asusdec_fw_update_work;
 	struct delayed_work asusdec_led_on_work;
 	struct delayed_work asusdec_led_off_work;
-	struct delayed_work asusdec_hall_sensor_work;
 	struct delayed_work asusdec_audio_work;
 	struct delayed_work audio_in_out_work;
 	struct delayed_work asusdec_pad_battery_report_work;

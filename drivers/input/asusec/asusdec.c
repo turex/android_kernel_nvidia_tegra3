@@ -41,7 +41,6 @@ static void asusdec_reset_dock(void);
 static int asusdec_is_init_running(void);
 static int asusdec_chip_init(struct i2c_client *client);
 static void asusdec_dock_status_report(void);
-static void asusdec_lid_report_function(struct work_struct *dat);
 static void asusdec_work_function(struct work_struct *dat);
 static void asusdec_dock_init_work_function(struct work_struct *dat);
 static void asusdec_fw_update_work_function(struct work_struct *dat);
@@ -77,8 +76,6 @@ static ssize_t asusdec_show_dock_battery_all(struct device *class,
 		struct device_attribute *attr,char *buf);
 static ssize_t asusdec_show_dock_control_flag(struct device *class,
 		struct device_attribute *attr,char *buf);
-static ssize_t asusdec_show_lid_status(struct device *class,
-		struct device_attribute *attr,char *buf);
 static int asusdec_keypad_get_response(struct i2c_client *client, int res);
 static int asusdec_keypad_enable(struct i2c_client *client);
 static int asusdec_touchpad_get_response(struct i2c_client *client, int res);
@@ -93,7 +90,6 @@ static ssize_t ec_write(struct file *file, const char __user *buf, size_t count,
 static ssize_t ec_read(struct file *file, char __user *buf, size_t count, loff_t *ppos);
 static void BuffPush(char data);
 static int asusdec_input_device_create(struct i2c_client *client);
-static int asusdec_lid_input_device_create(struct i2c_client *client);
 static ssize_t asusdec_switch_name(struct switch_dev *sdev, char *buf);
 static ssize_t asusdec_switch_state(struct switch_dev *sdev, char *buf);
 static int asusdec_event(struct input_dev *dev, unsigned int type, unsigned int code, int value);
@@ -201,7 +197,6 @@ static DEVICE_ATTR(ec_dock_battery, S_IWUSR | S_IRUGO, asusdec_show_dock_battery
 static DEVICE_ATTR(ec_dock_battery_status, S_IWUSR | S_IRUGO, asusdec_show_dock_battery_status,NULL);
 static DEVICE_ATTR(ec_dock_battery_all, S_IWUSR | S_IRUGO, asusdec_show_dock_battery_all,NULL);
 static DEVICE_ATTR(ec_dock_control_flag, S_IWUSR | S_IRUGO, asusdec_show_dock_control_flag,NULL);
-static DEVICE_ATTR(ec_lid, S_IWUSR | S_IRUGO, asusdec_show_lid_status,NULL);
 
 static struct attribute *asusdec_smbus_attributes[] = {
 	&dev_attr_ec_status.attr,
@@ -216,7 +211,6 @@ static struct attribute *asusdec_smbus_attributes[] = {
 	&dev_attr_ec_dock_battery_status.attr,
 	&dev_attr_ec_dock_battery_all.attr,
 	&dev_attr_ec_dock_control_flag.attr,
-	&dev_attr_ec_lid.attr,
 NULL
 };
 
@@ -757,64 +751,9 @@ static irqreturn_t asusdec_interrupt_handler(int irq, void *dev_id){
 		ec_chip->dock_in = 0;
 		ec_chip->dock_det++;
 		queue_delayed_work(asusdec_wq, &ec_chip->asusdec_dock_init_work, 0);
-	} else if (irq == gpio_to_irq(asusdec_hall_sensor_gpio)){
-		queue_delayed_work(asusdec_wq, &ec_chip->asusdec_hall_sensor_work, 0);
 	}
 	return IRQ_HANDLED;
 }
-
-static int asusdec_irq_hall_sensor(struct i2c_client *client)
-{
-	int rc = 0 ;
-	unsigned gpio = asusdec_hall_sensor_gpio;
-	unsigned irq = gpio_to_irq(asusdec_hall_sensor_gpio);
-	const char* label = "asusdec_hall_sensor" ;
-	unsigned int pad_pid = tegra3_get_project_id();
-
-	ASUSEC_INFO("gpio = %d, irq = %d\n", gpio, irq);
-	ASUSEC_INFO("GPIO = %d , state = %d\n", gpio, gpio_get_value(gpio));
-
-	rc = gpio_request(gpio, label);
-	if (rc) {
-		ASUSEC_ERR("gpio_request failed for input %d\n", gpio);
-	}
-
-	rc = gpio_direction_input(gpio) ;
-	if (rc) {
-		ASUSEC_ERR("gpio_direction_input failed for input %d\n", gpio);
-		goto err_gpio_direction_input_failed;
-	}
-	ASUSEC_INFO("GPIO = %d , state = %d\n", gpio, gpio_get_value(gpio));
-
-	rc = request_irq(irq, asusdec_interrupt_handler, IRQF_SHARED|IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING, label, client);
-	if (rc < 0) {
-		ASUSEC_ERR("Could not register for %s interrupt, irq = %d, rc = %d\n", label, irq, rc);
-		rc = -EIO;
-		goto err_gpio_request_irq_fail ;
-	}
-
-	if ((pad_pid == TEGRA3_PROJECT_TF300T) || (pad_pid == TEGRA3_PROJECT_TF300TG)){
-		ASUSEC_NOTICE("Disable hall sensor wakeup function due to pid = %u\n", pad_pid);
-	} else {
-		enable_irq_wake(irq);
-	}
-
-	ASUSEC_INFO("LID irq = %d, rc = %d\n", irq, rc);
-
-	if (gpio_get_value(gpio)){
-		ASUSEC_NOTICE("LID open\n");
-	} else{
-		ASUSEC_NOTICE("LID close\n");
-	}
-
-	return 0 ;
-
-err_gpio_request_irq_fail :
-	gpio_free(gpio);
-err_gpio_direction_input_failed:
-	return rc;
-}
-
 
 static int asusdec_irq_dock_in(struct i2c_client *client)
 {
@@ -1466,21 +1405,6 @@ static void asusdec_pad_battery_report_function(struct work_struct *dat)
 }
 #endif
 
-static void asusdec_lid_report_function(struct work_struct *dat)
-{
-	int value = 0;
-
-	if (ec_chip->lid_indev == NULL){
-		ASUSEC_ERR("LID input device doesn't exist\n");
-		return;
-	}
-	msleep(DELAY_TIME_MS);
-	value = gpio_get_value(asusdec_hall_sensor_gpio);
-	input_report_switch(ec_chip->lid_indev, SW_LID, !value);
-	input_sync(ec_chip->lid_indev);
-	ASUSEC_NOTICE("SW_LID report value = %d\n", !value);
-}
-
 static void asusdec_dock_init_work_function(struct work_struct *dat)
 {
 	int gpio = asusdec_dock_in_gpio;
@@ -1625,12 +1549,6 @@ static void asusdec_keypad_set_input_params(struct input_dev *dev)
 	input_set_capability(dev, EV_LED, LED_CAPSL);
 }
 
-static void asusdec_lid_set_input_params(struct input_dev *dev)
-{
-	set_bit(EV_SW, dev->evbit);
-	set_bit(SW_LID, dev->swbit);
-}
-
 static int asusdec_input_device_create(struct i2c_client *client){
 	int err = 0;
 
@@ -1660,36 +1578,6 @@ static int asusdec_input_device_create(struct i2c_client *client){
 exit_input_free:
 	input_free_device(ec_chip->indev);
 	ec_chip->indev = NULL;
-exit:
-	return err;
-
-}
-
-static int asusdec_lid_input_device_create(struct i2c_client *client){
-	int err = 0;
-
-	ec_chip->lid_indev = input_allocate_device();
-	if (!ec_chip->lid_indev) {
-		ASUSEC_ERR("lid_indev allocation fails\n");
-		err = -ENOMEM;
-		goto exit;
-	}
-
-	ec_chip->lid_indev->name = "lid_input";
-	ec_chip->lid_indev->phys = "/dev/input/lid_indev";
-	ec_chip->lid_indev->dev.parent = &client->dev;
-
-	asusdec_lid_set_input_params(ec_chip->lid_indev);
-	err = input_register_device(ec_chip->lid_indev);
-	if (err) {
-		ASUSEC_ERR("lid_indev registration fails\n");
-		goto exit_input_free;
-	}
-	return 0;
-
-exit_input_free:
-	input_free_device(ec_chip->lid_indev);
-	ec_chip->lid_indev = NULL;
 exit:
 	return err;
 
@@ -1753,7 +1641,6 @@ static int __devinit asusdec_probe(struct i2c_client *client,
 	ec_chip->susb_on = 1;
 	ec_chip->dock_type = DOCK_UNKNOWN;
 	ec_chip->indev = NULL;
-	ec_chip->lid_indev = NULL;
 	ec_chip->private->abs_dev = NULL;
 	asusdec_dockram_init(client);
 
@@ -1774,9 +1661,7 @@ static int __devinit asusdec_probe(struct i2c_client *client,
 		goto exit;
 	}
 
-	asusdec_lid_input_device_create(ec_chip->client);
 	asusdec_wq = create_singlethread_workqueue("asusdec_wq");
-	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_hall_sensor_work, asusdec_lid_report_function);
 #if BATTERY_DRIVER
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_pad_battery_report_work, asusdec_pad_battery_report_function);
 #endif
@@ -1787,11 +1672,9 @@ static int __devinit asusdec_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_led_off_work, asusdec_keypad_led_off);
 	asusdec_irq_dock_in(client);
 	asusdec_irq_ec_request(client);
-	asusdec_irq_hall_sensor(client);
 	asusdec_irq(client);
 
 	queue_delayed_work(asusdec_wq, &ec_chip->asusdec_dock_init_work, 0);
-	queue_delayed_work(asusdec_wq, &ec_chip->asusdec_hall_sensor_work, 0);
 
 	return 0;
 
@@ -2034,11 +1917,6 @@ static ssize_t asusdec_show_dock_control_flag(struct device *class,struct device
 	return sprintf(buf, "fail to get control-flag info\n");
 }
 
-static ssize_t asusdec_show_lid_status(struct device *class,struct device_attribute *attr,char *buf)
-{
-	return sprintf(buf, "%d\n", gpio_get_value(asusdec_hall_sensor_gpio));
-}
-
 static int asusdec_suspend(struct device *dev)
 {
 	int ret_val;
@@ -2087,7 +1965,6 @@ static int asusdec_resume(struct device *dev)
 
 	ec_chip->suspend_state = 0;
 	//queue_delayed_work(asusdec_wq, &ec_chip->asusdec_hall_sensor_work, 0);
-	asusdec_lid_report_function(NULL);
 	wake_lock(&ec_chip->wake_lock_init);
 	ec_chip->init_success = 0;
 	queue_delayed_work(asusdec_wq, &ec_chip->asusdec_dock_init_work, 0);
