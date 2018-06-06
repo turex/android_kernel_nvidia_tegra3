@@ -11,10 +11,9 @@
 #define FACTORY_MODE                    0
 #define TOUCHPAD_MODE			1	// 0: relative mode, 1: absolute mode
 #define TOUCHPAD_ELAN			1	// 0: not elan, 1:elantech
-#define DOCK_SPEAKER			0	// 0: not ready, 1: ready
 #define DOCK_USB				1	// 0: not ready, 1: ready
 #define BATTERY_DRIVER			1	// 0: not ready, 1: ready
-#define AUDIO_DOCK_STAND		1	// 0: not ready, 1: ready
+
 /*
  * Debug Utility
  */
@@ -53,7 +52,6 @@
 #define ASUSDEC_AUX_MASK		0x20
 #define ASUSDEC_SCI_MASK		0x40
 #define ASUSDEC_SMI_MASK		0x80
-
 
 #define ASUSDEC_RELATIVE_MODE		0
 #define ASUSDEC_ABSOLUTE_MODE		1
@@ -211,8 +209,8 @@
 /************* Dock Defifition ***********/
 #define DOCK_UNKNOWN		0
 #define MOBILE_DOCK		1
-#define AUDIO_DOCK		2
-#define AUDIO_STAND		3
+//#define AUDIO_DOCK		2
+//#define AUDIO_STAND		3
 
 /************* Dock State ***********/
 #define DOCK_OUT		0
@@ -297,9 +295,6 @@ struct asusdec_chip {
 	struct delayed_work asusdec_hall_sensor_work;
 	struct delayed_work asusdec_audio_work;
 	struct delayed_work audio_in_out_work;
-#if DOCK_SPEAKER
-	struct delayed_work asusdec_audio_report_work;
-#endif
 	struct delayed_work asusdec_pad_battery_report_work;
 	struct asusdec_keypad keypad_data;
 	struct elantech_data *private;

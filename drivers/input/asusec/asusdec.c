@@ -43,7 +43,6 @@ static int asusdec_chip_init(struct i2c_client *client);
 static void asusdec_dock_status_report(void);
 static void asusdec_lid_report_function(struct work_struct *dat);
 static void asusdec_work_function(struct work_struct *dat);
-static void asusAudiodec_work_function(struct work_struct *dat);
 static void asusdec_dock_init_work_function(struct work_struct *dat);
 static void asusdec_fw_update_work_function(struct work_struct *dat);
 static int __devinit asusdec_probe(struct i2c_client *client,
@@ -80,14 +79,11 @@ static ssize_t asusdec_show_dock_control_flag(struct device *class,
 		struct device_attribute *attr,char *buf);
 static ssize_t asusdec_show_lid_status(struct device *class,
 		struct device_attribute *attr,char *buf);
-static ssize_t asusAudiodec_info_show(struct device *class,
-		struct device_attribute *attr,char *buf);
 static int asusdec_keypad_get_response(struct i2c_client *client, int res);
 static int asusdec_keypad_enable(struct i2c_client *client);
 static int asusdec_touchpad_get_response(struct i2c_client *client, int res);
 static int asusdec_touchpad_enable(struct i2c_client *client);
 static int asusdec_touchpad_disable(struct i2c_client *client);
-//static int asusdec_touchpad_reset(struct i2c_client *client);
 static int asusdec_suspend(struct device *dev);
 static int asusdec_resume(struct device *dev);
 static int asusdec_open(struct inode *inode, struct file *flip);
@@ -106,11 +102,8 @@ static int asusdec_dock_battery_get_status(union power_supply_propval *val);
 static int asusdec_dock_battery_get_property(struct power_supply *psy,
 	enum power_supply_property psp,
 	union power_supply_propval *val);
-int asusAudiodec_cable_type_callback(void);
 /*-----------------------------------------*/
-#if DOCK_SPEAKER
-extern int audio_dock_event(int status);
-#endif
+
 #if BATTERY_DRIVER
 extern int docking_callback(int status);
 extern void battery_callback(unsigned usb_cable_state);
@@ -119,21 +112,11 @@ extern void battery_callback(unsigned usb_cable_state);
 extern void fsl_dock_ec_callback(void);
 extern void tegra_usb3_smi_backlight_on_callback(void);
 #endif
-#if AUDIO_DOCK_STAND
-extern int audio_dock_in_out(u8 docktype);
-#endif
-/*
-* extern variable
-*/
-extern unsigned int factory_mode;
 
 /*
  * global variable
  */
-bool isDockIn = 0;
 int switch_value[]={0, 10, 11, 12}; //0: no dock, 1:mobile dock, 2:audio dock, 3: audio stand
-
-EXPORT_SYMBOL(isDockIn);
 
 static unsigned int asusdec_apwake_gpio = TEGRA_GPIO_PS7;
 static unsigned int asusdec_ecreq_gpio = TEGRA_GPIO_PQ6;
@@ -178,7 +161,6 @@ static struct power_supply asusdec_power_supply[] = {
 		.get_property	= asusdec_dock_battery_get_property,
 	},
 };
-
 MODULE_DEVICE_TABLE(i2c, asusdec_id);
 
 struct file_operations asusdec_fops = {
@@ -221,7 +203,6 @@ static DEVICE_ATTR(ec_dock_battery_status, S_IWUSR | S_IRUGO, asusdec_show_dock_
 static DEVICE_ATTR(ec_dock_battery_all, S_IWUSR | S_IRUGO, asusdec_show_dock_battery_all,NULL);
 static DEVICE_ATTR(ec_dock_control_flag, S_IWUSR | S_IRUGO, asusdec_show_dock_control_flag,NULL);
 static DEVICE_ATTR(ec_lid, S_IWUSR | S_IRUGO, asusdec_show_lid_status,NULL);
-static DEVICE_ATTR(ec_audio_dock_mcu_info, S_IWUSR | S_IRUGO, asusAudiodec_info_show,NULL);
 
 static struct attribute *asusdec_smbus_attributes[] = {
 	&dev_attr_ec_status.attr,
@@ -237,7 +218,6 @@ static struct attribute *asusdec_smbus_attributes[] = {
 	&dev_attr_ec_dock_battery_all.attr,
 	&dev_attr_ec_dock_control_flag.attr,
 	&dev_attr_ec_lid.attr,
-	&dev_attr_ec_audio_dock_mcu_info.attr,
 NULL
 };
 
@@ -302,7 +282,6 @@ static struct kernel_param_ops key_autorepeat_ops = {
 	.get = param_get_int,
 };
 module_param_cb(key_autorepeat, &key_autorepeat_ops, &key_autorepeat, 0644);
-
 
 /*
  * functions definition
@@ -609,6 +588,7 @@ static void asusdec_fw_reset(void){
 		}
 	}
 }
+
 static int asusdec_i2c_test(struct i2c_client *client){
 	return asusdec_i2c_write_data(client, 0x0000);
 }
@@ -620,6 +600,7 @@ static void asusdec_reset_dock(void){
 	msleep(20);
 	gpio_set_value(asusdec_ecreq_gpio, 1);
 }
+
 static int asusdec_is_init_running(void){
 	int ret_val;
 
@@ -661,7 +642,7 @@ static int asusdec_chip_init(struct i2c_client *client)
 		goto fail_to_access_ec;
 	}
 
-	for ( i=0; i<8; i++){
+	for ( i = 0; i < 8; i++){
 		asusdec_i2c_read_data(client);
 	}
 
@@ -766,9 +747,6 @@ static irqreturn_t asusdec_interrupt_handler(int irq, void *dev_id){
 		disable_irq_nosync(irq);
 		if (ec_chip->op_mode){
 			queue_delayed_work(asusdec_wq, &ec_chip->asusdec_fw_update_work, 0);
-		}
-		else if ((ec_chip->dock_type == AUDIO_DOCK)||(ec_chip->dock_type == AUDIO_STAND)){
-			queue_delayed_work(asusdec_wq, &ec_chip->asusdec_audio_work, 0);
 		}
 		else{
 			if (ec_chip->suspend_state){
@@ -946,7 +924,6 @@ static int asusdec_irq_ec_request(struct i2c_client *client)
 err_exit:
 	return rc;
 }
-
 
 static int asusdec_kp_key_mapping(int x)
 {
@@ -1314,7 +1291,6 @@ static void asusdec_touchpad_processing(void){
 		}
 	}
 
-
 	if (ec_chip->d_index)
 		mod_timer(&ec_chip->asusdec_timer,jiffies+(HZ * 1/20));
 #else
@@ -1329,27 +1305,6 @@ static void asusdec_touchpad_processing(void){
 	}
 #endif
 }
-
-#if BATTERY_DRIVER
-static int cable_voltage_to_cable_type(int v)
-{
-	int type;
-
-	switch (v)
-	{
-		case CABLE_0V:
-			type  = BAT_CABLE_OUT; break;
-		case CABLE_5V:
-			type  = BAT_CABLE_USB; break;
-		case CABLE_12V:
-		case CABLE_15V:
-			type  = BAT_CABLE_AC; break;
-		default:
-			type  = BAT_CABLE_UNKNOWN; break;
-	}
-	return type;
-}
-#endif
 
 static void asusdec_kp_wake(void){
 	ASUSDEC_NOTICE("ASUSEC WAKE\n");
@@ -1368,7 +1323,6 @@ static void asusdec_kp_smi(void){
 	if (ec_chip->i2c_data[2] == ASUSDEC_SMI_HANDSHAKING){
 		ASUSDEC_NOTICE("ASUSDEC_SMI_HANDSHAKING\n");
 		ec_chip->ec_in_s3 = 0;
-		isDockIn = 1;
 		ec_chip->dock_type = MOBILE_DOCK;
 		if (ec_chip->susb_on){
 			asusdec_chip_init(ec_chip->client);
@@ -1392,32 +1346,7 @@ static void asusdec_kp_smi(void){
 #if DOCK_USB
 		tegra_usb3_smi_backlight_on_callback();
 #endif
-	} else if (ec_chip->i2c_data[2] == ASUSDEC_SMI_AUDIO_DOCK_IN){
-		ASUSDEC_NOTICE("ASUSDEC_SMI_ASUSDEC_SMI_AUDIO_DOCK_IN\n");
-		if (ec_chip->i2c_data[7] == 0x41) {
-			ec_chip->dock_type = AUDIO_DOCK;
-			ASUSDEC_NOTICE("dock_type = AUDIO_DOCK\n");
-		} else if (ec_chip->i2c_data[7] == 0x53) {
-			ec_chip->dock_type = AUDIO_STAND;
-			ASUSDEC_NOTICE("dock_type = AUDIO_STAND\n");
-		} else {
-			ASUSDEC_ERR("DOCK TYPE: UNKNOW!\n");
-		}
-
-		memset(&ec_chip->mcu_fw_version, 0, 5);
-		strcpy(ec_chip->mcu_fw_version, &ec_chip->i2c_data[3]);
-		asusdec_dock_status_report();
-#if BATTERY_DRIVER
-		if (ec_chip->dock_type == AUDIO_DOCK) {
-			mcu_cable_type = asusAudiodec_cable_type_callback();
-			bat_cable_type = cable_voltage_to_cable_type(mcu_cable_type);
-			if (bat_cable_type < 0)
-				ASUSDEC_ERR("battery_callback cable type unknown !\n");
-			else
-				battery_callback(bat_cable_type);
-		}
-#endif
-	}
+	} 
 }
 
 static void asusdec_kp_kbc(void){
@@ -1509,7 +1438,6 @@ static void asusdec_kp_key(void){
 	}else{
 		ASUSDEC_INFO("Unknown scancode = 0x%x\n", scancode);
 	}
-
 }
 
 static void asusdec_keypad_processing(void){
@@ -1529,29 +1457,7 @@ static void asusdec_dock_status_report(void){
 #if BATTERY_DRIVER
 	queue_delayed_work(asusdec_wq, &ec_chip->asusdec_pad_battery_report_work, 0);
 #endif
-#if DOCK_SPEAKER
-	queue_delayed_work(asusdec_wq, &ec_chip->asusdec_audio_report_work, 0);
-#endif
-#if AUDIO_DOCK_STAND
-	queue_delayed_work(asusdec_wq, &ec_chip->audio_in_out_work, 0);
-#endif
 }
-
-#if 0
-static int asusdec_get_version_num(void){
-	int i;
-	int v_num = 0;
-	int v_len = strlen(ec_chip->ec_version);
-	char *v_str = ec_chip->ec_version;
-
-	if (ec_chip->tf_dock){
-		for ( i = v_len - 4; i < v_len; i++)
-			v_num = v_num * 10 + v_str[i] - '0';
-	}
-	ASUSDEC_INFO("v_num = %d\n", v_num);
-	return v_num ;
-}
-#endif
 
 #if BATTERY_DRIVER
 static void asusdec_pad_battery_report_function(struct work_struct *dat)
@@ -1563,20 +1469,6 @@ static void asusdec_pad_battery_report_function(struct work_struct *dat)
 	ASUSDEC_NOTICE("dock_in = %d, ret_val = %d\n", dock_in, ret_val);
 	if (ret_val < 0)
 		queue_delayed_work(asusdec_wq, &ec_chip->asusdec_pad_battery_report_work, 2*HZ);
-}
-#endif
-
-#if DOCK_SPEAKER
-static void asusdec_audio_report_function(struct work_struct *dat)
-{
-	int ret_val = 0;
-	int dock_in = ec_chip->dock_in;
-	int dock_speaker = (!strncmp(ec_chip->ec_version, "TF201-", 6));
-
-	ret_val = audio_dock_event(dock_in && dock_speaker);
-	ASUSDEC_NOTICE("dock_in = %d, dock_speaker = %d, ret_val = %d\n", dock_in, dock_speaker, ret_val);
-	if (ret_val < 0)
-		queue_delayed_work(asusdec_wq, &ec_chip->asusdec_audio_report_work, 2*HZ);
 }
 #endif
 
@@ -1642,15 +1534,11 @@ static void asusdec_dock_init_work_function(struct work_struct *dat)
 		if (gpio_get_value(gpio)){
 			ASUSDEC_NOTICE("No dock detected\n");
 			ec_chip->dock_in = 0;
-			isDockIn = 0;
 			ec_chip->init_success = 0;
 			ec_chip->tp_enable = 1;
 			ec_chip->tf_dock = 0;
 			ec_chip->op_mode = 0;
 			ec_chip->dock_behavior = 0;
-			if ((ec_chip->dock_type == AUDIO_DOCK) || (ec_chip->dock_type == AUDIO_STAND)) {
-				memset(ec_chip->mcu_fw_version, 0, 5);
-			}
 			ec_chip->dock_type = DOCK_UNKNOWN;
 
 			// sync ec_wakeup status
@@ -1746,78 +1634,6 @@ static void asusdec_work_function(struct work_struct *dat)
 	}
 	mutex_unlock(&ec_chip->input_lock);
 }
-
-static void asusAudiodec_work_function(struct work_struct *dat)
-{
-	// Audio Dock EC function Service
-	int ret_val = 0;
-	int mcu_cable_type = 0, bat_cable_type = 0;
-	int gpio = asusdec_apwake_gpio;
-	int irq = gpio_to_irq(gpio);
-
-	ASUSDEC_NOTICE("cmd 0x6a i2c_smbus read 8 byte datas\n");
-
-	ret_val = asusdec_i2c_read_data(ec_chip->client);
-#if BATTERY_DRIVER
-		if (ec_chip->dock_type == AUDIO_DOCK) {
-			mcu_cable_type = asusAudiodec_cable_type_callback();
-			bat_cable_type = cable_voltage_to_cable_type(mcu_cable_type);
-			if (bat_cable_type < 0)
-				ASUSDEC_ERR("battery_callback cable type unknown !\n");
-			else
-				battery_callback(bat_cable_type);
-		}
-#endif
-	enable_irq(irq);
-}
-
-#if AUDIO_DOCK_STAND
-static void asusAudiodec_in_out_work_function(struct work_struct *dat)
-{
-	if (ec_chip->dock_in) {
-		audio_dock_in_out(ec_chip->dock_type);
-	} else {
-		audio_dock_in_out(DOCK_OUT);
-	}
-	ASUSDEC_NOTICE("audio dock %s\n", ec_chip->dock_in? "in":"out");
-}
-#endif
-
-int asusAudiodec_i2c_read_data(char *data, int length)
-{
-	int ret;
-	if ((ec_chip->dock_in == 0)||
-		((ec_chip->dock_type != AUDIO_DOCK)&&(ec_chip->dock_type != AUDIO_STAND))){
-		return -1;
-	}
-
-	ret = i2c_master_send(ec_chip->client, data, 1);
-	if(ret<0){
-		ASUSDEC_ERR("Fail to send data, errno %d\n", ret);
-		return ret;
-	}
-
-	ret = i2c_master_recv(ec_chip->client, data, length);
-	if(ret<0)
-		ASUSDEC_ERR("Fail to receive data, errno %d\n", ret);
-	return ret;
-}
-EXPORT_SYMBOL(asusAudiodec_i2c_read_data);
-
-int asusAudiodec_i2c_write_data(char *data, int length)
-{
-	int ret;
-	if ((ec_chip->dock_in == 0)||
-		((ec_chip->dock_type != AUDIO_DOCK)&&(ec_chip->dock_type != AUDIO_STAND))){
-		return -1;
-	}
-
-	ret = i2c_master_send(ec_chip->client, data, length);
-	if(ret<0)
-		ASUSDEC_ERR("Fail to write data, errno %d\n", ret);
-	return ret;
-}
-EXPORT_SYMBOL(asusAudiodec_i2c_write_data);
 
 static void asusdec_keypad_set_input_params(struct input_dev *dev)
 {
@@ -1984,19 +1800,12 @@ static int __devinit asusdec_probe(struct i2c_client *client,
 #if BATTERY_DRIVER
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_pad_battery_report_work, asusdec_pad_battery_report_function);
 #endif
-#if DOCK_SPEAKER
-	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_audio_report_work, asusdec_audio_report_function);
-#endif
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_work, asusdec_work_function);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_dock_init_work, asusdec_dock_init_work_function);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_fw_update_work, asusdec_fw_update_work_function);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_led_on_work, asusdec_keypad_led_on);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_led_off_work, asusdec_keypad_led_off);
 	INIT_DELAYED_WORK_DEFERRABLE(&asusdec_stress_work, asusdec_stresstest_work_function);
-	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_audio_work, asusAudiodec_work_function);
-#if AUDIO_DOCK_STAND
-	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->audio_in_out_work, asusAudiodec_in_out_work_function);
-#endif
 	asusdec_irq_dock_in(client);
 	asusdec_irq_ec_request(client);
 	asusdec_irq_hall_sensor(client);
@@ -2099,11 +1908,6 @@ static ssize_t asusdec_charging_led_store(struct device *class,struct device_att
 	}
 
 	return count;
-}
-
-static ssize_t asusAudiodec_info_show(struct device *class,struct device_attribute *attr,char *buf)
-{
-	return sprintf(buf, "%s\n", ec_chip->mcu_fw_version);
 }
 
 static ssize_t asusdec_led_show(struct device *class,struct device_attribute *attr,char *buf)
@@ -2334,10 +2138,7 @@ static int asusdec_set_wakeup_cmd(void){
 }
 static ssize_t asusdec_switch_name(struct switch_dev *sdev, char *buf)
 {
-	if ((ec_chip->dock_type == AUDIO_DOCK) ||(ec_chip->dock_type == AUDIO_STAND ))
-		return sprintf(buf, "%s\n", ec_chip->mcu_fw_version);
-	else
-		return sprintf(buf, "%s\n", ec_chip->ec_version);
+	return sprintf(buf, "%s\n", ec_chip->ec_version);
 }
 
 static ssize_t asusdec_switch_state(struct switch_dev *sdev, char *buf)
@@ -2350,13 +2151,13 @@ static ssize_t asusdec_switch_state(struct switch_dev *sdev, char *buf)
 }
 
 static int asusdec_open(struct inode *inode, struct file *flip){
-	ASUSDEC_NOTICE(" ");
 	return 0;
 }
+
 static int asusdec_release(struct inode *inode, struct file *flip){
-	ASUSDEC_NOTICE(" ");
 	return 0;
 }
+
 static long asusdec_ioctl(struct file *flip,
 					unsigned int cmd, unsigned long arg){
 	int err = 1;
@@ -2545,7 +2346,6 @@ static ssize_t ec_read(struct file *file, char __user *buf, size_t count, loff_t
         ret = i;
     }
 
-
     return ret;
 }
 
@@ -2707,36 +2507,6 @@ fail_to_access_ec:
 }
 EXPORT_SYMBOL(asusdec_is_ac_over_10v_callback);
 
-int asusAudiodec_cable_type_callback (void) {
-
-	int retval = 0, retry = 3;
-	u8 cmd[2];
-
-	cmd[0] = 0x55;
-	cmd[1] = 0x00;
-
-	ASUSDEC_NOTICE("access MCU to distinguish cable type\n");
-	if (ec_chip->dock_in){
-		if ((ec_chip->dock_type == AUDIO_DOCK) ||(ec_chip->dock_type == AUDIO_STAND)) {
-
-			while(retry-- >0) {
-				msleep(250);
-				retval = asusAudiodec_i2c_read_data(cmd, 1);
-				if (retval < 0)
-					ASUSDEC_ERR("asusAudiodec i2c read data failed\n");
-
-				ASUSDEC_NOTICE("cable type return value = 0x%02x\n", cmd[0]);	//0:0V, 5:5V, 12:12V, 15:15V
-				if (cmd[0] != 0x55) {
-					return cmd[0];
-				}
-			}
-		}
-	}
-	ASUSDEC_NOTICE("MCU doesn't exist or fail to access MCU\n");
-	return -1;
-}
-EXPORT_SYMBOL(asusAudiodec_cable_type_callback);
-
 static int __init asusdec_init(void)
 {
 	int err_code = 0;
@@ -2789,7 +2559,7 @@ i2c_add_driver_fail :
 
 static void __exit asusdec_exit(void)
 {
-	device_destroy(asusdec_class,MKDEV(asusdec_major, asusdec_minor)) ;
+	device_destroy(asusdec_class, MKDEV(asusdec_major, asusdec_minor)) ;
 	class_destroy(asusdec_class) ;
 	i2c_del_driver(&asusdec_driver);
 	unregister_chrdev_region(asusdec_dev, 1);
