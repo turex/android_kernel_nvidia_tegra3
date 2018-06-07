@@ -1,3 +1,22 @@
+/*
+ * Elantech Touchpad driver (v2)
+ *
+ * Copyright (c) 2007-2009 Arjan Opmeer <arjan@opmeer.net>
+ * Copyright (c) 2012, ASUSTek Corporation.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * Trademarks are the property of their respective owners.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
+
 #include <linux/module.h>
 #include <linux/i2c.h>
 #include <linux/err.h>
@@ -55,7 +74,7 @@ static int elan_i2c_asus_cmd(struct i2c_client *client, unsigned char *param, in
 	}
 
 	retry_data_count = (command & 0x0f00) >> 8;
-	for(i=1; i <= retry_data_count; i++){
+	for(i = 1; i <= retry_data_count; i++){
 		param[i-1] = i2c_data[i+2];
 	}
 
@@ -254,8 +273,6 @@ int elantech_detect(struct asusdec_chip *ec_chip)
 
 	if (elan_i2c_asus_cmd(client,  NULL, PSMOUSE_CMD_DISABLE) ||
 	    elan_i2c_asus_cmd(client,  NULL, PSMOUSE_CMD_SETSCALE11) ||
-	    elan_i2c_asus_cmd(client,  NULL, PSMOUSE_CMD_SETSCALE11) ||
-	    elan_i2c_asus_cmd(client,  NULL, PSMOUSE_CMD_SETSCALE11) ||
 	    elan_i2c_asus_cmd(client, param, PSMOUSE_CMD_GETINFO)) {
 		pr_err("elan_i2c_asus: %s: sending Elantech magic knock failed.\n", __func__);
 		return -1;
@@ -265,11 +282,11 @@ int elantech_detect(struct asusdec_chip *ec_chip)
 	 * Report this in case there are Elantech models that use a different
 	 * set of magic numbers
 	 */
-	if (param[0] != 0x3c ||param[1] != 0x03 || param[2]!= 0x00) {
-		pr_err("elan_i2c_asus: %s: unexpected magic knock result 0x%02x, 0x%02x, 0x%02x.\n",
-			__func__, param[0], param[1],param[2]);
-		return -1;
-	}
+//	if (param[0] != 0x3c ||param[1] != 0x03 || param[2]!= 0x00) {
+//		pr_err("elan_i2c_asus: %s: unexpected magic knock result 0x%02x, 0x%02x, 0x%02x.\n",
+//			__func__, param[0], param[1],param[2]);
+//		return -1;
+//	}
 
 	return 0;
 }
@@ -287,7 +304,7 @@ int elantech_init(struct asusdec_chip *ec_chip)
 	}
 
 	if (elantech_set_input_rel_params(ec_chip)){
-		pr_err("elan_i2c_asus: %s: failed to elantech_set_input_rel_params.\n", __func__);
+		pr_err("elan_i2c_asus: %s: failed to set input rel params.\n", __func__);
 		return -1;
 	}
 

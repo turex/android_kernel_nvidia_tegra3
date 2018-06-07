@@ -4,6 +4,15 @@
  * Copyright (c) 2012, ASUSTek Corporation.
  * Copyright (c) 2018, Svyatoslav Ryhel
  *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
  */
  
 #include <linux/module.h>
@@ -27,7 +36,7 @@ static unsigned int hall_sensor_gpio = TEGRA_GPIO_PS6;
 struct delayed_work lid_hall_sensor_work;
 static struct workqueue_struct *lid_wq;
 
-static struct input_dev	 *lid_indev;
+static struct input_dev	*lid_indev;
 static struct platform_device *lid_dev; /* Device structure */
 
 static ssize_t show_lid_status(struct device *class, struct device_attribute *attr, char *buf)
@@ -53,6 +62,7 @@ static irqreturn_t lid_interrupt_handler(int irq, void *dev_id)
 		ASUSEC_NOTICE("LID interrupt handler...gpio: %d..\n", gpio_get_value(hall_sensor_gpio));
 		queue_delayed_work(lid_wq, &lid_hall_sensor_work, 0);
 	}
+
 	return IRQ_HANDLED;
 }
 
@@ -71,7 +81,7 @@ static int lid_irq_hall_sensor(void)
 		ASUSEC_ERR("gpio_request failed for input %d\n", gpio);
 	}
 
-	rc = gpio_direction_input(gpio) ;
+	rc = gpio_direction_input(gpio);
 	if (rc) {
 		ASUSEC_ERR("gpio_direction_input failed for input %d\n", gpio);
 		goto err_gpio_direction_input_failed;
@@ -82,7 +92,7 @@ static int lid_irq_hall_sensor(void)
 	if (rc < 0) {
 		ASUSEC_ERR("Could not register for %s interrupt, irq = %d, rc = %d\n", label, irq, rc);
 		rc = -EIO;
-		goto err_gpio_request_irq_fail ;
+		goto err_gpio_request_irq_fail;
 	}
 
 	if ((tegra3_get_project_id() == TEGRA3_PROJECT_TF300T) || (tegra3_get_project_id() == TEGRA3_PROJECT_TF300TG)){
@@ -198,4 +208,3 @@ module_exit(lid_exit);
 
 MODULE_DESCRIPTION("ASUS Hall Sensor Driver");
 MODULE_LICENSE("GPL");
-

@@ -2,6 +2,16 @@
  * ASUS PAD driver
  *
  * Copyright (c) 2012, ASUSTek Corporation.
+ * Copyright (c) 2018, Svyatoslav Ryhel
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
  */
 
@@ -15,11 +25,10 @@
 #include <linux/input.h>
 #include <linux/workqueue.h>
 #include <linux/wakelock.h>
-#include <linux/cdev.h>
 #include <linux/gpio_event.h>
 #include <linux/slab.h>
-#include <linux/switch.h>
 #include <linux/power_supply.h>
+#include <linux/power/pad_battery.h>
 #include <linux/statfs.h>
 
 #include <asm/gpio.h>
@@ -180,7 +189,6 @@ int asuspec_battery_monitor(char *cmd)
 		return ret_val;
 	}
 }
-EXPORT_SYMBOL(asuspec_battery_monitor);
 
 static int asuspec_i2c_write_data(struct i2c_client *client, u16 data)
 {
@@ -236,7 +244,7 @@ static void asuspec_enter_normal_mode(void)
 	int ret_val = 0;
 	int i = 0;
 
-	for ( i = 0; i < 3; i++ ){
+	for (i = 0; i < 3; i++){
 		ret_val = asuspec_dockram_read_data(0x0A);
 		if (ret_val < 0){
 			ASUSEC_ERR("fail to get control flag\n");
@@ -249,13 +257,12 @@ static void asuspec_enter_normal_mode(void)
 	ec_chip->i2c_dm_data[0] = 8;
 	ec_chip->i2c_dm_data[5] = ec_chip->i2c_dm_data[5] & 0xBF;
 
-	for ( i = 0; i < 3; i++ ){
+	for (i = 0; i < 3; i++){
 		ret_val = asuspec_dockram_write_data(0x0A,9);
 		if (ret_val < 0){
 			ASUSEC_ERR("Entering normal mode fail\n");
 			msleep(100);
-		}
-		else {
+		} else {
 			ASUSEC_NOTICE("Entering normal mode\n");
 			break;
 		}
@@ -514,6 +521,7 @@ static int __devinit asuspec_probe(struct i2c_client *client,
 	asuspec_dockram_init(client);
 
 	asuspec_wq = create_singlethread_workqueue("asuspec_wq");
+
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asuspec_work, asuspec_work_function);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asuspec_init_work, asuspec_init_work_function);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asuspec_enter_s3_work, asuspec_enter_s3_work_function);
@@ -543,18 +551,16 @@ static int __devexit asuspec_remove(struct i2c_client *client)
 
 static int asuspec_suspend(struct device *dev)
 {
-	pr_info("asuspec_suspend+\n");
 	del_timer_sync(&ec_chip->asuspec_timer);
 	ec_chip->ec_in_s3 = 1;
-	pr_info("asuspec_suspend-\n");
+	pr_info("asuspec suspended\n");
 	return 0;
 }
 
 static int asuspec_resume(struct device *dev)
 {
-	pr_info("asuspec_resume+\n");
 	ec_chip->i2c_err_count = 0;
-	pr_info("asuspec_resume-\n");
+	pr_info("asuspec resumed\n");
 	return 0;
 }
 
@@ -588,13 +594,13 @@ static int __init asuspec_init(void)
 		asuspec_dev = MKDEV(asuspec_major, asuspec_minor);
 		err_code = register_chrdev_region(asuspec_dev, 1, "asuspec");
 	} else {
-		err_code = alloc_chrdev_region(&asuspec_dev, asuspec_minor, 1,"asuspec");
+		err_code = alloc_chrdev_region(&asuspec_dev, asuspec_minor, 1, "asuspec");
 		asuspec_major = MAJOR(asuspec_dev);
 	}
 
 	err_code = i2c_add_driver(&asuspec_driver);
 	if(err_code){
-		ASUSEC_ERR("i2c_add_driver fail\n") ;
+		ASUSEC_ERR("i2c_add_driver fail\n");
 		goto i2c_add_driver_fail ;
 	}
 
@@ -605,7 +611,7 @@ static int __init asuspec_init(void)
 		goto class_create_fail ;
 	}
 
-	asuspec_device = device_create(asuspec_class, NULL, MKDEV(asuspec_major, asuspec_minor), NULL, "asuspec" );
+	asuspec_device = device_create(asuspec_class, NULL, MKDEV(asuspec_major, asuspec_minor), NULL, "asuspec");
 	if(asuspec_device <= 0){
 		ASUSEC_ERR("asuspec_device create fail\n");
 		err_code = -1;

@@ -1,3 +1,22 @@
+/*
+ * Elantech Touchpad driver (v2)
+ *
+ * Copyright (c) 2007-2009 Arjan Opmeer <arjan@opmeer.net>
+ * Copyright (c) 2012, ASUSTek Corporation.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * Trademarks are the property of their respective owners.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
+
 #ifndef _ELAN_I2C_ASUS_H
 #define _ELAN_I2C_ASUS_H
 
