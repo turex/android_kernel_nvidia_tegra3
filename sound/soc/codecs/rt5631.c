@@ -504,14 +504,6 @@ static const SOC_ENUM_SINGLE_DECL(
 	rt5631_monoin_mode_enum, RT5631_MONO_INPUT_VOL,
 	RT5631_MONO_DIFF_INPUT_SHIFT, rt5631_input_mode);
 
-/* SPK Ratio Gain Control */
-static const char *rt5631_spk_ratio[] = {"1.00x", "1.09x", "1.27x", "1.44x",
-			"1.56x", "1.68x", "1.99x", "2.34x"};
-
-static const SOC_ENUM_SINGLE_DECL(
-	rt5631_spk_ratio_enum, RT5631_GEN_PUR_CTRL_REG,
-	RT5631_SPK_AMP_RATIO_CTRL_SHIFT, rt5631_spk_ratio);
-
 static const struct snd_kcontrol_new rt5631_snd_controls[] = {
 	/* MIC */
 	SOC_ENUM("MIC1 Mode Control",  rt5631_mic1_mode_enum),
@@ -576,9 +568,6 @@ static const struct snd_kcontrol_new rt5631_snd_controls[] = {
 	/* Set recording gain */
 	SOC_SINGLE_BOOL_EXT("Recording Gain", 0,
 		rt5631_get_gain, rt5631_set_gain),
-
-	/* SPK Ratio Gain Control */
-	SOC_ENUM("SPK Ratio Control", rt5631_spk_ratio_enum),
 };
 
 static int check_sysclk1_source(struct snd_soc_dapm_widget *source,
@@ -1388,65 +1377,6 @@ static int dac_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
-/* Left SPK Volume Input */
-static const char *rt5631_spkvoll_sel[] = {"Vmid", "SPKMIXL"};
-
-static const SOC_ENUM_SINGLE_DECL(
-	rt5631_spkvoll_enum, RT5631_SPK_OUT_VOL,
-	RT5631_L_EN_SHIFT, rt5631_spkvoll_sel);
-
-static const struct snd_kcontrol_new rt5631_spkvoll_mux_control =
-	SOC_DAPM_ENUM("Left SPKVOL SRC", rt5631_spkvoll_enum);
-
-/* Left HP Volume Input */
-static const char *rt5631_hpvoll_sel[] = {"Vmid", "OUTMIXL"};
-
-static const SOC_ENUM_SINGLE_DECL(
-	rt5631_hpvoll_enum, RT5631_HP_OUT_VOL,
-	RT5631_L_EN_SHIFT, rt5631_hpvoll_sel);
-
-static const struct snd_kcontrol_new rt5631_hpvoll_mux_control =
-	SOC_DAPM_ENUM("Left HPVOL SRC", rt5631_hpvoll_enum);
-
-/* Left Out Volume Input */
-static const char *rt5631_outvoll_sel[] = {"Vmid", "OUTMIXL"};
-
-static const SOC_ENUM_SINGLE_DECL(
-	rt5631_outvoll_enum, RT5631_MONO_AXO_1_2_VOL,
-	RT5631_L_EN_SHIFT, rt5631_outvoll_sel);
-
-static const struct snd_kcontrol_new rt5631_outvoll_mux_control =
-	SOC_DAPM_ENUM("Left OUTVOL SRC", rt5631_outvoll_enum);
-
-/* Right Out Volume Input */
-static const char *rt5631_outvolr_sel[] = {"Vmid", "OUTMIXR"};
-
-static const SOC_ENUM_SINGLE_DECL(
-	rt5631_outvolr_enum, RT5631_MONO_AXO_1_2_VOL,
-	RT5631_R_EN_SHIFT, rt5631_outvolr_sel);
-
-static const struct snd_kcontrol_new rt5631_outvolr_mux_control =
-	SOC_DAPM_ENUM("Right OUTVOL SRC", rt5631_outvolr_enum);
-
-/* Right HP Volume Input */
-static const char *rt5631_hpvolr_sel[] = {"Vmid", "OUTMIXR"};
-
-static const SOC_ENUM_SINGLE_DECL(
-	rt5631_hpvolr_enum, RT5631_HP_OUT_VOL,
-	RT5631_R_EN_SHIFT, rt5631_hpvolr_sel);
-
-static const struct snd_kcontrol_new rt5631_hpvolr_mux_control =
-	SOC_DAPM_ENUM("Right HPVOL SRC", rt5631_hpvolr_enum);
-
-/* Right SPK Volume Input */
-static const char *rt5631_spkvolr_sel[] = {"Vmid", "SPKMIXR"};
-
-static const SOC_ENUM_SINGLE_DECL(
-	rt5631_spkvolr_enum, RT5631_SPK_OUT_VOL,
-	RT5631_R_EN_SHIFT, rt5631_spkvolr_sel);
-
-static const struct snd_kcontrol_new rt5631_spkvolr_mux_control =
-	SOC_DAPM_ENUM("Right SPKVOL SRC", rt5631_spkvolr_enum);
 
 /* SPO Left Channel Input */
 static const char *rt5631_spol_src_sel[] = {
@@ -1564,10 +1494,12 @@ static const struct snd_soc_dapm_widget rt5631_dapm_widgets[] = {
 	/* ADCs */
 	SND_SOC_DAPM_ADC_E("Left ADC", "HIFI Capture",
 		RT5631_PWR_MANAG_ADD1, RT5631_PWR_ADC_L_CLK_BIT, 0,
-		adc_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
+		adc_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU |
+		SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
 	SND_SOC_DAPM_ADC_E("Right ADC", "HIFI Capture",
 		RT5631_PWR_MANAG_ADD1, RT5631_PWR_ADC_R_CLK_BIT, 0,
-		adc_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
+		adc_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU |
+		SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
 
 	/* DAC and ADC supply power */
 	SND_SOC_DAPM_SUPPLY("I2S", RT5631_PWR_MANAG_ADD1,
@@ -1579,10 +1511,12 @@ static const struct snd_soc_dapm_widget rt5631_dapm_widgets[] = {
 	/* DACs */
 	SND_SOC_DAPM_DAC_E("Left DAC", "HIFI Playback",
 		RT5631_PWR_MANAG_ADD1, RT5631_PWR_DAC_L_CLK_BIT, 0,
-		dac_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
+		dac_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU |
+		SND_SOC_DAPM_PRE_PMD),
 	SND_SOC_DAPM_DAC_E("Right DAC", "HIFI Playback",
 		RT5631_PWR_MANAG_ADD1, RT5631_PWR_DAC_R_CLK_BIT, 0,
-		dac_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
+		dac_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU |
+		SND_SOC_DAPM_PRE_PMD),
 	SND_SOC_DAPM_DAC("Voice DAC", "Voice DAC Mono Playback",
 				SND_SOC_NOPM, 0, 0),
 	SND_SOC_DAPM_PGA("Voice DAC Boost", SND_SOC_NOPM, 0, 0, NULL, 0),
@@ -1614,24 +1548,20 @@ static const struct snd_soc_dapm_widget rt5631_dapm_widgets[] = {
 			ARRAY_SIZE(rt5631_spkmixr_mixer_controls)),
 
 	/* Volume Mux */
-	SND_SOC_DAPM_MUX("Left SPKVOL Mux", RT5631_PWR_MANAG_ADD4,
-			RT5631_PWR_SPK_L_VOL_BIT, 0,
-			&rt5631_spkvoll_mux_control),
-	SND_SOC_DAPM_MUX("Left HPVOL Mux", RT5631_PWR_MANAG_ADD4,
-			RT5631_PWR_HP_L_OUT_VOL_BIT, 0,
-			&rt5631_hpvoll_mux_control),
-	SND_SOC_DAPM_MUX("Left OUTVOL Mux", RT5631_PWR_MANAG_ADD4,
-			RT5631_PWR_LOUT_VOL_BIT, 0,
-			&rt5631_outvoll_mux_control),
-	SND_SOC_DAPM_MUX("Right OUTVOL Mux", RT5631_PWR_MANAG_ADD4,
-			RT5631_PWR_ROUT_VOL_BIT, 0,
-			&rt5631_outvolr_mux_control),
-	SND_SOC_DAPM_MUX("Right HPVOL Mux", RT5631_PWR_MANAG_ADD4,
-			RT5631_PWR_HP_R_OUT_VOL_BIT, 0,
-			&rt5631_hpvolr_mux_control),
-	SND_SOC_DAPM_MUX("Right SPKVOL Mux", RT5631_PWR_MANAG_ADD4,
-			RT5631_PWR_SPK_R_VOL_BIT, 0,
-			&rt5631_spkvolr_mux_control),
+	SND_SOC_DAPM_PGA("Left SPKVOL Mux", RT5631_PWR_MANAG_ADD4,
+		RT5631_PWR_SPK_L_VOL_BIT, 0, NULL, 0),
+	SND_SOC_DAPM_PGA_E("Left HPVOL Mux", RT5631_PWR_MANAG_ADD4,
+		RT5631_PWR_HP_L_OUT_VOL_BIT, 0, NULL, 0,
+		hp_event, SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
+	SND_SOC_DAPM_PGA("Left OUTVOL Mux", RT5631_PWR_MANAG_ADD4,
+		RT5631_PWR_LOUT_VOL_BIT, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("Right OUTVOL Mux", RT5631_PWR_MANAG_ADD4,
+		RT5631_PWR_ROUT_VOL_BIT, 0, NULL, 0),
+	SND_SOC_DAPM_PGA_E("Right HPVOL Mux", RT5631_PWR_MANAG_ADD4,
+		RT5631_PWR_HP_R_OUT_VOL_BIT, 0, NULL, 0,
+		hp_event, SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
+	SND_SOC_DAPM_PGA("Right SPKVOL Mux", RT5631_PWR_MANAG_ADD4,
+		RT5631_PWR_SPK_R_VOL_BIT, 0, NULL, 0),
 
 	/* DAC To HP */
 	SND_SOC_DAPM_PGA_S("Left DAC_HP", 0, SND_SOC_NOPM, 0, 0, NULL, 0),
@@ -1679,7 +1609,7 @@ static const struct snd_soc_dapm_widget rt5631_dapm_widgets[] = {
 
 	/* AMP */
 	SND_SOC_DAPM_PGA_E("SPKL Amp", SND_SOC_NOPM, 0, 0, NULL, 0,
-		spk_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_POST_PMU |SND_SOC_DAPM_PRE_PMD),
+		spk_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_PRE_PMD),
 	SND_SOC_DAPM_PGA_E("SPKR Amp", SND_SOC_NOPM, 1, 0, NULL, 0,
 		spk_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_PRE_PMD),
 
@@ -1782,12 +1712,12 @@ static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 	{"OUTMIXR Mixer", "AXIRVOL Playback Switch", "AXIR Boost"},
 	{"OUTMIXR Mixer", "VDAC Playback Switch", "Voice DAC Boost"},
 
-	{"Left SPKVOL Mux",  "SPKMIXL", "SPKMIXL Mixer"},
-	{"Left HPVOL Mux",  "OUTMIXL", "OUTMIXL Mixer"},
-	{"Left OUTVOL Mux",  "OUTMIXL", "OUTMIXL Mixer"},
-	{"Right OUTVOL Mux",  "OUTMIXR", "OUTMIXR Mixer"},
-	{"Right HPVOL Mux",  "OUTMIXR", "OUTMIXR Mixer"},
-	{"Right SPKVOL Mux",  "SPKMIXR", "SPKMIXR Mixer"},
+	{"Left SPKVOL Mux",  NULL, "SPKMIXL Mixer"},
+	{"Left HPVOL Mux",  NULL, "OUTMIXL Mixer"},
+	{"Left OUTVOL Mux",  NULL, "OUTMIXL Mixer"},
+	{"Right OUTVOL Mux",  NULL, "OUTMIXR Mixer"},
+	{"Right HPVOL Mux",  NULL, "OUTMIXR Mixer"},
+	{"Right SPKVOL Mux",  NULL, "SPKMIXR Mixer"},
 
 	{"AXO1MIX Mixer", "MIC1_BST1 Playback Switch", "MIC1 Boost"},
 	{"AXO1MIX Mixer", "OUTVOLL Playback Switch", "Left OUTVOL Mux"},
