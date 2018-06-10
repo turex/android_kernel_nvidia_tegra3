@@ -62,7 +62,6 @@ static struct regulator *cardhu_lvds_vdd_bl = NULL;
 static struct regulator *cardhu_lvds_vdd_panel = NULL;
 
 extern bool isRecording;
-extern int cn_vf_sku;
 
 static tegra_dc_bl_output cardhu_bl_output_measured = {
 	0, 4, 4, 4, 4, 5, 6, 7,
@@ -799,12 +798,6 @@ int __init cardhu_panel_init(void)
 	}
 
 #ifdef CONFIG_TEGRA_DC
-	if ( tegra3_get_project_id() == TEGRA3_PROJECT_TF300TG && cn_vf_sku){
-		cardhu_disp1_out.modes->pclk = 83900000;
-		cardhu_disp1_out.modes->v_front_porch = 200;
-		printk("TF300TG: Set LCD pclk as %d Hz, cn_vf_sku=%d\n", cardhu_disp1_out.modes->pclk, cn_vf_sku);
-	}
-
 	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF700T){
 		printk("Check TF700T setting \n ");
 		cardhu_disp1_out.modes = panel_19X12_modes;
