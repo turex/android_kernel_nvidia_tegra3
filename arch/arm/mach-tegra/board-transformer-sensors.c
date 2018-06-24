@@ -96,10 +96,10 @@ static int cardhu_camera_init(void)
 #ifdef CONFIG_VIDEO_YUV
 static int fjm6mo_sensor_power_on(struct device *dev)
 {
-	printk("fjm6mo_sensor_power_on+\n");
+	pr_info("fjm6mo_sensor_power_on+\n");
 
 	if(camera_busy){
-		printk("fjm6mo_sensor busy\n");
+		pr_info("fjm6mo_sensor busy\n");
 		return -EBUSY;
 	}
 	camera_busy = true;
@@ -200,7 +200,7 @@ static int fjm6mo_sensor_power_off(struct device *dev)
 		pr_info("gpio %d set to %d\n",ISP_POWER_1V2_EN_GPIO, gpio_get_value(ISP_POWER_1V2_EN_GPIO));
 	}
 
-	printk("fjm6mo_sensor_power_off-\n");
+	pr_info("fjm6mo_sensor_power_off-\n");
 	return 0;
 }
 
@@ -222,7 +222,7 @@ int yuv_sensor_power_on_reset_pin(void)
 
 int yuv_sensor_power_off_reset_pin(void)
 {
-	printk("yuv_sensor_power_off+\n");
+	pr_info("yuv_sensor_power_off+\n");
 	camera_busy = false;
 	gpio_direction_output(ISP_POWER_RESET_GPIO, 0);
 	pr_info("gpio %d set to %d\n",ISP_POWER_RESET_GPIO, gpio_get_value(ISP_POWER_RESET_GPIO));
@@ -232,10 +232,10 @@ int yuv_sensor_power_off_reset_pin(void)
 
 static int mi1040_sensor_power_on(void)
 {
-	printk("mi1040_sensor_power_on+\n");
+	pr_info("mi1040_sensor_power_on+\n");
 
 	if(camera_busy){
-		printk("yuv_sensor busy\n");
+		pr_info("yuv_sensor busy\n");
 		return -EBUSY;
 	}
 
@@ -276,7 +276,7 @@ static int mi1040_sensor_power_on(void)
 	gpio_direction_output(FRONT_YUV_SENSOR_RST_GPIO, 1);
 	pr_info("--> %d\n", gpio_get_value(FRONT_YUV_SENSOR_RST_GPIO));
 
-	printk("mi1040_sensor_power_on-\n");
+	pr_info("mi1040_sensor_power_on-\n");
 	return 0;
 
 fail_to_get_reg:
@@ -290,13 +290,13 @@ fail_to_get_reg:
 	}
 
 	camera_busy = false;
-	printk("mi1040_sensor_power_on- : -ENODEV\n");
+	pr_info("mi1040_sensor_power_on- : -ENODEV\n");
 	return -ENODEV;
 }
 
 static int mi1040_sensor_power_off(void)
 {
-	printk("mi1040_sensor_power_off+\n");
+	pr_info("mi1040_sensor_power_off+\n");
 
 	gpio_set_value(FRONT_YUV_SENSOR_RST_GPIO, 0);
 	gpio_direction_output(FRONT_YUV_SENSOR_RST_GPIO, 0);
@@ -316,7 +316,7 @@ static int mi1040_sensor_power_off(void)
 	}
 
 	camera_busy = false;
-	printk("mi1040_sensor_power_off-\n");
+	pr_info("mi1040_sensor_power_off-\n");
 	return 0;
 }
 
@@ -327,7 +327,7 @@ struct yuv_sensor_platform_data mi1040_sensor_data = {
 
 static int iCatch7002a_sensor_power_on(struct device *dev)
 {
-	printk("%s+\n", __FUNCTION__);
+	pr_info("%s+\n", __FUNCTION__);
 
 //	if(IsTF300()) {
 //		Asus_camera_enable_set_emc_rate(667000000);
@@ -420,13 +420,13 @@ fail_to_get_reg:
 		reg_cardhu_1v8_cam = NULL;
 	}
 
-	printk("%s- : -ENODEV\n", __FUNCTION__);
+	pr_info("%s- : -ENODEV\n", __FUNCTION__);
 	return -ENODEV;
 }
 
 static int iCatch7002a_sensor_power_off(struct device *dev)
 {
-	printk("%s+\n", __FUNCTION__);
+	pr_info("%s+\n", __FUNCTION__);
 	gpio_set_value(ICATCH7002A_RST_GPIO, 0);
 	gpio_direction_output(ICATCH7002A_RST_GPIO, 0);
 
@@ -456,7 +456,7 @@ static int iCatch7002a_sensor_power_off(struct device *dev)
 //		Asus_camera_disable_set_emc_rate();
 //	}
 
-	printk("%s-\n", __FUNCTION__);
+	pr_info("%s-\n", __FUNCTION__);
   return 0;
 }
 

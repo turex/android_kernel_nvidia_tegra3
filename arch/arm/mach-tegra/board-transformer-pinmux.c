@@ -96,7 +96,6 @@ static __initdata struct tegra_drive_pingroup_config cardhu_drive_pinmux[] = {
 	SET_DRIVE(GMB,		DISABLE, DISABLE, DIV_1, 9, 9, SLOWEST, SLOWEST),
 	SET_DRIVE(GMC,		DISABLE, DISABLE, DIV_1, 9, 9, SLOWEST, SLOWEST),
 	SET_DRIVE(GMD,		DISABLE, DISABLE, DIV_1, 9, 9, SLOWEST, SLOWEST),
-
 };
 
 static __initdata struct tegra_drive_pingroup_config cardhu_drive_pinmux_TF300TG[] = {
@@ -523,7 +522,7 @@ static __initdata struct tegra_pingroup_config pinmux_TF300TL[] = {
 	DEFAULT_PINMUX(DAP1_SCLK,       I2S0,            PULL_DOWN,    NORMAL,     OUTPUT), //DL_MODE
 	DEFAULT_PINMUX(ULPI_DATA5,      UARTA,           PULL_DOWN,    NORMAL,     INPUT),  //DL_COMPLETE
 	DEFAULT_PINMUX(DAP1_DIN,        I2S0,            PULL_DOWN,    TRISTATE,   INPUT),  //DEBUG: AP_TO_MOD_1
- };
+};
 
 static __initdata struct tegra_pingroup_config pinmux_TF300TG[] = {
 	DEFAULT_PINMUX(LCD_DC1,         DISPLAYA,        PULL_DOWN,    NORMAL,     OUTPUT), //MOD_VBUS_ON

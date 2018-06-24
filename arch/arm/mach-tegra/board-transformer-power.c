@@ -644,4 +644,3 @@ void __init cardhu_edp_init(void)
 	tegra_init_cpu_edp_limits(current_mA);
 }
 #endif
-

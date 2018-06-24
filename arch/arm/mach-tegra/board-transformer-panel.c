@@ -178,7 +178,7 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 	int ret;
 	//printk("Check cardhu_panel_enable_tf700t \n");
 
-	if (gpio_get_value(TEGRA_GPIO_PI6)==0){	//Panel is Panasonic
+	if (gpio_get_value(TEGRA_GPIO_PI6) == 0){	//Panel is Panasonic
 		//printk("Check panel is panasonic \n");
 		if (cardhu_lvds_vdd_bl == NULL) {
 			cardhu_lvds_vdd_bl = regulator_get(dev, "vdd_backlight");
@@ -195,8 +195,7 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 			gpio_free(TEGRA_GPIO_PU5);
 			return ret;
 		}
-	}
-	else{								//Panel is hydis
+	} else {								//Panel is hydis
 		//printk("Check panel is hydis \n");
 		gpio_set_value(TEGRA_GPIO_PH3, 0);
 		ret = gpio_direction_output(TEGRA_GPIO_PU5, 0);
@@ -293,17 +292,16 @@ static int cardhu_panel_disable_tf700t(void)
 	gpio_set_value(TEGRA_GPIO_PC6, 0);
 	gpio_set_value(TEGRA_GPIO_PBB3, 0);
 
-	if (gpio_get_value(TEGRA_GPIO_PI6)==0 ){		//panel is panasonic
+	if (gpio_get_value(TEGRA_GPIO_PI6) == 0) {		//panel is panasonic
 		msleep(85);
-	}
-	else {  //panel is hydis
+	} else {  //panel is hydis
 		msleep(10);
 	}
 
-	if(cardhu_lvds_vdd_panel) {
+	if (cardhu_lvds_vdd_panel) {
 		regulator_disable(cardhu_lvds_vdd_panel);
 		regulator_put(cardhu_lvds_vdd_panel);
-		cardhu_lvds_vdd_panel= NULL;
+		cardhu_lvds_vdd_panel = NULL;
 	}
 
 	gpio_set_value(TEGRA_GPIO_PU5, 0);
@@ -786,7 +784,7 @@ int __init cardhu_panel_init(void)
 		pr_err("%s: error in gpio request for backlight_enb\n", __func__);
 	}
 
-	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF700T){
+	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF700T) {
 		cardhu_disp1_out.dither = TEGRA_DC_ORDERED_DITHER;
 		cardhu_disp1_out.enable = cardhu_panel_enable_tf700t;
 		cardhu_disp1_out.disable = cardhu_panel_disable_tf700t;
@@ -798,7 +796,7 @@ int __init cardhu_panel_init(void)
 	}
 
 #ifdef CONFIG_TEGRA_DC
-	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF700T){
+	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF700T) {
 		printk("Check TF700T setting \n ");
 		cardhu_disp1_out.modes = panel_19X12_modes;
 		cardhu_disp1_out.n_modes = ARRAY_SIZE(panel_19X12_modes);
@@ -820,7 +818,7 @@ int __init cardhu_panel_init(void)
 	}
 #endif
 
-	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF700T){
+	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF700T) {
 		gpio_request(cardhu_hdmi_enb, "hdmi_5v_en");
 		gpio_direction_output(cardhu_hdmi_enb, 0);
 	} else {

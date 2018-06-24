@@ -378,6 +378,11 @@ static void __init cardhu_uart_init(void)
 			ARRAY_SIZE(cardhu_uart_devices));
 }
 
+static struct platform_device tegra_camera = {
+	.name = "tegra_camera",
+	.id = -1,
+};
+
 static struct platform_device *cardhu_spi_devices[] __initdata = {
 	&tegra_spi_device4,
 };
@@ -478,6 +483,7 @@ static struct platform_device *cardhu_devices[] __initdata = {
 #ifdef CONFIG_TEGRA_AVP
 	&tegra_avp_device,
 #endif
+	&tegra_camera,
 #ifdef CONFIG_CRYPTO_DEV_TEGRA_SE
 	&tegra_se_device,
 #endif
@@ -503,6 +509,8 @@ static struct platform_device *cardhu_devices[] __initdata = {
 };
 
 #ifdef CONFIG_TOUCHSCREEN_ATMEL_MXT
+// Interrupt pin: TEGRA_GPIO_PH4
+// Reset pin: TEGRA_GPIO_PH6
 
 #include <linux/i2c/atmel_mxt_ts.h>
 
@@ -516,7 +524,7 @@ static struct mxt_platform_data atmel_mxt_info = {
 	.read_chg		= &read_chg,
 };
 
-static struct i2c_board_info __initdata atmel_i2c_info[] = {
+static struct i2c_board_info atmel_i2c_info[] = {
 	{
 		I2C_BOARD_INFO("atmel_mxt_ts", MXT1386_I2C_ADDR2),
 		.flags = I2C_CLIENT_WAKE,
@@ -564,13 +572,12 @@ static int __init cardhu_touch_init(void)
 
 	gpio_request(TEGRA_GPIO_PH4, "touch-irq");
 	gpio_direction_input(TEGRA_GPIO_PH4);
+
 	gpio_request(TEGRA_GPIO_PH6, "touch-reset");
 	gpio_direction_output(TEGRA_GPIO_PH6, 0);
 
 	msleep(1);
-
 	gpio_set_value(TEGRA_GPIO_PH6, 1);
-
 	msleep(100);
 
 	switch(tegra3_get_project_id()){
@@ -761,11 +768,11 @@ static void __init cardhu_usb_init(void)
 	tegra_udc_device.dev.platform_data = &tegra_udc_pdata;
 
 	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF300TL) {
-		printk("[TF300TL] register tegra_ehci2_device\n");
+		pr_info("[TF300TL] register tegra_ehci2_device\n");
 		tegra_ehci2_device.dev.platform_data = &tegra_ehci2_utmi_pdata;
 		platform_device_register(&tegra_ehci2_device);
 	} else if (tegra3_get_project_id() == TEGRA3_PROJECT_TF300TG) {
-		printk("[TF300TG] register tegra_ehci2_device\n");
+		pr_info("[TF300TG] register tegra_ehci2_device\n");
 		tegra_ehci2_utmi_pdata.u_data.host.power_off_on_suspend = false;
 		tegra_ehci2_device.dev.platform_data =  &tegra_ehci2_hsic_xmm_pdata;
 		/* ehci2 registration happens in baseband-xmm-power  */
@@ -955,7 +962,7 @@ static void __init cardhu_booting_info(void)
 		pr_info("tegra_booting_info-SW reboot\n");
 	} else if (reg == PMC_RST_STATUS_WDT){
 		pr_info("tegra_booting_info-watchdog reboot\n");
-	} else{
+	} else {
 		pr_info("tegra_booting_info-normal\n");
 	}
 }
