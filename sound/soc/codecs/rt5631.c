@@ -1104,15 +1104,15 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 		if (!spkl_out_enable && !strcmp(w->name, "SPKL Amp")) {
 
 			if(tegra3_get_project_id() == TEGRA3_PROJECT_TF201) {
-				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0700);
+				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_L_VOL, 0x0700);
 			} else if(tegra3_get_project_id() == TEGRA3_PROJECT_TF300TG) {
-				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0700);
+				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_L_VOL, 0x0700);
 			} else if(tegra3_get_project_id() == TEGRA3_PROJECT_TF700T) {
-				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0600);
+				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_L_VOL, 0x0600);
 			}
 			if((tf700t_pcb_id == TF700T_PCB_ER1) &&
 			   (tegra3_get_project_id() == TEGRA3_PROJECT_TF700T)){
-			   snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0d00);
+			   snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_L_VOL, 0x0d00);
 			   printk("%s: %s\n", __func__, "TF700T ER1 spk L ch vol = -7.5dB");
 			}
 
@@ -1127,15 +1127,15 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 		if (!spkr_out_enable && !strcmp(w->name, "SPKR Amp")) {
 
 			if(tegra3_get_project_id() == TEGRA3_PROJECT_TF201) {
-				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0007);
+				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_R_VOL, 0x0007);
 			} else if(tegra3_get_project_id() == TEGRA3_PROJECT_TF300TG) {
-				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0007);
+				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_R_VOL, 0x0007);
 			} else if(tegra3_get_project_id() == TEGRA3_PROJECT_TF700T) {
-				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0006);
+				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_R_VOL, 0x0006);
 			}
 			if((tf700t_pcb_id == TF700T_PCB_ER1) &&
 				(tegra3_get_project_id() == TEGRA3_PROJECT_TF700T)) {
-                snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x000d);
+                snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_R_VOL, 0x000d);
                 printk("%s: %s\n", __func__, "TF700T ER1 spk R ch vol = -7.5dB");
 			}
 
