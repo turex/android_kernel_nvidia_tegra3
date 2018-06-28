@@ -72,21 +72,20 @@
 #include "baseband-xmm-power.h"
 #include "wdt-recovery.h"
 
-static struct rfkill_gpio_platform_data cardhu_bt_rfkill_pdata[] = {
-	{
-		.name		= "bt_rfkill",
-		.shutdown_gpio	= TEGRA_GPIO_PU0,
-		.reset_gpio	= TEGRA_GPIO_INVALID,
-		.type		= RFKILL_TYPE_BLUETOOTH,
-	},
-};
+static struct resource cardhu_bcm4329_rfkill_resources[] = {
+  	{
+		.name   = "bcm4329_nshutdown_gpio",
+  		.start  = TEGRA_GPIO_PU0,
+  		.end    = TEGRA_GPIO_PU0,
+  		.flags  = IORESOURCE_IO,
+  	},
+  };
 
-static struct platform_device cardhu_bt_rfkill_device = {
-	.name			= "rfkill_gpio",
-	.id			= -1,
-	.dev = {
-		.platform_data = &cardhu_bt_rfkill_pdata,
-	},
+static struct platform_device cardhu_bcm4329_rfkill_device = {
+	.name			= "bcm4329_rfkill",
+	.id				= -1,
+	.num_resources	= ARRAY_SIZE(cardhu_bcm4329_rfkill_resources),
+	.resource		= cardhu_bcm4329_rfkill_resources,
 };
 
 static struct resource cardhu_bluesleep_resources[] = {
@@ -498,7 +497,7 @@ static struct platform_device *cardhu_devices[] __initdata = {
 	&spdif_dit_device,
 	&bluetooth_dit_device,
 	&baseband_dit_device,
-	&cardhu_bt_rfkill_device,
+	&cardhu_bcm4329_rfkill_device,
 	&tegra_pcm_device,
 	&cardhu_audio_device,
 	&tegra_hda_device,
