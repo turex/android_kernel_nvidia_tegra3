@@ -39,7 +39,7 @@
 #define PMC_CTRL		0x0
 #define PMC_CTRL_INTR_LOW	(1 << 17)
 
-static struct regulator_consumer_supply tps6591x_vdd1_supply_skubit0_1[] = {
+static struct regulator_consumer_supply tps6591x_vdd1_supply_0[] = {
 	REGULATOR_SUPPLY("en_vddio_ddr_1v2", NULL),
 };
 
@@ -111,7 +111,7 @@ static struct regulator_consumer_supply tps6591x_ldo2_supply_0[] = {
 	REGULATOR_SUPPLY("vddio_sd_slot", "sdhci-tegra.0"),
 };
 
-static struct regulator_consumer_supply tps6591x_ldo3_supply_e118x[] = {
+static struct regulator_consumer_supply tps6591x_ldo3_supply_0[] = {
 	REGULATOR_SUPPLY("vddio_sdmmc", "sdhci-tegra.0"),
 	REGULATOR_SUPPLY("pwrdet_sdmmc1", NULL),
 };
@@ -120,7 +120,7 @@ static struct regulator_consumer_supply tps6591x_ldo4_supply_0[] = {
 	REGULATOR_SUPPLY("vdd_rtc", NULL),
 };
 
-static struct regulator_consumer_supply tps6591x_ldo5_supply_e118x[] = {
+static struct regulator_consumer_supply tps6591x_ldo5_supply_0[] = {
 	REGULATOR_SUPPLY("avdd_vdac", NULL),
 };
 
@@ -171,21 +171,21 @@ static struct regulator_consumer_supply tps6591x_ldo8_supply_0[] = {
 		.shutdown_state_off = _off,				\
 	}
 
-TPS_PDATA_INIT(vdd1, skubit0_1, 600,  1500, 0, 1, 1, 0, -1, 0, 0, EXT_CTRL_SLEEP_OFF, 0, true);
-TPS_PDATA_INIT(vdd2, 0,         600,  1500, 0, 1, 1, 0, -1, 0, 0, 0, 0, false);
-TPS_PDATA_INIT(vddctrl, 0,      600,  1400, 0, 1, 1, 0, -1, 0, 0, EXT_CTRL_EN1, 0, true);
-TPS_PDATA_INIT(vio,  0,         1500, 3300, 0, 1, 1, 0, -1, 0, 0, 0, 0, false);
+TPS_PDATA_INIT(vdd1,    0,  600, 1500, 0, 1, 1, 0, -1, 0, 0, EXT_CTRL_SLEEP_OFF, 0,  true);
+TPS_PDATA_INIT(vdd2,    0,  600, 1500, 0, 1, 1, 0, -1, 0, 0,                  0, 0, false);
+TPS_PDATA_INIT(vddctrl, 0,  600, 1400, 0, 1, 1, 0, -1, 0, 0,       EXT_CTRL_EN1, 0,  true);
+TPS_PDATA_INIT(vio,     0, 1500, 3300, 0, 1, 1, 0, -1, 0, 0,                  0, 0, false);
 
-TPS_PDATA_INIT(ldo1, 0,         1000, 3300, tps6591x_rails(VDD_2), 1, 0, 0, -1, 1, 1, 0, 0, true);
-TPS_PDATA_INIT(ldo2, 0,         1050, 3300, tps6591x_rails(VDD_2), 0, 0, 1, -1, 0, 1, 0, 0, false);
+TPS_PDATA_INIT(ldo1,    0, 1000, 3300, tps6591x_rails(VDD_2), 1, 0, 0, -1, 1, 1, 0, 0,  true);
+TPS_PDATA_INIT(ldo2,    0, 1050, 3300, tps6591x_rails(VDD_2), 0, 0, 1, -1, 0, 1, 0, 0, false);
 
-TPS_PDATA_INIT(ldo3, e118x,     1000, 3300, 0, 0, 0, 0, -1, 0, 0, 0, 0, true);
-TPS_PDATA_INIT(ldo4, 0,         1000, 3300, 0, 1, 0, 0, -1, 0, 0, 0, 0, false);
-TPS_PDATA_INIT(ldo5, e118x,     1000, 3300, 0, 0, 0, 0, -1, 0, 0, 0, 0, true);
+TPS_PDATA_INIT(ldo3,    0, 1000, 3300, 0, 0, 0, 0, -1, 0, 0, 0, 0,  true);
+TPS_PDATA_INIT(ldo4,    0, 1000, 3300, 0, 1, 0, 0, -1, 0, 0, 0, 0, false);
+TPS_PDATA_INIT(ldo5,    0, 1000, 3300, 0, 0, 0, 0, -1, 0, 0, 0, 0,  true);
 
-TPS_PDATA_INIT(ldo6, 0,         1200, 1200, tps6591x_rails(VIO), 0, 0, 1, -1, 0, 0, 0, 0, true);
-TPS_PDATA_INIT(ldo7, 0,         1200, 1200, tps6591x_rails(VIO), 1, 1, 1, -1, 0, 0, EXT_CTRL_SLEEP_OFF, LDO_LOW_POWER_ON_SUSPEND, false);
-TPS_PDATA_INIT(ldo8, 0,         1000, 3300, tps6591x_rails(VIO), 1, 0, 0, -1, 0, 0, EXT_CTRL_SLEEP_OFF, LDO_LOW_POWER_ON_SUSPEND, false);
+TPS_PDATA_INIT(ldo6,    0, 1200, 1200, tps6591x_rails(VIO), 0, 0, 1, -1, 0, 0, 0, 0, true);
+TPS_PDATA_INIT(ldo7,    0, 1200, 1200, tps6591x_rails(VIO), 1, 1, 1, -1, 0, 0, EXT_CTRL_SLEEP_OFF, LDO_LOW_POWER_ON_SUSPEND, false);
+TPS_PDATA_INIT(ldo8,    0, 1000, 3300, tps6591x_rails(VIO), 1, 0, 0, -1, 0, 0, EXT_CTRL_SLEEP_OFF, LDO_LOW_POWER_ON_SUSPEND, false);
 
 #ifdef CONFIG_RTC_DRV_TPS6591x
 static struct tps6591x_rtc_platform_data rtc_data = {
@@ -220,16 +220,16 @@ static struct tps6591x_rtc_platform_data rtc_data = {
 	TPS_REG(VDDCTRL, vddctrl, 0),		\
 	TPS_REG(LDO_1, ldo1, 0),		\
 	TPS_REG(LDO_2, ldo2, 0),		\
-	TPS_REG(LDO_3, ldo3, e118x),		\
+	TPS_REG(LDO_3, ldo3, 0),		\
 	TPS_REG(LDO_4, ldo4, 0),		\
-	TPS_REG(LDO_5, ldo5, e118x),		\
+	TPS_REG(LDO_5, ldo5, 0),		\
 	TPS_REG(LDO_6, ldo6, 0),		\
 	TPS_REG(LDO_7, ldo7, 0),		\
 	TPS_REG(LDO_8, ldo8, 0)
 
-static struct tps6591x_subdev_info tps_devs_e118x_skubit0_1[] = {
+static struct tps6591x_subdev_info tps_devs_e118x_0[] = {
 	TPS_REG(VIO, vio, 0),
-	TPS_REG(VDD_1, vdd1, skubit0_1),
+	TPS_REG(VDD_1, vdd1, 0),
 	TPS6591X_DEV_COMMON_E118X,
 #ifdef CONFIG_RTC_DRV_TPS6591x
 	TPS_RTC_REG(),
@@ -244,6 +244,7 @@ static struct tps6591x_subdev_info tps_devs_e118x_skubit0_1[] = {
 			.output_val	= _output_val,	\
 			.init_apply	= _init_apply,	\
 		     }
+
 static struct tps6591x_gpio_init_data tps_gpio_pdata_e1291_a04[] =  {
 	TPS_GPIO_INIT_PDATA(0, 0, 0, 0, 0, 0),
 	TPS_GPIO_INIT_PDATA(1, 0, 0, 0, 0, 0),
@@ -267,8 +268,8 @@ static struct tps6591x_platform_data tps_platform = {
 	.slp_keepon	= &tps_slp_keepon,
 	.use_power_off	= true,
 
-	.num_subdevs = ARRAY_SIZE(tps_devs_e118x_skubit0_1),
-	.subdevs = tps_devs_e118x_skubit0_1,
+	.num_subdevs = ARRAY_SIZE(tps_devs_e118x_0),
+	.subdevs = tps_devs_e118x_0,
 
 	.gpio_init_data = tps_gpio_pdata_e1291_a04,
 	.num_gpioinit_data = ARRAY_SIZE(tps_gpio_pdata_e1291_a04),
@@ -332,7 +333,7 @@ int __init cardhu_regulator_init(void)
 	/* The regulator details have complete constraints */
 	regulator_has_full_constraints();
 
-	pdata_ldo3_e118x.slew_rate_uV_per_us = 250;
+	pdata_ldo3_0.slew_rate_uV_per_us = 250;
 
 	i2c_register_board_info(4, cardhu_regulators, 1);
 
@@ -602,23 +603,15 @@ static struct tegra_suspend_platform_data cardhu_suspend_data = {
 	.cpu_lp2_min_residency = 2000,
 	.board_suspend = cardhu_board_suspend,
 	.board_resume = cardhu_board_resume,
-#if 0 		//for CONFIG_TEGRA_LP1_LOW_COREVOLTAGE which isn't supported by transformers
-	.lp1_lowvolt_support = true;
-	.i2c_base_addr = TEGRA_I2C5_BASE;
-	.pmuslave_addr = 0xC0;
-	.core_reg_addr = 0x03;
-	.lp1_core_volt_low = 0x2D;
-	.lp1_core_volt_high = 0x50;
-#endif
+	//CONFIG_TEGRA_LP1_LOW_COREVOLTAGE isn't supported by transformers
 };
 
 void __init cardhu_suspend_init(void)
 {
-	tegra_init_suspend(&cardhu_suspend_data);;
+	tegra_init_suspend(&cardhu_suspend_data);
 }
 
 #ifdef CONFIG_TEGRA_EDP_LIMITS
-
 void __init cardhu_edp_init(void)
 {
 	unsigned int current_mA = 0;

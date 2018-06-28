@@ -25,7 +25,7 @@
 
 static struct timer_list v_timer;
 
-//The vibrate events are asynchronously triggered from user
+/* The vibrate events are asynchronously triggered from user */
 static void vibrator_enable(struct timed_output_dev *dev, int value)
 {
 	if (value) {
@@ -41,8 +41,10 @@ static void vibrator_enable(struct timed_output_dev *dev, int value)
 
 static int vibrator_get_time(struct timed_output_dev *dev)
 {
-	/* Always return 0, there is no related user space
-	* vibrator API would call this function.*/
+	/*
+	 * Always return 0, there is no related user space
+	 * vibrator API would call this function.
+	 */
 	return 0;
 }
 
@@ -60,15 +62,16 @@ static void stop_vibrator(unsigned long trigger)
 static int __init vibrator_init(void)
 {
 	int ret;
+
 	/*
 	 * Use GMI_AD15 pin as a software-controlled GPIO
 	 * to control vibrator
 	 */
+
 	if(tegra3_get_project_id() != TEGRA3_PROJECT_TF201 &&
 		tegra3_get_project_id() != TEGRA3_PROJECT_TF700T)
 		return 0;
 
-	pr_info("%s+ #####\n", __func__);
 	ret = gpio_request(TEGRA_GPIO_PH7, "ENB_VIB");
 	if (ret) {
 		pr_info("[VIB]: gpio_request failed.\n");
@@ -87,7 +90,6 @@ static int __init vibrator_init(void)
 
 	if (ret)
 		pr_info("[VIB]: timed_output_dev_register failed.\n");
-	pr_info("%s- #####\n", __func__);
 	return ret;
 }
 

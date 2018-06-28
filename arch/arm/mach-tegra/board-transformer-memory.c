@@ -8577,108 +8577,108 @@ int __init cardhu_emc_init(void)
 	int ret = 0;
 	int mem_bootstrap_ad4 = 0, mem_bootstrap_ad5 = 0;
 
-    ret = gpio_request( MEMORY_BOOSTRAP_PIN_AD4, "memory_bootstrap_ad4");
+    ret = gpio_request(MEMORY_BOOSTRAP_PIN_AD4, "memory_bootstrap_ad4");
 	if (ret < 0) {
-		printk("cardhu_emc_init: request MEMORY_BOOSTRAP_PIN_AD4 failed\n");
+		pr_info("cardhu_emc_init: request MEMORY_BOOSTRAP_PIN_AD4 failed\n");
 		WARN_ON(1);
 	}
 
-	ret= gpio_direction_input(MEMORY_BOOSTRAP_PIN_AD4);
+	ret = gpio_direction_input(MEMORY_BOOSTRAP_PIN_AD4);
 	if (ret < 0) {
-		printk("cardhu_emc_init: failed to configure MEMORY_BOOSTRAP_PIN_AD4\n");
+		pr_info("cardhu_emc_init: failed to configure MEMORY_BOOSTRAP_PIN_AD4\n");
 		WARN_ON(1);
 	}
-	mem_bootstrap_ad4=gpio_get_value(MEMORY_BOOSTRAP_PIN_AD4);
+	mem_bootstrap_ad4 = gpio_get_value(MEMORY_BOOSTRAP_PIN_AD4);
 
-    ret = gpio_request( MEMORY_BOOSTRAP_PIN_AD5, "memory_bootstrap_ad5");
+    ret = gpio_request(MEMORY_BOOSTRAP_PIN_AD5, "memory_bootstrap_ad5");
 	if (ret < 0) {
-		printk("cardhu_emc_init: request MEMORY_BOOSTRAP_PIN_AD5 failed\n");
+		pr_info("cardhu_emc_init: request MEMORY_BOOSTRAP_PIN_AD5 failed\n");
 		WARN_ON(1);
 	}
 
-	ret= gpio_direction_input(MEMORY_BOOSTRAP_PIN_AD5);
+	ret = gpio_direction_input(MEMORY_BOOSTRAP_PIN_AD5);
 	if (ret < 0) {
-		printk("cardhu_emc_init: failed to configure MEMORY_BOOSTRAP_PIN_AD4\n");
+		pr_info("cardhu_emc_init: failed to configure MEMORY_BOOSTRAP_PIN_AD4\n");
 		WARN_ON(1);
 	}
-	mem_bootstrap_ad5=gpio_get_value(MEMORY_BOOSTRAP_PIN_AD5);
+	mem_bootstrap_ad5 = gpio_get_value(MEMORY_BOOSTRAP_PIN_AD5);
 
 	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF201) 
 	{
 		tegra_init_dram_bit_map(pm269_bit_swap_map,
 			ARRAY_SIZE(pm269_bit_swap_map));
 
-		if((mem_bootstrap_ad4==1)  && (mem_bootstrap_ad5==0)) {
-			printk("BOARD_PM269: dvfs_TF201_500MHZ \n");
+		if((mem_bootstrap_ad4 == 1) && (mem_bootstrap_ad5 == 0)) {
+			pr_info("BOARD_PM269: dvfs_TF201_500MHZ \n");
 			emc_platdata = &cardhu_emc_chip_dvfs_TF201_500MHZ;
 		} else {
-			printk("BOARD_PM269:  [%u %u]elpida_1GB_EDB8132B2MA_8D_lpddr2_400MHz\n",mem_bootstrap_ad5,mem_bootstrap_ad4);
+			pr_info("BOARD_PM269: [%u %u]elpida_1GB_EDB8132B2MA_8D_lpddr2_400MHz\n", mem_bootstrap_ad5, mem_bootstrap_ad4);
 			emc_platdata = &cardhu_emc_chip_elpida_1GB_EDB8132B2MA_8D_lpddr2_400MHz;
 		}
 	} 
 	else if (tegra3_get_project_id() == TEGRA3_PROJECT_TF300T) 
 	{
-		if((mem_bootstrap_ad4==0)  && (mem_bootstrap_ad5==0) )
+		if((mem_bootstrap_ad4 == 0) && (mem_bootstrap_ad5 == 0))
 		{
-			printk("BOARD_PM269:TF300T_Elpida_1GB_667MHZ\n");
+			pr_info("BOARD_PM269:TF300T_Elpida_1GB_667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300T_Elpida_1GB_667MHZ;
 		}
-		else if((mem_bootstrap_ad4==1)  && (mem_bootstrap_ad5==0) )
+		else if((mem_bootstrap_ad4 == 1) && (mem_bootstrap_ad5 == 0))
 		{
-			printk("BOARD_PM269:TF300T_Hynix_1GB_667MHZ\n");
+			pr_info("BOARD_PM269:TF300T_Hynix_1GB_667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300T_Hynix_1GB_667MHZ;
 		}
-		else if((mem_bootstrap_ad4==0)  && (mem_bootstrap_ad5==1) )
+		else if((mem_bootstrap_ad4 == 0) && (mem_bootstrap_ad5 == 1))
 		{
-			printk("BOARD_PM269:TF300T_Micron_1GB_667MHZ\n");
+			pr_info("BOARD_PM269:TF300T_Micron_1GB_667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300T_Micron_1GB_667MHZ;
 		}
 	}
 	else if(tegra3_get_project_id() == TEGRA3_PROJECT_TF300TG)
 	{
-		if((mem_bootstrap_ad4==0)  && (mem_bootstrap_ad5==0) )
+		if((mem_bootstrap_ad4 == 0) && (mem_bootstrap_ad5 == 0))
 		{
-			printk("BOARD_PM269:TF300TG_Elpida_1GB_667MHZ\n");
+			pr_info("BOARD_PM269:TF300TG_Elpida_1GB_667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300TG_Elpida_1GB_667MHZ;
 		}
-		else if((mem_bootstrap_ad4==1)  && (mem_bootstrap_ad5==0) )
+		else if((mem_bootstrap_ad4 == 1) && (mem_bootstrap_ad5 == 0))
 		{
-			printk("BOARD_PM269:TF300TG_Hynix_1GB_667MHZ\n");
+			pr_info("BOARD_PM269:TF300TG_Hynix_1GB_667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300TG_Hynix_1GB_667MHZ;
 		}
-		else if((mem_bootstrap_ad4==0)  && (mem_bootstrap_ad5==1) )
+		else if((mem_bootstrap_ad4 == 0) && (mem_bootstrap_ad5 == 1))
 		{
-			printk("BOARD_PM269:TF300TG_Micron_1GB_667MHZ\n");
+			pr_info("BOARD_PM269:TF300TG_Micron_1GB_667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300TG_Micron_1GB_667MHZ;
 		}
 	}
 	else if(tegra3_get_project_id() == TEGRA3_PROJECT_TF300TL)
 	{
-		if((mem_bootstrap_ad4==0)  && (mem_bootstrap_ad5==0) )
+		if((mem_bootstrap_ad4 == 0) && (mem_bootstrap_ad5 == 0))
 		{
-			printk("BOARD_PM269:TF300TL_Elpida_1GB_667MHZ\n");
+			pr_info("BOARD_PM269:TF300TL_Elpida_1GB_667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300TL_Elpida_1GB_667MHZ;
 		}
-		else if((mem_bootstrap_ad4==1)  && (mem_bootstrap_ad5==0) )
+		else if((mem_bootstrap_ad4 == 1) && (mem_bootstrap_ad5 == 0))
 		{
-			printk("BOARD_PM269:TF300TL_Hynix_1GB_667MHZ\n");
+			pr_info("BOARD_PM269:TF300TL_Hynix_1GB_667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300TL_Hynix_1GB_667MHZ;
 		}
 	}
 	else if(tegra3_get_project_id() == TEGRA3_PROJECT_TF700T)
 	{
-		if((mem_bootstrap_ad4==0)  && (mem_bootstrap_ad5==0) )
+		if((mem_bootstrap_ad4 == 0) && (mem_bootstrap_ad5 == 0))
 		{
-			printk("BOARD_PM269:TF700T_Micron_1GB\n");
+			pr_info("BOARD_PM269:TF700T_Micron_1GB\n");
 			emc_platdata = &cardhu_emc_chip_TF700T_Micron_1GB;
 		}
-		else if((mem_bootstrap_ad4==1)  && (mem_bootstrap_ad5==0) )
+		else if((mem_bootstrap_ad4 == 1) && (mem_bootstrap_ad5 == 0))
 		{
-			printk("BOARD_PM269:TF700T_Elpida  800 MHZ version 5 (0413)\n");
+			pr_info("BOARD_PM269:TF700T_Elpida  800 MHZ version 5 (0413)\n");
 			emc_platdata = &cardhu_emc_chip_TF700T_Elpida_1GB;
 		}
 	} else {
-		printk("Invalid project info, disable EMC DVFS!\n");
+		pr_info("Invalid project info, disable EMC DVFS!\n");
 		return 0;
 	}
 

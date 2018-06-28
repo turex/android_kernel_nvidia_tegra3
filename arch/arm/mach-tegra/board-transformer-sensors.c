@@ -731,9 +731,9 @@ static void mpuirq_init(void)
 			};
 
 		pr_info("initial mpu with TF300T config...\n");
-		memcpy( mpu3050_gyro_data.orientation, TF300T.gyro_orientation, sizeof(mpu3050_gyro_data.orientation));
-		memcpy( mpu3050_accel_data.orientation, TF300T.accel_orientation, sizeof(mpu3050_accel_data.orientation));
-		memcpy( mpu3050_compass_data.orientation, TF300T.compass_orientation, sizeof(mpu3050_compass_data.orientation));
+		memcpy(mpu3050_gyro_data.orientation, TF300T.gyro_orientation, sizeof(mpu3050_gyro_data.orientation));
+		memcpy(mpu3050_accel_data.orientation, TF300T.accel_orientation, sizeof(mpu3050_accel_data.orientation));
+		memcpy(mpu3050_compass_data.orientation, TF300T.compass_orientation, sizeof(mpu3050_compass_data.orientation));
 	}
 	else if (tegra3_get_project_id() == TEGRA3_PROJECT_TF300TG)
 	{
@@ -745,9 +745,9 @@ static void mpuirq_init(void)
 			};
 
 		pr_info("initial mpu with TF300TG config...\n");
-		memcpy( mpu3050_gyro_data.orientation, TF300TG.gyro_orientation, sizeof(mpu3050_gyro_data.orientation));
-		memcpy( mpu3050_accel_data.orientation, TF300TG.accel_orientation, sizeof(mpu3050_accel_data.orientation));
-		memcpy( mpu3050_compass_data.orientation, TF300TG.compass_orientation, sizeof(mpu3050_compass_data.orientation));
+		memcpy(mpu3050_gyro_data.orientation, TF300TG.gyro_orientation, sizeof(mpu3050_gyro_data.orientation));
+		memcpy(mpu3050_accel_data.orientation, TF300TG.accel_orientation, sizeof(mpu3050_accel_data.orientation));
+		memcpy(mpu3050_compass_data.orientation, TF300TG.compass_orientation, sizeof(mpu3050_compass_data.orientation));
 	}
 	else if (tegra3_get_project_id() == TEGRA3_PROJECT_TF700T)
 	{
@@ -759,9 +759,9 @@ static void mpuirq_init(void)
 			};
 
 		pr_info("initial mpu with TF700T config...\n");
-		memcpy( mpu3050_gyro_data.orientation, TF700T.gyro_orientation, sizeof(mpu3050_gyro_data.orientation));
-		memcpy( mpu3050_accel_data.orientation, TF700T.accel_orientation, sizeof(mpu3050_accel_data.orientation));
-		memcpy( mpu3050_compass_data.orientation, TF700T.compass_orientation, sizeof(mpu3050_compass_data.orientation));
+		memcpy(mpu3050_gyro_data.orientation, TF700T.gyro_orientation, sizeof(mpu3050_gyro_data.orientation));
+		memcpy(mpu3050_accel_data.orientation, TF700T.accel_orientation, sizeof(mpu3050_accel_data.orientation));
+		memcpy(mpu3050_compass_data.orientation, TF700T.compass_orientation, sizeof(mpu3050_compass_data.orientation));
 	}
 	else if (tegra3_get_project_id() == TEGRA3_PROJECT_TF300TL)
 	{
@@ -773,9 +773,9 @@ static void mpuirq_init(void)
 			};
 
 		pr_info("initial mpu with TF300TL config...\n");
-		memcpy( mpu3050_gyro_data.orientation, TF300TL.gyro_orientation, sizeof(mpu3050_gyro_data.orientation));
-		memcpy( mpu3050_accel_data.orientation, TF300TL.accel_orientation, sizeof(mpu3050_accel_data.orientation));
-		memcpy( mpu3050_compass_data.orientation, TF300TL.compass_orientation, sizeof(mpu3050_compass_data.orientation));
+		memcpy(mpu3050_gyro_data.orientation, TF300TL.gyro_orientation, sizeof(mpu3050_gyro_data.orientation));
+		memcpy(mpu3050_accel_data.orientation, TF300TL.accel_orientation, sizeof(mpu3050_accel_data.orientation));
+		memcpy(mpu3050_compass_data.orientation, TF300TL.compass_orientation, sizeof(mpu3050_compass_data.orientation));
 	}
 	else pr_info("initial mpu with TF201 config...\n");
 
