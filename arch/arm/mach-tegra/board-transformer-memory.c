@@ -8609,10 +8609,10 @@ int __init cardhu_emc_init(void)
 			ARRAY_SIZE(pm269_bit_swap_map));
 
 		if((mem_bootstrap_ad4 == 1) && (mem_bootstrap_ad5 == 0)) {
-			pr_info("BOARD_PM269: dvfs_TF201_500MHZ \n");
+			pr_info("TRANSFORMER: TF201 1 GB 500MHZ\n");
 			emc_platdata = &cardhu_emc_chip_dvfs_TF201_500MHZ;
 		} else {
-			pr_info("BOARD_PM269: [%u %u]elpida_1GB_EDB8132B2MA_8D_lpddr2_400MHz\n", mem_bootstrap_ad5, mem_bootstrap_ad4);
+			pr_info("TRANSFORMER: TF201 Elpida 1GB 400MHz\n");
 			emc_platdata = &cardhu_emc_chip_elpida_1GB_EDB8132B2MA_8D_lpddr2_400MHz;
 		}
 	} 
@@ -8620,17 +8620,17 @@ int __init cardhu_emc_init(void)
 	{
 		if((mem_bootstrap_ad4 == 0) && (mem_bootstrap_ad5 == 0))
 		{
-			pr_info("BOARD_PM269:TF300T_Elpida_1GB_667MHZ\n");
+			pr_info("TRANSFORMER: TF300T Elpida 1GB 667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300T_Elpida_1GB_667MHZ;
 		}
 		else if((mem_bootstrap_ad4 == 1) && (mem_bootstrap_ad5 == 0))
 		{
-			pr_info("BOARD_PM269:TF300T_Hynix_1GB_667MHZ\n");
+			pr_info("TRANSFORMER: TF300T Hynix 1GB 667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300T_Hynix_1GB_667MHZ;
 		}
 		else if((mem_bootstrap_ad4 == 0) && (mem_bootstrap_ad5 == 1))
 		{
-			pr_info("BOARD_PM269:TF300T_Micron_1GB_667MHZ\n");
+			pr_info("TRANSFORMER: TF300T Micron 1GB 667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300T_Micron_1GB_667MHZ;
 		}
 	}
@@ -8638,17 +8638,17 @@ int __init cardhu_emc_init(void)
 	{
 		if((mem_bootstrap_ad4 == 0) && (mem_bootstrap_ad5 == 0))
 		{
-			pr_info("BOARD_PM269:TF300TG_Elpida_1GB_667MHZ\n");
+			pr_info("TRANSFORMER: TF300TG Elpida 1GB 667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300TG_Elpida_1GB_667MHZ;
 		}
 		else if((mem_bootstrap_ad4 == 1) && (mem_bootstrap_ad5 == 0))
 		{
-			pr_info("BOARD_PM269:TF300TG_Hynix_1GB_667MHZ\n");
+			pr_info("TRANSFORMER: TF300TG Hynix 1GB 667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300TG_Hynix_1GB_667MHZ;
 		}
 		else if((mem_bootstrap_ad4 == 0) && (mem_bootstrap_ad5 == 1))
 		{
-			pr_info("BOARD_PM269:TF300TG_Micron_1GB_667MHZ\n");
+			pr_info("TRANSFORMER: TF300TG Micron 1GB 667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300TG_Micron_1GB_667MHZ;
 		}
 	}
@@ -8656,12 +8656,12 @@ int __init cardhu_emc_init(void)
 	{
 		if((mem_bootstrap_ad4 == 0) && (mem_bootstrap_ad5 == 0))
 		{
-			pr_info("BOARD_PM269:TF300TL_Elpida_1GB_667MHZ\n");
+			pr_info("TRANSFORMER: TF300TL Elpida 1GB 667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300TL_Elpida_1GB_667MHZ;
 		}
 		else if((mem_bootstrap_ad4 == 1) && (mem_bootstrap_ad5 == 0))
 		{
-			pr_info("BOARD_PM269:TF300TL_Hynix_1GB_667MHZ\n");
+			pr_info("TRANSFORMER: TF300TL Hynix 1GB 667MHZ\n");
 			emc_platdata = &cardhu_emc_chip_TF300TL_Hynix_1GB_667MHZ;
 		}
 	}
@@ -8669,12 +8669,12 @@ int __init cardhu_emc_init(void)
 	{
 		if((mem_bootstrap_ad4 == 0) && (mem_bootstrap_ad5 == 0))
 		{
-			pr_info("BOARD_PM269:TF700T_Micron_1GB\n");
+			pr_info("TRANSFORMER: TF700T Micron 1GB\n");
 			emc_platdata = &cardhu_emc_chip_TF700T_Micron_1GB;
 		}
 		else if((mem_bootstrap_ad4 == 1) && (mem_bootstrap_ad5 == 0))
 		{
-			pr_info("BOARD_PM269:TF700T_Elpida  800 MHZ version 5 (0413)\n");
+			pr_info("TRANSFORMER: TF700T Elpida 1GB 800MHZ version 5 (0413)\n");
 			emc_platdata = &cardhu_emc_chip_TF700T_Elpida_1GB;
 		}
 	} else {

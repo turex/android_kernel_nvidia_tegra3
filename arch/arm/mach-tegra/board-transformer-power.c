@@ -27,12 +27,9 @@
 
 #include <asm/mach-types.h>
 
-#include <mach/iomap.h>
-#include <mach/irqs.h>
 #include <mach/edp.h>
 #include <mach/board-transformer-misc.h>
 
-#include "board.h"
 #include "board-transformer.h"
 #include "pm.h"
 
@@ -375,7 +372,6 @@ static struct regulator_consumer_supply fixed_reg_en_3v3_sys_supply[] = {
 	REGULATOR_SUPPLY("pwrdet_pex_ctl", NULL),
 	REGULATOR_SUPPLY("hvdd_pex_pmu", NULL),
 	REGULATOR_SUPPLY("avdd_hdmi", NULL),
-	REGULATOR_SUPPLY("vpp_fuse", NULL),
 	REGULATOR_SUPPLY("avdd_usb", "tegra-udc.0"),
 	REGULATOR_SUPPLY("avdd_usb", "tegra-ehci.0"),
 	REGULATOR_SUPPLY("avdd_usb", "tegra-ehci.1"),
@@ -457,7 +453,7 @@ static struct regulator_consumer_supply fixed_reg_en_3v3_emmc_supply[] = {
 
 /* EN_3v3_FUSE from AP GPIO VI_D08 L06*/
 static struct regulator_consumer_supply fixed_reg_en_3v3_fuse_supply[] = {
-	REGULATOR_SUPPLY("vdd_fuse", NULL),
+	REGULATOR_SUPPLY("vpp_fuse", NULL),
 };
 
 /* EN_1V8_CAM from AP GPIO GPIO_PBB4 PBB04*/
@@ -522,28 +518,28 @@ static struct regulator_consumer_supply fixed_reg_en_vbrtr_supply[] = {
 
 
 /* common to most of boards*/
-FIXED_REG(0, en_5v_cp,			en_5v_cp,		NULL,						1,	0,	TPS6591X_GPIO_0,	true,	1, 5000);
-FIXED_REG(5, en_3v3_modem,		en_3v3_modem,	NULL,						1,	0,	TEGRA_GPIO_PD6,		true,	1, 3300);
-FIXED_REG(7, cam3_ldo_en,		cam3_ldo_en,	FIXED_SUPPLY(en_3v3_sys),	0,	0,	TEGRA_GPIO_PS0,		true,	0, 3300);
-FIXED_REG(8, en_vdd_com,		en_vdd_com,		FIXED_SUPPLY(en_3v3_sys),	1,	0,	TEGRA_GPIO_PD0,		true,	1, 3300);
-FIXED_REG(10, en_3v3_emmc,		en_3v3_emmc,	FIXED_SUPPLY(en_3v3_sys), 	1,	0,	TEGRA_GPIO_PD1,		true,	1, 3300);
-FIXED_REG(13, en_1v8_cam,		en_1v8_cam,		tps6591x_rails(VIO),		0,	0,	TEGRA_GPIO_PBB4,	true,	0, 1800);
+FIXED_REG(0,  en_5v_cp,          en_5v_cp,     NULL,                     1, 0, TPS6591X_GPIO_0,	true, 1, 5000);
+FIXED_REG(5,  en_3v3_modem,      en_3v3_modem, NULL,                     1, 0, TEGRA_GPIO_PD6,  true, 1, 3300);
+FIXED_REG(7,  cam3_ldo_en,       cam3_ldo_en,  FIXED_SUPPLY(en_3v3_sys), 0, 0, TEGRA_GPIO_PS0,  true, 0, 3300);
+FIXED_REG(8,  en_vdd_com,        en_vdd_com,   FIXED_SUPPLY(en_3v3_sys), 1, 0, TEGRA_GPIO_PD0,  true, 1, 3300);
+FIXED_REG(10, en_3v3_emmc,       en_3v3_emmc,  FIXED_SUPPLY(en_3v3_sys), 1, 0, TEGRA_GPIO_PD1,  true, 1, 3300);
+FIXED_REG(13, en_1v8_cam,        en_1v8_cam,   tps6591x_rails(VIO),      0, 0, TEGRA_GPIO_PBB4,	true, 0, 1800);
 
 /* E1291-A04/A05 specific */
-FIXED_REG(1, en_5v0_a04,		en_5v0,			NULL,						1,	0,	TPS6591X_GPIO_8,	true,	1, 5000);
-FIXED_REG(2, en_ddr_a04,		en_ddr,			NULL,						1,	0,	TPS6591X_GPIO_7,	true,	1, 1500);
-FIXED_REG(3, en_3v3_sys_a04,	en_3v3_sys,		NULL,						0,	0,	TPS6591X_GPIO_6,	true,	1, 3300);
+FIXED_REG(1,  en_5v0_a04,        en_5v0,       NULL,                     1, 0, TPS6591X_GPIO_8,  true, 1, 5000);
+FIXED_REG(2,  en_ddr_a04,        en_ddr,       NULL,                     1, 0, TPS6591X_GPIO_7,  true, 1, 1500);
+FIXED_REG(3,  en_3v3_sys_a04,    en_3v3_sys,   NULL,                     0, 0, TPS6591X_GPIO_6,  true, 1, 3300);
 
 /* Specific to pm269 */
-FIXED_REG(4, en_vdd_bl_pm269,	en_vdd_bl,		NULL, 						0,	0,	TEGRA_GPIO_PH3,		true,	1, 5000);
-FIXED_REG(6, en_vdd_pnl1_pm269,	en_vdd_pnl1,	FIXED_SUPPLY(en_3v3_sys),	0,	0,	TEGRA_GPIO_PW1,		true,	1, 3300);
-FIXED_REG(9, en_3v3_fuse_pm269,	en_3v3_fuse,	FIXED_SUPPLY(en_3v3_sys), 	0,	0,	TEGRA_GPIO_PC1,		true,	0, 3300);
+FIXED_REG(4,  en_vdd_bl_pm269,   en_vdd_bl,    NULL,                     0, 0, TEGRA_GPIO_PH3,   true, 1, 5000);
+FIXED_REG(6,  en_vdd_pnl1_pm269, en_vdd_pnl1,  FIXED_SUPPLY(en_3v3_sys), 0, 0, TEGRA_GPIO_PW1,   true, 1, 3300);
+FIXED_REG(9,  en_3v3_fuse_pm269, en_3v3_fuse,  FIXED_SUPPLY(en_3v3_sys), 0, 0, TEGRA_GPIO_PC1,   true, 0, 3300);
 
 /* E1198/E1291 specific*/
-FIXED_REG(18, cam1_ldo_en,		cam1_ldo_en,	FIXED_SUPPLY(en_3v3_sys),	0,	0,	TEGRA_GPIO_PR6,		true,	0, 2800);
+FIXED_REG(18, cam1_ldo_en,       cam1_ldo_en,  FIXED_SUPPLY(en_3v3_sys), 0, 0, TEGRA_GPIO_PR6,   true,	0, 2800);
 
 /* E1291 A03 specific */
-FIXED_REG(22, en_vbrtr,			en_vbrtr,		FIXED_SUPPLY(en_3v3_sys),	0,	0,	PMU_TCA6416_GPIO_PORT12,	true,	0, 3300);
+FIXED_REG(22, en_vbrtr,          en_vbrtr,     FIXED_SUPPLY(en_3v3_sys), 0, 0, PMU_TCA6416_GPIO_PORT12, true, 0, 3300);
 
 /*
  * Creating the fixed/gpio-switch regulator device tables for different boards
@@ -562,7 +558,7 @@ FIXED_REG(22, en_vbrtr,			en_vbrtr,		FIXED_SUPPLY(en_3v3_sys),	0,	0,	PMU_TCA6416
 	ADD_FIXED_REG(en_3v3_fuse_pm269),	\
 	ADD_FIXED_REG(en_3v3_emmc),		\
 	ADD_FIXED_REG(en_1v8_cam),		\
-	ADD_FIXED_REG(en_vbrtr),		
+	ADD_FIXED_REG(en_vbrtr),
 
 #define E1247_DISPLAY_FIXED_REG			\
 	ADD_FIXED_REG(en_vdd_bl_pm269),		\

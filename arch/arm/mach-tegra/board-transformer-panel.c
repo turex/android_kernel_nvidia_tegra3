@@ -158,7 +158,7 @@ static struct platform_device cardhu_backlight_device = {
 
 static int cardhu_panel_enable(struct device *dev)
 {
-	//printk("Check cardhu_panel_enable \n");
+	//pr_info("Check cardhu_panel_enable \n");
 
 	if (cardhu_lvds_vdd_panel == NULL) {
 		cardhu_lvds_vdd_panel = regulator_get(dev, "vdd_lcd_panel");
@@ -176,10 +176,10 @@ static int cardhu_panel_enable(struct device *dev)
 static int cardhu_panel_enable_tf700t(struct device *dev)
 {
 	int ret;
-	//printk("Check cardhu_panel_enable_tf700t \n");
+	//pr_info("Check cardhu_panel_enable_tf700t \n");
 
 	if (gpio_get_value(TEGRA_GPIO_PI6) == 0){	//Panel is Panasonic
-		//printk("Check panel is panasonic \n");
+		//pr_info("Check panel is panasonic \n");
 		if (cardhu_lvds_vdd_bl == NULL) {
 			cardhu_lvds_vdd_bl = regulator_get(dev, "vdd_backlight");
 			if (WARN_ON(IS_ERR(cardhu_lvds_vdd_bl)))
@@ -191,16 +191,16 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 
 		ret = gpio_direction_output(TEGRA_GPIO_PU5, 1);
 		if (ret < 0) {
-			printk("Check can not pull high TEGRA_GPIO_PU5 \n");
+			pr_info("Check can not pull high TEGRA_GPIO_PU5 \n");
 			gpio_free(TEGRA_GPIO_PU5);
 			return ret;
 		}
 	} else {								//Panel is hydis
-		//printk("Check panel is hydis \n");
+		//pr_info("Check panel is hydis \n");
 		gpio_set_value(TEGRA_GPIO_PH3, 0);
 		ret = gpio_direction_output(TEGRA_GPIO_PU5, 0);
 		if (ret < 0) {
-			printk("Check can not pull low TEGRA_GPIO_PU5 \n");
+			pr_info("Check can not pull low TEGRA_GPIO_PU5 \n");
 			gpio_free(TEGRA_GPIO_PU5);
 			return ret;
 		}
@@ -226,17 +226,17 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 	}
 	msleep(20);
 
-	//printk("Check power on/off for bridge IC \n");
+	//pr_info("Check power on/off for bridge IC \n");
 	ret = gpio_direction_output(TEGRA_GPIO_PBB3, 1);
 	if (ret < 0) {
-		printk("Check can not pull high TEGRA_GPIO_PBB3 \n");
+		pr_info("Check can not pull high TEGRA_GPIO_PBB3 \n");
 		gpio_free(TEGRA_GPIO_PBB3);
 		return ret;
 	}
 
 	ret = gpio_direction_output(TEGRA_GPIO_PC6, 1);
 	if (ret < 0) {
-		printk("Check can not pull high TF700T_1.8V(TEGRA_GPIO_PC6) \n");
+		pr_info("Check can not pull high TF700T_1.8V(TEGRA_GPIO_PC6) \n");
 		gpio_free(TEGRA_GPIO_PC6);
 		return ret;
 	}
@@ -245,7 +245,7 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 
 	ret = gpio_direction_output(TEGRA_GPIO_PX0, 1);
 	if (ret < 0) {
-		printk("Check can not pull high TF700T_I2C_Switch(TEGRA_GPIO_PX0) \n");
+		pr_info("Check can not pull high TF700T_I2C_Switch(TEGRA_GPIO_PX0) \n");
 		gpio_free(TEGRA_GPIO_PX0);
 		return ret;
 	}
@@ -255,7 +255,7 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 
 	ret = gpio_direction_output(TEGRA_GPIO_PD2, 1);
 	if (ret < 0) {
-		printk("Check can not pull high TF700T_OSC(TEGRA_GPIO_PD2) \n");
+		pr_info("Check can not pull high TF700T_OSC(TEGRA_GPIO_PD2) \n");
 		gpio_free(TEGRA_GPIO_PD2);
 		return ret;
 	}
@@ -265,7 +265,7 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 
 static int cardhu_panel_disable(void)
 {
-	//printk("Check cardhu_panel_disable \n");
+	//pr_info("Check cardhu_panel_disable \n");
 
 	if(cardhu_lvds_reg) {
 		regulator_disable(cardhu_lvds_reg);
@@ -284,7 +284,7 @@ static int cardhu_panel_disable(void)
 
 static int cardhu_panel_disable_tf700t(void)
 {
-	//printk("Check cardhu_panel_disable in TF700T\n");
+	//pr_info("Check cardhu_panel_disable in TF700T\n");
 
 	gpio_set_value(TEGRA_GPIO_PD2, 0);
 	gpio_set_value(e1247_pm269_lvds_shutdown, 0);
@@ -797,7 +797,7 @@ int __init cardhu_panel_init(void)
 
 #ifdef CONFIG_TEGRA_DC
 	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF700T) {
-		printk("Check TF700T setting \n ");
+		pr_info("Check TF700T setting \n ");
 		cardhu_disp1_out.modes = panel_19X12_modes;
 		cardhu_disp1_out.n_modes = ARRAY_SIZE(panel_19X12_modes);
 		cardhu_disp1_out.parent_clk = "pll_d_out0";
