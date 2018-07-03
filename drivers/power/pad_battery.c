@@ -176,7 +176,7 @@ static int power_get_property(struct power_supply *psy,
 			val->intval =  1;
 		   else if (psy->type == POWER_SUPPLY_TYPE_DOCK_AC&& battery_docking_status)
 			val->intval =  1;
-		   else 
+		   else
 		   	val->intval = 0;
 		break;
 
@@ -254,7 +254,7 @@ static struct pad_device_info {
 	bool dock_charger_pad_interrupt_enabled;
 	spinlock_t lock;
 } *pad_device;
-	
+
 void register_usb_cable_status_cb(unsigned (*fn) (void))
 {
 	if (!get_usb_cable_status_cb)
@@ -273,7 +273,7 @@ unsigned get_usb_cable_status(void)
 int pad_smbus_read_data(int reg_offset,int byte)
 {
     s32 ret = -EINVAL;
-    int count = 0; 
+    int count = 0;
     do{
 	    if(byte)
             ret=i2c_smbus_read_byte_data(pad_device->client,pad_data[reg_offset].addr);
@@ -364,7 +364,7 @@ static int setup_low_battery_irq(void)
 		goto fail_gpio;
 	}
 
-	ret = request_irq(irq, low_battery_detect_isr, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, 
+	ret = request_irq(irq, low_battery_detect_isr, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
 			"bq20z45-battery (low battery)", NULL);
 	if (ret < 0) {
 		dev_err(&pad_device->client->dev, "failed to request low_battery_detect irq\n");
@@ -389,14 +389,12 @@ void battery_callback(unsigned usb_cable_state)
 {
     int old_cable_status;
 
-	if(!battery_driver_ready){
-		pr_info("pad_battery: %s: battery driver not ready\n", __func__) ;
+	if(!battery_driver_ready)
 		return;
-	}
-	
+
 	old_cable_status = battery_cable_status;
     battery_cable_status = usb_cable_state;
-	
+
 	pr_info("pad_battery: %s: usb_cable_state = %x\n", __func__, usb_cable_state);
 
 	if (old_cable_status != battery_cable_status) {
@@ -451,7 +449,7 @@ int docking_callback(int docking_in)
 {
 	if(!battery_driver_ready)
 		return -1;
-	
+
 	pr_info("pad_battery: %s: docked in = %u, TEGRA_GPIO_PU4 is %x\n", __func__, docking_in, gpio_get_value(TEGRA_GPIO_PU4));
 	docking_status = docking_in;
 
@@ -487,7 +485,7 @@ void init_docking_charging_irq(void)
 	if (rc)
 		pr_err("gpio_direction_input failed for input TEGRA_GPIO_PS5=%d\n", TEGRA_GPIO_PS5);
 
-	rc = request_irq(gpio_to_irq(TEGRA_GPIO_PS5), charger_pad_dock_interrupt, IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING, "dock_charging" , NULL);
+	rc = request_irq(gpio_to_irq(TEGRA_GPIO_PS5), charger_pad_dock_interrupt, IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING, "dock_charging", NULL);
 	pad_device->dock_charger_pad_interrupt_enabled = true;
 
 	if (rc < 0)
@@ -496,7 +494,7 @@ void init_docking_charging_irq(void)
 
 static int pad_get_health(enum power_supply_property psp,
 	union power_supply_propval *val)
-{	
+{
 	if (psp == POWER_SUPPLY_PROP_PRESENT) {
 		val->intval = 1;
 	} else if (psp == POWER_SUPPLY_PROP_HEALTH) {
@@ -526,8 +524,8 @@ static int pad_get_psp(int reg_offset, enum power_supply_property psp,
 	if (pad_device->smbus_status < 0) {
 		dev_err(&pad_device->client->dev,
 			"%s: i2c read for %d failed\n", __func__, reg_offset);
-		
-		if(psp == POWER_SUPPLY_PROP_TEMP && (++pad_device->temp_err<=3) &&(pad_device->old_temperature!=0xFF)){
+
+		if(psp == POWER_SUPPLY_PROP_TEMP && (++pad_device->temp_err<=3) && (pad_device->old_temperature!=0xFF)){
 			val->intval = pad_device->old_temperature;
 			pr_info("read battery's tempurate fail use old temperature = %u pad_device->temp_err = %u\n", val->intval, pad_device->temp_err);
 			return 0;
@@ -550,7 +548,7 @@ static int pad_get_psp(int reg_offset, enum power_supply_property psp,
 			val->intval = POWER_SUPPLY_STATUS_FULL;
 		else if (ret & BATTERY_FULL_DISCHARGED)//fd
 			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
-		else 
+		else
 			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
 	} else if (psp == POWER_SUPPLY_PROP_TEMP) {
 		ret = pad_device->bat_temp;
@@ -581,7 +579,7 @@ static int pad_get_capacity(union power_supply_propval *val)
 
 	if (pad_device->smbus_status < 0) {
 		dev_err(&pad_device->client->dev, "%s: i2c read for %d "
-			"failed pad_device->cap_err=%u\n", __func__, REG_CAPACITY, pad_device->cap_err);
+			"failed pad_device->cap_err = %u\n", __func__, REG_CAPACITY, pad_device->cap_err);
 
 		if(pad_device->cap_err > 5 || (pad_device->old_capacity == 0xFF)) {
 			return -EINVAL;
@@ -599,23 +597,23 @@ static int pad_get_capacity(union power_supply_propval *val)
 	temp_capacity = ((ret >= 100) ? 100 : ret);
 
 	/* start: for mapping %99 to 100%. Lose 84%*/
-	if(temp_capacity==99)
-		temp_capacity=100;
+	if(temp_capacity == 99)
+		temp_capacity = 100;
 	if(temp_capacity >=84 && temp_capacity <=98)
 		temp_capacity++;
 	/* for mapping %99 to 100% */
 
 	 /* lose 26% 47% 58%,69%,79% */
 	if(temp_capacity >70 && temp_capacity <80)
-		temp_capacity-=1;
-	else if(temp_capacity >60&& temp_capacity <=70)
-		temp_capacity-=2;
-	else if(temp_capacity >50&& temp_capacity <=60)
-		temp_capacity-=3;
-	else if(temp_capacity >30&& temp_capacity <=50)
-		temp_capacity-=4;
-	else if(temp_capacity >=0&& temp_capacity <=30)
-		temp_capacity-=5;
+		temp_capacity -= 1;
+	else if(temp_capacity >60 && temp_capacity <=70)
+		temp_capacity -= 2;
+	else if(temp_capacity >50 && temp_capacity <=60)
+		temp_capacity -= 3;
+	else if(temp_capacity >30 && temp_capacity <=50)
+		temp_capacity -= 4;
+	else if(temp_capacity >=0 && temp_capacity <=30)
+		temp_capacity -= 5;
 
 	/*Re-check capacity to avoid  that temp_capacity <0*/
 	temp_capacity = ((temp_capacity <0) ? 0 : temp_capacity);
@@ -660,7 +658,7 @@ static int pad_get_property(struct power_supply *psy,
 				if (psp == pad_data[count].psp)
 					break;
 			}
-			
+
 			if (pad_get_psp(count, psp, val))
 				return -EINVAL;
 			break;
@@ -696,7 +694,7 @@ static int pad_probe(struct i2c_client *client,
 	}
 
 	memset(pad_device, 0, sizeof(*pad_device));
-	
+
 	pad_device->client = client;
 	i2c_set_clientdata(client, pad_device);
 
@@ -723,7 +721,7 @@ static int pad_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&pad_device->status_poll_work, battery_status_poll) ;
 	INIT_DELAYED_WORK(&pad_device->low_low_bat_work, low_low_battery_check) ;
 	cancel_delayed_work(&pad_device->status_poll_work);
-	
+
     spin_lock_init(&pad_device->lock);
 	wake_lock_init(&pad_device->low_battery_wake_lock, WAKE_LOCK_SUSPEND, "low_battery_detection");
 	wake_lock_init(&pad_device->cable_event_wake_lock, WAKE_LOCK_SUSPEND, "battery_cable_event");
@@ -754,7 +752,7 @@ static int pad_remove(struct i2c_client *client)
 {
 	struct pad_device_info *pad_device;
     int i = 0;
-	
+
 	pad_device = i2c_get_clientdata(client);
 	del_timer_sync(&pad_device->charger_pad_dock_detect_timer);
 
