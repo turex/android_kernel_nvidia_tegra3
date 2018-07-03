@@ -98,7 +98,7 @@ extern int asusdec_is_ac_over_10v_callback(void);
 #if GET_USB_CABLE_STATUS_ENABLED
 unsigned int tegra_get_usb_cable_status(void)
 {
-	printk(KERN_INFO "The USB cable status = %x\n", s_cable_info.cable_status);
+	pr_info("The USB cable status = %x\n", s_cable_info.cable_status);
 	return s_cable_info.cable_status;
 }
 #endif
@@ -292,9 +292,8 @@ static void charging_gpios_init(void)
 	if (ret)
 		pr_err("gpio_direction_input failed for input %d\n", TEGRA_GPIO_PH5);
 
+	/* Requesting gpio in case it wasn't requested before */
 	ret = gpio_request(TEGRA_GPIO_PU4, "DOCK_IN");
-	if (ret < 0)
-		pr_err("DOCK_IN GPIO%d request fault!%d\n",TEGRA_GPIO_PU4, ret);
 
 	ret = gpio_direction_input(TEGRA_GPIO_PU4);
 	if (ret)
@@ -1687,7 +1686,7 @@ void fsl_dock_ec_callback(void)
 	int dock_in = !gpio_get_value(TEGRA_GPIO_PU4);
 
 	pr_info("%s cable_status=%d\n", __func__, s_cable_info.cable_status);
-	
+
 	if(dock_in == 1 && (s_cable_info.cable_status != 0) && (the_udc->connect_type == CONNECT_TYPE_NON_STANDARD_CHARGER)) {//dock in
 	    schedule_delayed_work(&s_cable_info.gpio_limit_set1_detection_work, 0*HZ);
 	}
