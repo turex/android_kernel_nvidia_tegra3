@@ -1,38 +1,36 @@
+/*
+ * DSP FM34 driver.
+ *
+ * Copyright (c) 2012, ASUSTek Corporation.
+ * Copyright (c) 2018, Svyatoslav Ryhel
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
+
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/kthread.h>
 #include <linux/i2c.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
-#include <linux/err.h>
-#include <linux/mutex.h>
 #include <linux/delay.h>
-#include <linux/interrupt.h>
-#include <linux/irq.h>
-#include <linux/sched.h>
-
-#include <asm/gpio.h>
-
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
-#include <asm/ioctl.h>
-#include <asm/uaccess.h>
-#include <linux/delay.h>
-
-//----
-#include <linux/input.h>
-#include <linux/debugfs.h>
-#include <linux/cdev.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
-//----
 
-#include <linux/workqueue.h>
-#include <linux/delay.h>
-#include "dsp_fm34.h"
+#include <asm/uaccess.h>
+
 #include <mach/board-transformer-misc.h>
 
-#undef DUMP_REG
+#include "dsp_fm34.h"
 
 #define BYPASS_DSP_FOR_NORMAL_RECORDING
 
@@ -51,9 +49,6 @@
 #define INPUT_SOURCE_NO_AGC 		300
 #define INPUT_SOURCE_AGC 		301
 
-#define HEADPHONE_NO_MIC 		0
-#define HEADSET_WITH_MIC 		1
-
 #define MAX_RETRY 			(5)
 
 extern bool headset_alive;
@@ -66,7 +61,7 @@ static int input_source = INPUT_SOURCE_NORMAL;
 static int output_source = OUTPUT_SOURCE_NORMAL;
 static int input_agc = INPUT_SOURCE_NO_AGC;
 
-static bool bConfigured=false;
+static bool bConfigured = false;
 
 bool isRecording = false;
 EXPORT_SYMBOL(isRecording);
@@ -76,21 +71,20 @@ static int fm34_i2c_retry(struct i2c_client *fm34_i2c_client, u8* parameter, siz
 	int retry = 0;
 	int ret = -1;
 
-        ret = i2c_master_send(fm34_i2c_client, parameter, size);
-        msleep(5);
+	ret = i2c_master_send(fm34_i2c_client, parameter, size);
+	msleep(5);
 
 	while(retry < MAX_RETRY && ret < 0){
 		retry++;
-		pr_info("i2c no ack retry time = %d\n", retry);
+		pr_info("DSP: i2c no ack retry time = %d\n", retry);
 		ret = i2c_master_send(fm34_i2c_client, parameter, size);
 		msleep(5);
 	}
 
 	if(retry == MAX_RETRY)
-		pr_info("i2c retry fail, exceed maximum retry times = %d\n", MAX_RETRY);
+		pr_info("DSP: i2c retry fail, exceed maximum retry times = %d\n", MAX_RETRY);
 
 	return ret;
-
 }
 
 static void fm34_reset(void)
@@ -103,7 +97,7 @@ static void fm34_reset(void)
 
 static int fm34_configure(void)
 {
-	int ret=0;
+	int ret = 0;
 	struct i2c_msg msg[3];
 	u8 buf1;
 	int config_length;
@@ -116,8 +110,9 @@ static int fm34_configure(void)
 		gpio_set_value(TEGRA_GPIO_PBB6, 1); // Enable DSP
 		msleep(20);
 
-		//access chip to check if acknowledgement.
-		buf1=0xC0;
+		/* Access chip to check if acknowledgement */
+		buf1 = 0xC0;
+
 		/* Write register */
 		msg[0].addr = dsp_chip->client->addr;
 		msg[0].flags = 0;
@@ -130,22 +125,21 @@ static int fm34_configure(void)
 			msleep(50);
 			fm34_reset();
 			return ret;
-		}
-		else
+		} else
 			pr_info("DSP ACK, read 0x%x: %d\n", buf1, ret);
 
 		if(tegra3_get_project_id() == TEGRA3_PROJECT_TF700T){
 			pr_info("DSP: load TF700T parameters\n");
-			config_length= sizeof(input_parameter_TF700T);
-			config_table= (u8 *)input_parameter_TF700T;
-		}else if(tegra3_get_project_id() == TEGRA3_PROJECT_TF201){
+			config_length = sizeof(input_parameter_TF700T);
+			config_table = (u8 *)input_parameter_TF700T;
+		} else if(tegra3_get_project_id() == TEGRA3_PROJECT_TF201) {
 			pr_info("DSP: load TF201 parameters\n");
-			config_length= sizeof(input_parameter_TF201);
-			config_table= (u8 *)input_parameter_TF201;
-		}else{
+			config_length = sizeof(input_parameter_TF201);
+			config_table = (u8 *)input_parameter_TF201;
+		} else {
 			pr_info("DSP: load default parameters\n");
-			config_length= sizeof(input_parameter);
-			config_table= (u8 *)input_parameter;
+			config_length = sizeof(input_parameter);
+			config_table = (u8 *)input_parameter;
 		}
 
 		ret = fm34_i2c_retry(dsp_chip->client, config_table, config_length);
@@ -153,7 +147,7 @@ static int fm34_configure(void)
 
 		if(ret == config_length){
 			pr_info("DSP: configuration is done\n");
-			bConfigured=true;
+			bConfigured = true;
 		}
 
 		msleep(100);
@@ -166,15 +160,8 @@ static int fm34_configure(void)
 static void fm34_reconfigure(struct work_struct *work)
 {
 	pr_info("DSP: ReConfiguration\n");
-	bConfigured=false;
+	bConfigured = false;
 	fm34_configure();
-}
-
-static ssize_t fm34_show(struct device *class, struct device_attribute *attr, char *buf)
-{
-	struct fm34_chip *data = i2c_get_clientdata(to_i2c_client(class));
-
-	return sprintf(buf, "%d\n", data->status);
 }
 
 static int fm34_check_i2c(struct i2c_client *client)
@@ -188,8 +175,9 @@ static int fm34_check_i2c(struct i2c_client *client)
 	gpio_set_value(TEGRA_GPIO_PBB6, 1); // Enable DSP
 	msleep(20);
 
-	//access chip to check if acknowledgement.
-	buf1=0xC0;
+	/* Access chip to check if acknowledgement. */
+	buf1 = 0xC0;
+
 	/* Write register */
 	msg[0].addr = dsp_chip->client->addr;
 	msg[0].flags = 0;
@@ -212,7 +200,7 @@ static int fm34_chip_init(struct i2c_client *client)
 {
 	int rc = 0;
 
-	//config RST# pin, default HIGH.
+	/* config RST# pin, default HIGH. */
 	rc = gpio_request(TEGRA_GPIO_PO3, "fm34_reset");
 	if (rc) {
 		pr_err("DSP: gpio_request failed for input %d\n", TEGRA_GPIO_PO3);
@@ -222,11 +210,10 @@ static int fm34_chip_init(struct i2c_client *client)
 	if (rc) {
 		pr_err("DSP: gpio_direction_output failed for input %d\n", TEGRA_GPIO_PO3);
 	}
-	pr_info("DSP: GPIO_PO3 = %d , state = %d\n", TEGRA_GPIO_PO3, gpio_get_value(TEGRA_GPIO_PO3));
 
 	gpio_set_value(TEGRA_GPIO_PO3, 1);
 
-	//config PWDN# pin, default HIGH.
+	/* config PWDN# pin, default HIGH. */
 	rc = gpio_request(TEGRA_GPIO_PBB6, "fm34_pwdn");
 	if (rc) {
 		pr_err("DSP: gpio_request failed for input %d\n", TEGRA_GPIO_PBB6);
@@ -236,7 +223,6 @@ static int fm34_chip_init(struct i2c_client *client)
 	if (rc) {
 		pr_err("DSP: gpio_direction_output failed for input %d\n", TEGRA_GPIO_PBB6);
 	}
-	pr_info("DSP: GPIO_PBB6 = %d , state = %d\n", TEGRA_GPIO_PBB6, gpio_get_value(TEGRA_GPIO_PBB6));
 
 	gpio_set_value(TEGRA_GPIO_PBB6, 1);
 
@@ -277,70 +263,67 @@ static long fm34_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		err =  !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
 	if (err) return -EFAULT;
 
-       /* cmd: the ioctl commend user-space asked */
+	/* cmd: the ioctl commend user-space asked */
 	switch(cmd){
 		case DSP_CONTROL:
 			fm34_configure();
-
 			switch(arg){
 				case START_RECORDING:
 					gpio_set_value(TEGRA_GPIO_PBB6, 1);
 					msleep(20);
-					if(headset_alive){/*Headset mode*/
-							pr_info("DSP: Start recording(AMIC), bypass DSP\n");
-							fm34_i2c_retry(dsp_chip->client, (u8 *)bypass_parameter,
+					if(headset_alive){ /*Headset mode*/
+						pr_info("DSP: Start recording(AMIC), bypass DSP\n");
+						fm34_i2c_retry(dsp_chip->client, (u8 *)bypass_parameter,
 										sizeof(bypass_parameter));
-							gpio_set_value(TEGRA_GPIO_PBB6, 0);
-					}else{/*Handsfree mode*/
+						gpio_set_value(TEGRA_GPIO_PBB6, 0);
+					} else { /*Handsfree mode*/
 #ifdef BYPASS_DSP_FOR_NORMAL_RECORDING
-						pr_info("DSP: Start recording(DMIC), ");
+						pr_info("DSP: Start recording(DMIC)\n");
 						isRecording = true;
-						if(input_source==INPUT_SOURCE_VR){
+						if(input_source == INPUT_SOURCE_VR){
 							pr_info("DSP: enable DSP since VR case (INPUT_SOURCE_VR)\n");
 							fm34_i2c_retry(dsp_chip->client, (u8 *)enable_parameter,
 										sizeof(enable_parameter));
-
 							pr_info("DSP: Disable Noise Suppression\n");
+
 							if(tegra3_get_project_id() == TEGRA3_PROJECT_TF700T)
 								fm34_i2c_retry(dsp_chip->client, (u8 *)TF700T_disable_NS,
 										sizeof(TF700T_disable_NS));
 							else
 								fm34_i2c_retry(dsp_chip->client, (u8 *)TF201_disable_NS,
 										sizeof(TF201_disable_NS));
-						}
-						else if(output_source==OUTPUT_SOURCE_VOICE || input_agc==INPUT_SOURCE_AGC){
+						} else if(output_source == OUTPUT_SOURCE_VOICE || input_agc == INPUT_SOURCE_AGC) {
 							pr_info("DSP: enable DSP since VOICE case (OUTPUT_SOURCE_VOICE)\n");
 							fm34_i2c_retry(dsp_chip->client, (u8 *)enable_parameter,
 										sizeof(enable_parameter));
-
 							pr_info("DSP: Enable Noise Suppression\n");
+
 							if(tegra3_get_project_id() == TEGRA3_PROJECT_TF700T)
 								fm34_i2c_retry(dsp_chip->client, (u8 *)TF700T_enable_NS,
 										sizeof(TF700T_enable_NS));
 							else
 								fm34_i2c_retry(dsp_chip->client, (u8 *)TF201_enable_NS,
 										sizeof(TF201_enable_NS));
-						}else{
+						} else {
 							pr_info("DSP: bypass DSP since NORMAL recording\n");
 							fm34_i2c_retry(dsp_chip->client, (u8 *)bypass_parameter,
 										sizeof(bypass_parameter));
 							gpio_set_value(TEGRA_GPIO_PBB6, 0);
 						}
-
 #else
 #ifdef BYPASS_DSP_FOR_VR
-                        pr_info("DSP: Start recording(DMIC), ");
-                        if(input_source==INPUT_SOURCE_VR){
+                        pr_info("DSP: Start recording(DMIC)\n");
+                        if(input_source == INPUT_SOURCE_VR){
                             pr_info("DSP: bypass DSP since BYPASS_DSP_FOR_VR\n");
                             fm34_i2c_retry(dsp_chip->client, (u8 *)bypass_parameter,
 										sizeof(bypass_parameter));
                             gpio_set_value(TEGRA_GPIO_PBB6, 0);
-                        }else{
+                        } else {
 							pr_info("enable DSP\n");
 							fm34_i2c_retry(dsp_chip->client, (u8 *)enable_parameter,
 										 sizeof(enable_parameter));
-
 							pr_info("DSP: Enable Noise Suppression\n");
+
 							if(tegra3_get_project_id() == TEGRA3_PROJECT_TF700T)
 								fm34_i2c_retry(dsp_chip->client, (u8 *)TF700T_enable_NS,
 										sizeof(TF700T_enable_NS));
@@ -352,17 +335,18 @@ static long fm34_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 						pr_info("DSP: Start recording(DMIC), enable DSP\n");
 						fm34_i2c_retry(dsp_chip->client, (u8 *)enable_parameter,
 										sizeof(enable_parameter));
-
-						if(input_source==INPUT_SOURCE_VR){
+						if(input_source == INPUT_SOURCE_VR){
 							pr_info("DSP: Disable Noise Suppression\n");
+
 							if(tegra3_get_project_id() == TEGRA3_PROJECT_TF700T)
 								fm34_i2c_retry(dsp_chip->client, (u8 *)TF700T_disable_NS,
 										sizeof(TF700T_disable_NS));
 							else
 								fm34_i2c_retry(dsp_chip->client, (u8 *)TF201_disable_NS,
                                         sizeof(TF201_disable_NS));
-							}else{
+							} else {
 							pr_info("DSP: Enable Noise Suppression\n");
+
 							if(tegra3_get_project_id() == TEGRA3_PROJECT_TF700T)
 								fm34_i2c_retry(dsp_chip->client, (u8 *)TF700T_enable_NS,
 										sizeof(TF700T_enable_NS));
@@ -370,9 +354,8 @@ static long fm34_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 								fm34_i2c_retry(dsp_chip->client, (u8 *)TF201_enable_NS,
 										sizeof(TF201_enable_NS));
 							}
-#endif  //BYPASS_DSP_FOR_VR
-#endif  //BYPASS_DSP_FOR_NORMAL_RECORDING
-
+#endif  /* BYPASS_DSP_FOR_VR */
+#endif  /* BYPASS_DSP_FOR_NORMAL_RECORDING */
 					}
 					recording_enabled = START_RECORDING;
 					break;
@@ -386,8 +369,7 @@ static long fm34_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 						fm34_i2c_retry(dsp_chip->client, (u8 *)bypass_parameter, sizeof(bypass_parameter));
 						recording_enabled = END_RECORDING;
 						gpio_set_value(TEGRA_GPIO_PBB6, 0);
-					}
-					else{
+					} else {
 						pr_info("DSP: End recording, but do nothing with DSP because no recording activity found\n");
 						recording_enabled = END_RECORDING;
 					}
@@ -395,21 +377,23 @@ static long fm34_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 				case INPUT_SOURCE_NORMAL:
 				case INPUT_SOURCE_VR:
-					pr_info("DSP: Input source = %s\n", arg==INPUT_SOURCE_NORMAL? "NORMAL" : "VR");
-					input_source=arg;
+					pr_info("DSP: Input source = %s\n", arg == INPUT_SOURCE_NORMAL? "NORMAL" : "VR");
+					input_source = arg;
 					break;
+
 				case OUTPUT_SOURCE_NORMAL:
 				case OUTPUT_SOURCE_VOICE:
-					pr_info("DSP: Output source = %s\n", arg==OUTPUT_SOURCE_NORMAL? "NORMAL" : "VOICE");
-					output_source=arg;
+					pr_info("DSP: Output source = %s\n", arg == OUTPUT_SOURCE_NORMAL? "NORMAL" : "VOICE");
+					output_source = arg;
 					break;
+
 				case INPUT_SOURCE_AGC:
 				case INPUT_SOURCE_NO_AGC:
-					printk("DSP: Input AGC = %s\n",	 arg == INPUT_SOURCE_AGC ? "AGC" : "NON-AGC");
+					pr_info("DSP: Input AGC = %s\n", arg == INPUT_SOURCE_AGC ? "AGC" : "NON-AGC");
 					input_agc = arg;
 					break;
+
 				case PLAYBACK:
-					pr_info("DSP: Do nothing because playback path always be bypassed after a DSP patch\n");
 				default:
 				break;
 			}
@@ -427,11 +411,18 @@ static long fm34_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 }
 
 static struct file_operations fm34_fops = {
-	.owner =    THIS_MODULE,
-	.unlocked_ioctl =	fm34_ioctl,
-	.open =		fm34_open,
-	.release =	fm34_release,
+	.owner          = THIS_MODULE,
+	.unlocked_ioctl = fm34_ioctl,
+	.open           = fm34_open,
+	.release        = fm34_release,
 };
+
+static ssize_t fm34_show(struct device *class, struct device_attribute *attr, char *buf)
+{
+	struct fm34_chip *data = i2c_get_clientdata(to_i2c_client(class));
+
+	return sprintf(buf, "%d\n", data->status);
+}
 
 static SENSOR_DEVICE_ATTR(dsp_status, S_IRUGO, fm34_show, NULL, 1);
 
@@ -440,7 +431,7 @@ static struct attribute *fm34_attr[] = {
 	NULL
 };
 
-static int fm34_probe(struct i2c_client *client,
+static int __devinit fm34_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	struct fm34_chip *data;
@@ -455,21 +446,22 @@ static int fm34_probe(struct i2c_client *client,
 		goto exit;
 	}
 
-	dsp_chip=data;
+	dsp_chip = data;
 	data->status = 0;
 
 	i2c_set_clientdata(client, data);
 	data->client = client;
 	fm34_client= data->client;
 
-	data->misc_dev.minor  = MISC_DYNAMIC_MINOR;
+	data->misc_dev.minor = MISC_DYNAMIC_MINOR;
 	data->misc_dev.name = "dsp_fm34";
 	data->misc_dev.fops = &fm34_fops;
+
 	err = misc_register(&data->misc_dev);
-		if (err) {
-			pr_err("tegra_acc_probe: Unable to register %s misc device\n", data->misc_dev.name);
+	if (err) {
+		pr_err("tegra_acc_probe: Unable to register %s misc device\n", data->misc_dev.name);
 		goto exit_free;
-			}
+	}
 
 	/* Register sysfs hooks */
 	data->attrs.attrs = fm34_attr;
@@ -480,16 +472,17 @@ static int fm34_probe(struct i2c_client *client,
 	}
 
 	fm34_chip_init(dsp_chip->client);
-	if( fm34_check_i2c(dsp_chip->client) == 0)
-	data->status = 1;
+	if(fm34_check_i2c(dsp_chip->client) == 0)
+		data->status = 1;
 	else
 		data->status = 0;
 
-	bConfigured=false;
+	bConfigured = false;
+
 	INIT_DELAYED_WORK(&config_dsp_work, fm34_reconfigure);
 	schedule_delayed_work(&config_dsp_work, 0);
-	pr_info("DSP: %s()\n", __func__);
 
+	pr_info("DSP: probed\n");
 	return 0;
 
 exit_free:
@@ -498,15 +491,13 @@ exit:
 	return err;
 }
 
-static int fm34_remove(struct i2c_client *client)
+static int __devexit fm34_remove(struct i2c_client *client)
 {
 	struct fm34_chip *data = i2c_get_clientdata(client);
 
 	misc_deregister(&data->misc_dev);
 	dev_dbg(&client->dev, "%s()\n", __func__);
-	pr_info("DSP: %s()\n", __func__);
 	sysfs_remove_group(&client->dev.kobj, &data->attrs);
-
 	kfree(data);
 	return 0;
 }
@@ -521,15 +512,14 @@ static void fm34_power_switch(int state)
 		dsp_1v8_power_control = TEGRA_GPIO_PP3;
 	else
 		return;
+
 	if(state){
 		gpio_set_value(dsp_1v8_power_control, 1);
 		schedule_delayed_work(&config_dsp_work, 0);
-	}
-	else{
+	} else {
 		gpio_set_value(dsp_1v8_power_control, 0);
-		bConfigured=false;
+		bConfigured = false;
 	}
-
 }
 
 static void fm34_power_switch_init(void)
@@ -544,34 +534,36 @@ static void fm34_power_switch_init(void)
 	else
 		return;
 
-	//Enalbe dsp power 1.8V
+	/* Enalbe dsp power 1.8V */
 	ret = gpio_request(dsp_1v8_power_control, "dsp_power_1v8_en");
 	if (ret < 0)
 		pr_err("DSP: %s: gpio_request failed for gpio %s\n",
 			__func__, "DSP_POWER_1V8_EN_GPIO");
 	gpio_direction_output(dsp_1v8_power_control, 1);
 	pr_info("DSP: gpio %d set to %d\n", dsp_1v8_power_control, gpio_get_value(dsp_1v8_power_control));
-
 }
 
 static int fm34_suspend(struct device *dev)
 {
 	int ret = 0;
 
-	printk("DSP: %s()+\n", __func__);
-	gpio_set_value(TEGRA_GPIO_PBB6, 0); /* Bypass DSP*/
+	gpio_set_value(TEGRA_GPIO_PBB6, 0); /* Bypass DSP */
+
 	fm34_power_switch(0);
+
 	if(tegra3_get_project_id() == TEGRA3_PROJECT_TF201){
-		printk("DSP: %s(): project TF201\n", __func__);
+		pr_info("DSP: %s(): project TF201\n", __func__);
 		gpio_set_value(TEGRA_GPIO_PO3, 0);
-		//Set DAP2_FS to low in LP0 for voltage leaking.
+
+		/* Set DAP2_FS to low in LP0 for voltage leaking. */
 		ret = gpio_request(TEGRA_GPIO_PA2, "dap2_fs");
 		if (ret < 0)
 			pr_err("%s: gpio_request failed for gpio %s\n",
 				__func__, "DAP2_FS");
 		gpio_direction_output(TEGRA_GPIO_PA2, 0);
 		gpio_free(TEGRA_GPIO_PA2);
-		//Set AUDIO_MCLK to low in LP0 for voltage leaking.
+
+		/* Set AUDIO_MCLK to low in LP0 for voltage leaking. */
 		ret = gpio_request(TEGRA_GPIO_PW4, "audio_mclk");
 		if (ret < 0)
 			pr_err("%s: gpio_request failed for gpio %s\n",
@@ -579,20 +571,19 @@ static int fm34_suspend(struct device *dev)
 		gpio_direction_output(TEGRA_GPIO_PW4, 0);
 		gpio_free(TEGRA_GPIO_PW4);
 	}
-	gpio_set_value(TEGRA_GPIO_PBB6, 0); /* Bypass DSP*/
-	printk("DSP: %s()-\n", __func__);
+
+	gpio_set_value(TEGRA_GPIO_PBB6, 0); /* Bypass DSP */
+	pr_info("DSP: suspended\n");
 	return 0;
 }
 
 static int fm34_resume(struct device *dev)
 {
-	printk("DSP: %s()+\n", __func__);
-
-	if(tegra3_get_project_id() == TEGRA3_PROJECT_TF201){
+	if(tegra3_get_project_id() == TEGRA3_PROJECT_TF201)
 		gpio_set_value(TEGRA_GPIO_PO3, 1);
-	}
+
 	fm34_power_switch(1);
-	printk("DSP: %s()-\n", __func__);
+	pr_info("DSP: resumed\n");
 	return 0;
 }
 
@@ -606,28 +597,32 @@ MODULE_DEVICE_TABLE(i2c, fm34_id);
 
 static struct i2c_driver fm34_driver = {
 	.class		= I2C_CLASS_HWMON,
+	.probe		= fm34_probe,
+	.remove		= __devexit_p(fm34_remove),
+	.id_table	= fm34_id,
 	.driver = {
 		.name	= "dsp_fm34",
+		.owner = THIS_MODULE,
 		.pm	= &fm34_pm_ops,
 	},
-	.probe		= fm34_probe,
-	.remove		= fm34_remove,
-	.id_table	= fm34_id,
 };
 
 static int __init fm34_init(void)
 {
-	printk(KERN_INFO "%s\n", __func__);
+	pr_info("%s\n", __func__);
 
-	//Enalbe dsp power 1.8V
+	/* Enalbe dsp power 1.8V */
 	fm34_power_switch_init();
 	return i2c_add_driver(&fm34_driver);
 }
+module_init(fm34_init);
 
 static void __exit fm34_exit(void)
 {
 	i2c_del_driver(&fm34_driver);
 }
-
-module_init(fm34_init);
 module_exit(fm34_exit);
+
+MODULE_DESCRIPTION("DSP FM34 driver");
+MODULE_LICENSE("GPL");
+

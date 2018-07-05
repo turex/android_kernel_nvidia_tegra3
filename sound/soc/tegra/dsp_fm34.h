@@ -1,10 +1,24 @@
+/*
+ * DSP FM34 driver.
+ *
+ * Copyright (c) 2012, ASUSTek Corporation.
+ * Copyright (c) 2018, Svyatoslav Ryhel
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
+
 #ifndef _DSP_H
 #define _DSP_H
 
-#define DRIVER_DESC     		"DSP FM34 driver"
-#define CONVERSION_TIME_MS		50
-
-// Main DSP input parameters
+/* Main DSP input parameters */
 u8 input_parameter[] = {
     0xC0,
     0xFC, 0xF3, 0x68, 0x64, 0x04,
@@ -598,12 +612,13 @@ u8 input_parameter_TF700T[] = {
 u8 bypass_parameter[] = {0xC0, 0xFC, 0xF3, 0x3B, 0x23, 0x00, 0x00, 0x04};
 u8 enable_parameter[] = {0xC0, 0xFC, 0xF3, 0x3B, 0x23, 0x00, 0x00, 0x00};
 
-// Parameters for Noise Supression control
+/* Parameters for Noise Supression control */
 u8 TF201_disable_NS[]={
 	0xC0,
 	0xFC, 0xF3, 0x3B, 0x23, 0x03, 0x00, 0x00,
 	0xFC, 0xF3, 0x3B, 0x23, 0x04, 0x00, 0x10
 };
+
 u8 TF201_enable_NS[]={
 	0xC0,
 	0xFC, 0xF3, 0x3B, 0x23, 0x03, 0x00, 0x01,
@@ -623,6 +638,7 @@ u8 TF700T_disable_NS[]={
 	0xFC, 0xF3, 0x3B, 0x22, 0xFB, 0x00, 0x00,
 	0xFC, 0xF3, 0x3B, 0x23, 0x84, 0x00, 0x03
 };
+
 u8 TF700T_enable_NS[]={
 	0xC0,
 	0xFC, 0xF3, 0x3B, 0x23, 0x03, 0x00, 0x01,
@@ -630,13 +646,13 @@ u8 TF700T_enable_NS[]={
 	0xFC, 0xF3, 0x3B, 0x23, 0x0C, 0x08, 0x00
 };
 
-// Special GPIOs
+/* Special GPIOs */
 #define TEGRA_GPIO_PO3 		115	// DSP_RST#: RST Audio DSP
 #define TEGRA_GPIO_PBB6 	222	// DSP_PWDN#: Set Audio DSP to Power Down Mode
 #define TEGRA_GPIO_PU5 		165
-#define TEGRA_GPIO_PA2 		2	//DAP2_FS
-#define TEGRA_GPIO_PW4 		180	//AUDIO_MCLK
-#define TEGRA_GPIO_PP3 		123	//DAP3_SCLK
+#define TEGRA_GPIO_PA2 		2	// DAP2_FS
+#define TEGRA_GPIO_PW4 		180	// AUDIO_MCLK
+#define TEGRA_GPIO_PP3 		123	// DAP3_SCLK
 
 struct fm34_chip {
 	struct input_dev	*indev;
@@ -648,3 +664,4 @@ struct fm34_chip {
 };
 
 #endif
+
