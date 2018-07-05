@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  */
- 
+
 #include <linux/module.h>
 #include <linux/err.h>
 #include <linux/delay.h>
@@ -58,23 +58,18 @@ static struct attribute_group lid_attr_group = {
 
 static irqreturn_t lid_interrupt_handler(int irq, void *dev_id)
 {
-	if (irq == gpio_to_irq(hall_sensor_gpio)){
-		ASUSEC_NOTICE("LID interrupt handler...gpio: %d..\n", gpio_get_value(hall_sensor_gpio));
+	if (irq == gpio_to_irq(hall_sensor_gpio))
 		queue_delayed_work(lid_wq, &lid_hall_sensor_work, 0);
-	}
 
 	return IRQ_HANDLED;
 }
 
 static int lid_irq_hall_sensor(void)
 {
-	int rc = 0 ;
+	int rc = 0;
 	unsigned gpio = hall_sensor_gpio;
 	unsigned irq = gpio_to_irq(hall_sensor_gpio);
-	const char* label = "hall_sensor" ;
-
-	ASUSEC_INFO("gpio = %d, irq = %d\n", gpio, irq);
-	ASUSEC_INFO("GPIO = %d , state = %d\n", gpio, gpio_get_value(gpio));
+	const char* label = "hall_sensor";
 
 	rc = gpio_request(gpio, label);
 	if (rc) {
@@ -86,7 +81,6 @@ static int lid_irq_hall_sensor(void)
 		ASUSEC_ERR("gpio_direction_input failed for input %d\n", gpio);
 		goto err_gpio_direction_input_failed;
 	}
-	ASUSEC_INFO("GPIO = %d , state = %d\n", gpio, gpio_get_value(gpio));
 
 	rc = request_irq(irq, lid_interrupt_handler, IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING, label, lid_indev);
 	if (rc < 0) {
@@ -95,13 +89,7 @@ static int lid_irq_hall_sensor(void)
 		goto err_gpio_request_irq_fail;
 	}
 
-	if ((tegra3_get_project_id() == TEGRA3_PROJECT_TF300T) || (tegra3_get_project_id() == TEGRA3_PROJECT_TF300TG)){
-		ASUSEC_NOTICE("Disable hall sensor wakeup function for TF300T/TG\n");
-	} else {
-		enable_irq_wake(irq);
-	}
-
-	ASUSEC_INFO("LID irq = %d, rc = %d\n", irq, rc);
+	enable_irq_wake(irq);
 
 	if (gpio_get_value(gpio)){
 		ASUSEC_NOTICE("LID open\n");
@@ -109,9 +97,9 @@ static int lid_irq_hall_sensor(void)
 		ASUSEC_NOTICE("LID close\n");
 	}
 
-	return 0 ;
+	return 0;
 
-err_gpio_request_irq_fail :
+err_gpio_request_irq_fail:
 	gpio_free(gpio);
 err_gpio_direction_input_failed:
 	return rc;
@@ -127,12 +115,13 @@ static void lid_report_function(struct work_struct *dat)
 	}
 	msleep(DELAY_TIME_MS);
 	value = gpio_get_value(hall_sensor_gpio);
+
 	if (value)
 		input_report_switch(lid_indev, SW_LID, 0);
 	else
 		input_report_switch(lid_indev, SW_LID, 1);
+
 	input_sync(lid_indev);
-	ASUSEC_NOTICE("SW_LID report value = %d\n", value);
 }
 
 static int lid_input_device_create(void)
@@ -171,8 +160,6 @@ static int __init lid_init(void)
 {
 	int err = 0;
 
-	ASUSEC_NOTICE("%s: start LID\n", __func__);
-
 	lid_dev = platform_device_register_simple("LID", -1, NULL, 0);
 	if (!lid_dev){
 		pr_err("LID_init: error\n");
@@ -193,6 +180,8 @@ static int __init lid_init(void)
 	INIT_DELAYED_WORK_DEFERRABLE(&lid_hall_sensor_work, lid_report_function);
 
 	lid_irq_hall_sensor();
+
+	pr_info("LID sensor initiated\n");
 
 	return 0;
 }
