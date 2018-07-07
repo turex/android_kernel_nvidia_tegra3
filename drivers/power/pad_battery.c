@@ -72,7 +72,6 @@ unsigned battery_driver_ready = 0;
 static int ac_on;
 static int usb_on;
 static int docking_status = 0;
-extern int asuspec_battery_monitor(char *cmd);
 static unsigned int battery_current;
 static unsigned int battery_remaining_capacity;
 struct workqueue_struct *battery_work_queue = NULL;
@@ -80,7 +79,7 @@ struct workqueue_struct *battery_work_queue = NULL;
 unsigned (*get_usb_cable_status_cb) (void);
 
 /* Functions declaration */
-static int pad_get_psp(int reg_offset, enum power_supply_property psp,union power_supply_propval *val);
+static int pad_get_psp(int reg_offset, enum power_supply_property psp, union power_supply_propval *val);
 static int pad_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val);
 
@@ -315,12 +314,9 @@ static const struct attribute_group battery_group = {
 static void battery_status_poll(struct work_struct *work)
 {
     struct pad_device_info *battery_device = container_of(work, struct pad_device_info, status_poll_work.work);
-//	static bool batt_overheat = false;
 
 	if(!battery_driver_ready)
 	    pr_warning("pad_battery: %s: driver not ready\n", __func__);
-
-// Add heat control!
 
 	power_supply_changed(&pad_supply[Charger_Type_Battery]);
 
@@ -665,7 +661,7 @@ static int pad_get_property(struct power_supply *psy,
 
 		default:
 			dev_err(&pad_device->client->dev,
-				"%s: INVALID property psp=%u\n", __func__,psp);
+				"%s: INVALID property psp = %u\n", __func__,psp);
 			return -EINVAL;
 	}
 	return 0;
@@ -748,7 +744,7 @@ static int pad_probe(struct i2c_client *client,
 	return 0;
 }
 
-static int pad_remove(struct i2c_client *client)
+static int __devexit pad_remove(struct i2c_client *client)
 {
 	struct pad_device_info *pad_device;
     int i = 0;
@@ -791,25 +787,22 @@ static int pad_resume(struct device *dev)
 	return 0;
 }
 
+static SIMPLE_DEV_PM_OPS(pad_pm_ops, pad_suspend, pad_resume);
+
 static const struct i2c_device_id pad_id[] = {
 	{ "pad-battery", 0 },
 	{},
 };
-
-static const struct dev_pm_ops pad_pm_ops = {
-	.suspend	= pad_suspend,
-	.resume		= pad_resume,
-};
+MODULE_DEVICE_TABLE(i2c, pad_id);
 
 static struct i2c_driver pad_battery_driver = {
 	.probe		= pad_probe,
-	.remove 	= pad_remove,
+	.remove 	= __devexit_p(pad_remove),
 	.id_table	= pad_id,
 	.driver = {
-		.name	= "pad-battery",
-#ifdef CONFIG_PM
-		.pm		= &pad_pm_ops,
-#endif
+		.name   = "pad-battery",
+		.owner  = THIS_MODULE,
+		.pm     = &pad_pm_ops,
 	},
 };
 
