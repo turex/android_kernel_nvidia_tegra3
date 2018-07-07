@@ -79,7 +79,7 @@ static int __init vibrator_init(void)
 		return ret;
 	}
 
-	/* Turn off vibrator in default*/
+	/* Turn off vibrator in default */
 	gpio_direction_output(TEGRA_GPIO_PH7, 0);
 
 	init_timer(&v_timer);

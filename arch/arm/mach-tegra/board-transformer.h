@@ -156,5 +156,4 @@ enum tegra_bb_type {
 	TEGRA_BB_TANGO = 1,
 };
 
-
 #endif

@@ -321,7 +321,7 @@ int __init cardhu_regulator_init(void)
 	void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
 	u32 pmc_ctrl;
 
-	/* configure the power management controller to trigger PMU
+	/* Configure the power management controller to trigger PMU
 	 * interrupts when low */
 
 	pmc_ctrl = readl(pmc + PMC_CTRL);
@@ -418,30 +418,30 @@ static struct regulator_consumer_supply fixed_reg_en_vdd_bl_supply[] = {
 	REGULATOR_SUPPLY("vdd_backlight1", NULL),
 };
 
-/* EN_3V3_MODEM from AP GPIO VI_VSYNCH D06*/
+/* EN_3V3_MODEM from AP GPIO VI_VSYNCH D06 */
 static struct regulator_consumer_supply fixed_reg_en_3v3_modem_supply[] = {
 	REGULATOR_SUPPLY("vdd_3v3_mini_card", NULL),
 	REGULATOR_SUPPLY("vdd_mini_card", NULL),
 };
 
-/* EN_VDD_PNL1 from AP GPIO VI_D6 L04*/
+/* EN_VDD_PNL1 from AP GPIO VI_D6 L04 */
 static struct regulator_consumer_supply fixed_reg_en_vdd_pnl1_supply[] = {
 	REGULATOR_SUPPLY("vdd_lcd_panel", NULL),
 };
 
-/* CAM1_LDO_EN from AP GPIO KB_ROW6 R06*/
+/* CAM1_LDO_EN from AP GPIO KB_ROW6 R06 */
 static struct regulator_consumer_supply fixed_reg_cam1_ldo_en_supply[] = {
 	REGULATOR_SUPPLY("vdd_2v8_cam1", NULL),
 	REGULATOR_SUPPLY("avdd", "6-0072"),
 	REGULATOR_SUPPLY("vdd", "6-000e"),
 };
 
-/* CAM3_LDO_EN from AP GPIO KB_ROW8 S00*/
+/* CAM3_LDO_EN from AP GPIO KB_ROW8 S00 */
 static struct regulator_consumer_supply fixed_reg_cam3_ldo_en_supply[] = {
 	REGULATOR_SUPPLY("vdd_cam3", NULL),
 };
 
-/* EN_VDD_COM from AP GPIO SDMMC3_DAT5 D00*/
+/* EN_VDD_COM from AP GPIO SDMMC3_DAT5 D00 */
 static struct regulator_consumer_supply fixed_reg_en_vdd_com_supply[] = {
 	REGULATOR_SUPPLY("vdd_com_bd", NULL),
 };
@@ -451,12 +451,12 @@ static struct regulator_consumer_supply fixed_reg_en_3v3_emmc_supply[] = {
 	REGULATOR_SUPPLY("vdd_emmc_core", NULL),
 };
 
-/* EN_3v3_FUSE from AP GPIO VI_D08 L06*/
+/* EN_3v3_FUSE from AP GPIO VI_D08 L06 */
 static struct regulator_consumer_supply fixed_reg_en_3v3_fuse_supply[] = {
 	REGULATOR_SUPPLY("vpp_fuse", NULL),
 };
 
-/* EN_1V8_CAM from AP GPIO GPIO_PBB4 PBB04*/
+/* EN_1V8_CAM from AP GPIO GPIO_PBB4 PBB04 */
 static struct regulator_consumer_supply fixed_reg_en_1v8_cam_supply[] = {
 	REGULATOR_SUPPLY("vdd_1v8_cam1", NULL),
 	REGULATOR_SUPPLY("vdd_1v8_cam2", NULL),
@@ -516,8 +516,7 @@ static struct regulator_consumer_supply fixed_reg_en_vbrtr_supply[] = {
 	FIXED_REG_OD(_id, _var, _name, _in_supply, _always_on, _boot_on,  \
 		_gpio_nr, _active_high, _boot_state, _millivolts, false)
 
-
-/* common to most of boards*/
+/* common to most of boards */
 FIXED_REG(0,  en_5v_cp,          en_5v_cp,     NULL,                     1, 0, TPS6591X_GPIO_0,	true, 1, 5000);
 FIXED_REG(5,  en_3v3_modem,      en_3v3_modem, NULL,                     1, 0, TEGRA_GPIO_PD6,  true, 1, 3300);
 FIXED_REG(7,  cam3_ldo_en,       cam3_ldo_en,  FIXED_SUPPLY(en_3v3_sys), 0, 0, TEGRA_GPIO_PS0,  true, 0, 3300);
@@ -535,7 +534,7 @@ FIXED_REG(4,  en_vdd_bl_pm269,   en_vdd_bl,    NULL,                     0, 0, T
 FIXED_REG(6,  en_vdd_pnl1_pm269, en_vdd_pnl1,  FIXED_SUPPLY(en_3v3_sys), 0, 0, TEGRA_GPIO_PW1,   true, 1, 3300);
 FIXED_REG(9,  en_3v3_fuse_pm269, en_3v3_fuse,  FIXED_SUPPLY(en_3v3_sys), 0, 0, TEGRA_GPIO_PC1,   true, 0, 3300);
 
-/* E1198/E1291 specific*/
+/* E1198/E1291 specific */
 FIXED_REG(18, cam1_ldo_en,       cam1_ldo_en,  FIXED_SUPPLY(en_3v3_sys), 0, 0, TEGRA_GPIO_PR6,   true,	0, 2800);
 
 /* E1291 A03 specific */

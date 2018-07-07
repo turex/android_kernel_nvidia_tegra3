@@ -82,10 +82,10 @@ static struct resource cardhu_bcm4329_rfkill_resources[] = {
   };
 
 static struct platform_device cardhu_bcm4329_rfkill_device = {
-	.name			= "bcm4329_rfkill",
-	.id				= -1,
-	.num_resources	= ARRAY_SIZE(cardhu_bcm4329_rfkill_resources),
-	.resource		= cardhu_bcm4329_rfkill_resources,
+	.name           = "bcm4329_rfkill",
+	.id             = -1,
+	.num_resources  = ARRAY_SIZE(cardhu_bcm4329_rfkill_resources),
+	.resource       = cardhu_bcm4329_rfkill_resources,
 };
 
 static struct resource cardhu_bluesleep_resources[] = {
@@ -193,7 +193,7 @@ static struct tegra_i2c_platform_data cardhu_i2c3_platform_data_for_TF300 = {
 	.arb_recovery		= arb_lost_recovery,
 };
 
-/* Higher freq could be applied for TF300T/TF300TG/TF300TL Camera FW update*/
+/* Higher freq could be applied for TF300T/TF300TG/TF300TL Camera FW update */
 static struct tegra_i2c_platform_data cardhu_i2c4_platform_data = {
 	.adapter_nr		= 3,
 	.bus_count		= 1,
@@ -330,7 +330,7 @@ static void __init uart_debug_init(void)
 	debug_port_id = uart_console_debug_init(0);
 	if (debug_port_id < 0)
 		return;
-	
+
 	if (debug_port_id >= ARRAY_SIZE(debug_uarts)) {
 		pr_info("The debug console id %d is invalid, Assuming UARTA",
 			debug_port_id);
@@ -540,8 +540,8 @@ static struct i2c_board_info atmel_i2c_info[] = {
 
 #include <linux/i2c/ektf3k.h>
 
-#define ELAN_X_MAX			2240
-#define ELAN_Y_MAX			1408
+#define ELAN_X_MAX		2240
+#define ELAN_Y_MAX		1408
 #define ELAN_X_MAX_202T		2944
 #define ELAN_Y_MAX_202T		1856
 
@@ -781,7 +781,6 @@ static void __init cardhu_usb_init(void)
 
 	tegra_ehci3_device.dev.platform_data = &tegra_ehci3_utmi_pdata;
 	platform_device_register(&tegra_ehci3_device);
-
 }
 
 #if 0
@@ -954,10 +953,10 @@ static void __init cardhu_booting_info(void)
 	static void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
 	unsigned int reg;
 	#define PMC_RST_STATUS_WDT (1)
-	#define PMC_RST_STATUS_SW   (3)
+	#define PMC_RST_STATUS_SW  (3)
 
-	reg = readl(pmc +0x1b4);
-	pr_info("tegra_booting_info reg=%x\n",reg );
+	reg = readl(pmc + 0x1b4);
+	pr_info("tegra_booting_info reg = %x\n", reg);
 
 	if (reg == PMC_RST_STATUS_SW){
 		pr_info("tegra_booting_info-SW reboot\n");

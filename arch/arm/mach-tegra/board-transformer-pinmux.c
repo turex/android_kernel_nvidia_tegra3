@@ -474,7 +474,7 @@ static __initdata struct tegra_pingroup_config cardhu_pinmux_common[] = {
 	/*bat detection*/
 	DEFAULT_PINMUX(LCD_CS0_N,       DISPLAYA,        NORMAL,    TRISTATE,     INPUT),
 	/*low low bat detection*/
-	DEFAULT_PINMUX(KB_ROW12,        KBC,             NORMAL,    TRISTATE,     INPUT), 
+	DEFAULT_PINMUX(KB_ROW12,        KBC,             NORMAL,    TRISTATE,     INPUT),
 	/*PB_DIS*/
 	DEFAULT_PINMUX(KB_ROW13,        KBC,             NORMAL,   TRISTATE,     INPUT),
 	/*docking thermal pwr control*/
@@ -708,7 +708,7 @@ int __init cardhu_gpio_init(void)
 		tegra3_get_project_id() != TEGRA3_PROJECT_TF300TL) {
 		cardhu_audio_gpio_init();
 	}
-	
+
 	return 0;
 }
 
@@ -728,7 +728,7 @@ int __init cardhu_pinmux_init(void)
 			ARRAY_SIZE(gmi_pins_269));
 
 	if (project_info == TEGRA3_PROJECT_TF700T) {
-		printk("Check TF700T pinmux \n");
+		pr_info("Check TF700T pinmux\n");
 		tegra_pinmux_config_table(gmi_pins_700T,
 			ARRAY_SIZE(gmi_pins_700T));
 	} else {
@@ -736,12 +736,13 @@ int __init cardhu_pinmux_init(void)
 			ARRAY_SIZE(gmi_pins_not_700T));
 	}
 
-	// Config the pinmux of 3G version
+	/* Config the pinmux of 3G version */
 	if (project_info == TEGRA3_PROJECT_TF300TL) {
-		printk("Check TF300TL pinmux\n");
+		pr_info("Check TF300TL pinmux\n");
 		tegra_pinmux_config_table(pinmux_TF300TL,
 			ARRAY_SIZE(pinmux_TF300TL));
 	} else if (project_info == TEGRA3_PROJECT_TF300TG) {
+		pr_info("Check TF300TG pinmux\n");
 		tegra_pinmux_config_table(pinmux_TF300TG,
 			ARRAY_SIZE(pinmux_TF300TG));
 		tegra_drive_pinmux_config_table(cardhu_drive_pinmux_TF300TG,

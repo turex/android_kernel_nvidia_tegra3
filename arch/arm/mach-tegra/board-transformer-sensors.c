@@ -62,8 +62,8 @@ static int IsTF300(void)
 {
 	u32 project_info = tegra3_get_project_id();
 
-	if ((project_info == TEGRA3_PROJECT_TF300T) || 
-		(project_info == TEGRA3_PROJECT_TF300TG) || 
+	if ((project_info == TEGRA3_PROJECT_TF300T) ||
+		(project_info == TEGRA3_PROJECT_TF300TG) ||
 		(project_info == TEGRA3_PROJECT_TF300TL))
 		return 1;
 	else
@@ -384,7 +384,7 @@ static int iCatch7002a_sensor_power_on(struct device *dev)
 		pr_info("gpio %d--> %d\n", ICATCH7002A_RST_GPIO, gpio_get_value(ICATCH7002A_RST_GPIO));
 		msleep(5);
 	}
-	
+
 	gpio_set_value(ICATCH7002A_RST_GPIO, 0);//low
 	gpio_direction_output(ICATCH7002A_RST_GPIO, 0);
 	pr_info("gpio %d--> %d\n", ICATCH7002A_RST_GPIO, gpio_get_value(ICATCH7002A_RST_GPIO));
@@ -673,7 +673,7 @@ late_initcall(cardhu_skin_init);
 static struct mpu_platform_data mpu3050_gyro_data = {
 	.int_config	= 0x10,
 	.level_shifter	= 0,
-	.orientation	= MPU_GYRO_ORIENTATION,	/* Located in board_[platformname].h	*/
+	.orientation	= MPU_GYRO_ORIENTATION,	/* Located in board_[platformname].h */
 };
 
 static struct ext_slave_platform_data mpu3050_accel_data = {
@@ -681,7 +681,7 @@ static struct ext_slave_platform_data mpu3050_accel_data = {
 	.irq		= 0,
 	.adapt_num	= MPU_ACCEL_BUS_NUM,
 	.bus		= EXT_SLAVE_BUS_SECONDARY,
-	.orientation	= MPU_ACCEL_ORIENTATION,	/* Located in board_[platformname].h	*/
+	.orientation	= MPU_ACCEL_ORIENTATION,	/* Located in board_[platformname].h */
 };
 
 static struct ext_slave_platform_data mpu3050_compass_data = {
@@ -689,7 +689,7 @@ static struct ext_slave_platform_data mpu3050_compass_data = {
 	.irq		= 0,
 	.adapt_num	= MPU_COMPASS_BUS_NUM,
 	.bus		= EXT_SLAVE_BUS_PRIMARY,
-	.orientation	= MPU_COMPASS_ORIENTATION,	/* Located in board_[platformname].h	*/
+	.orientation	= MPU_COMPASS_ORIENTATION,	/* Located in board_[platformname].h */
 };
 
 static struct i2c_board_info __initdata inv_mpu_i2c2_board_info[] = {
@@ -707,7 +707,7 @@ static struct i2c_board_info __initdata inv_mpu_i2c2_board_info[] = {
 	},
 };
 
-/*Sensors orientation definition*/
+/* Sensors orientation definition */
 struct mpu_orientation_def{
 	__s8 gyro_orientation[9];
 	__s8 accel_orientation[9];
@@ -718,7 +718,7 @@ static void mpuirq_init(void)
 {
 	int ret = 0;
 	int i = 0;
-	
+
 	pr_info("*** MPU START *** mpuirq_init...\n");
 
 	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF300T)
@@ -846,17 +846,17 @@ int __init cardhu_sensors_init(void)
 		ARRAY_SIZE(cardhu_i2c1_board_info_al3010));
 
 #ifdef CONFIG_VIDEO_YUV
-/* m6mo rear camera */
+	/* m6mo rear camera */
 	pr_info("fjm6mo i2c_register_board_info");
 	i2c_register_board_info(2, fjm6mo_i2c3_board_info,
 		ARRAY_SIZE(fjm6mo_i2c3_board_info));
 
-/* mi1040 front camera */
+	/* mi1040 front camera */
 	pr_info("mi1040 i2c_register_board_info");
 	i2c_register_board_info(2, mi1040_i2c2_board_info,
 		ARRAY_SIZE(mi1040_i2c2_board_info));
 
-/* iCatch7002a rear camera */
+	/* iCatch7002a rear camera */
 	pr_info("iCatch7002a i2c_register_board_info");
 	i2c_register_board_info(2, iCatch7002a_i2c2_board_info,
 		ARRAY_SIZE(iCatch7002a_i2c2_board_info));

@@ -116,7 +116,7 @@ static int cardhu_backlight_notify(struct device *unused, int brightness)
 
 	/* Set the backlight GPIO pin mode to 'backlight_enable' */
 	gpio_set_value(cardhu_bl_enb, !!brightness);
- 
+
 	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF201
 			&& isRecording) {
 		gpio_set_value(cardhu_bl_enb, 1);
@@ -158,8 +158,6 @@ static struct platform_device cardhu_backlight_device = {
 
 static int cardhu_panel_enable(struct device *dev)
 {
-	//pr_info("Check cardhu_panel_enable \n");
-
 	if (cardhu_lvds_vdd_panel == NULL) {
 		cardhu_lvds_vdd_panel = regulator_get(dev, "vdd_lcd_panel");
 		if (WARN_ON(IS_ERR(cardhu_lvds_vdd_panel)))
@@ -178,8 +176,8 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 	int ret;
 	//pr_info("Check cardhu_panel_enable_tf700t \n");
 
-	if (gpio_get_value(TEGRA_GPIO_PI6) == 0){	//Panel is Panasonic
-		//pr_info("Check panel is panasonic \n");
+	if (gpio_get_value(TEGRA_GPIO_PI6) == 0){
+		/* Panel is panasonic */
 		if (cardhu_lvds_vdd_bl == NULL) {
 			cardhu_lvds_vdd_bl = regulator_get(dev, "vdd_backlight");
 			if (WARN_ON(IS_ERR(cardhu_lvds_vdd_bl)))
@@ -195,8 +193,8 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 			gpio_free(TEGRA_GPIO_PU5);
 			return ret;
 		}
-	} else {								//Panel is hydis
-		//pr_info("Check panel is hydis \n");
+	} else {
+		/* Panel is hydis */
 		gpio_set_value(TEGRA_GPIO_PH3, 0);
 		ret = gpio_direction_output(TEGRA_GPIO_PU5, 0);
 		if (ret < 0) {
@@ -292,9 +290,11 @@ static int cardhu_panel_disable_tf700t(void)
 	gpio_set_value(TEGRA_GPIO_PC6, 0);
 	gpio_set_value(TEGRA_GPIO_PBB3, 0);
 
-	if (gpio_get_value(TEGRA_GPIO_PI6) == 0) {		//panel is panasonic
+	if (gpio_get_value(TEGRA_GPIO_PI6) == 0) {
+		/* Panel is panasonic */
 		msleep(85);
-	} else {  //panel is hydis
+	} else {
+		/* Panel is hydis */
 		msleep(10);
 	}
 
@@ -317,7 +317,7 @@ static int cardhu_panel_disable_tf700t(void)
 
 static int cardhu_panel_postpoweron(void)
 {
-	//tf700t not get involved
+	/* TF700T not get involved */
 
 	if (cardhu_lvds_reg == NULL) {
 		cardhu_lvds_reg = regulator_get(NULL, "vdd_lvds");
@@ -345,12 +345,16 @@ static int cardhu_panel_postpoweron(void)
 
 static int cardhu_panel_prepoweroff(void)
 {
-	//tf700t not get involved
+	/* TF700T not get involved */
 
-	// For TF300T EN_VDD_BL (TEGRA_GPIO_PH3) is always on, no need to control cardhu_lvds_vdd_bl
-	// But for TF300TG/TL, EN_VDD_BL is BL_EN, need to control it
-	// EE confirms that we can control it in original timing because
-	// EN_VDD_BL/LCD_BL_PWM/LCD_BL_EN pull high/low almost the same time
+	/*
+	 * For TF300T EN_VDD_BL (TEGRA_GPIO_PH3) is always on, no need
+	 * to control cardhu_lvds_vdd_bl but for TF300TG/TL, EN_VDD_BL
+	 * is BL_EN, need to control it EE confirms that we can control
+	 * it in original timing because EN_VDD_BL/LCD_BL_PWM/LCD_BL_EN
+	 * pull high/low almost the same time.
+	 */
+
 	if(cardhu_lvds_vdd_bl) {
 		regulator_disable(cardhu_lvds_vdd_bl);
 		regulator_put(cardhu_lvds_vdd_bl);
@@ -671,10 +675,10 @@ static struct tegra_dc_out cardhu_disp1_out = {
 	.type = TEGRA_DC_OUT_RGB,
 	.depth = 18,
 	.dither = TEGRA_DC_ERRDIFF_DITHER,
-	
+
 	.modes = cardhu_panel_modes,
 	.n_modes = ARRAY_SIZE(cardhu_panel_modes),
-	
+
 	.height = 127,
 	.width = 216,
 };
@@ -797,7 +801,7 @@ int __init cardhu_panel_init(void)
 
 #ifdef CONFIG_TEGRA_DC
 	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF700T) {
-		pr_info("Check TF700T setting \n ");
+		pr_info("Check TF700T setting \n");
 		cardhu_disp1_out.modes = panel_19X12_modes;
 		cardhu_disp1_out.n_modes = ARRAY_SIZE(panel_19X12_modes);
 		cardhu_disp1_out.parent_clk = "pll_d_out0";
