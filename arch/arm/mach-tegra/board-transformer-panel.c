@@ -61,7 +61,7 @@ static struct regulator *cardhu_lvds_reg = NULL;
 static struct regulator *cardhu_lvds_vdd_bl = NULL;
 static struct regulator *cardhu_lvds_vdd_panel = NULL;
 
-extern bool isRecording;
+//extern bool isRecording;
 
 static tegra_dc_bl_output cardhu_bl_output_measured = {
 	0, 4, 4, 4, 4, 5, 6, 7,
@@ -117,10 +117,10 @@ static int cardhu_backlight_notify(struct device *unused, int brightness)
 	/* Set the backlight GPIO pin mode to 'backlight_enable' */
 	gpio_set_value(cardhu_bl_enb, !!brightness);
 
-	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF201
-			&& isRecording) {
-		gpio_set_value(cardhu_bl_enb, 1);
-	}
+//	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF201
+//			&& isRecording) {
+//		gpio_set_value(cardhu_bl_enb, 1);
+//	}
 
 	/* SD brightness is a percentage, 8-bit value. */
 	brightness = DIV_ROUND_CLOSEST((brightness * cur_sd_brightness), 255);
