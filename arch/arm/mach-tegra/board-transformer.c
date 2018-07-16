@@ -540,8 +540,8 @@ static struct i2c_board_info atmel_i2c_info[] = {
 
 #include <linux/i2c/ektf3k.h>
 
-#define ELAN_X_MAX		2240
-#define ELAN_Y_MAX		1408
+#define ELAN_X_MAX			2240
+#define ELAN_Y_MAX			1408
 #define ELAN_X_MAX_202T		2944
 #define ELAN_Y_MAX_202T		1856
 

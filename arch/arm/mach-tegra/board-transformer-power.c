@@ -468,10 +468,6 @@ static struct regulator_consumer_supply fixed_reg_en_1v8_cam_supply[] = {
 	REGULATOR_SUPPLY("vdd_i2c", "2-0033"),
 };
 
-static struct regulator_consumer_supply fixed_reg_en_vbrtr_supply[] = {
-	REGULATOR_SUPPLY("vdd_vbrtr", NULL),
-};
-
 /* Macro for defining fixed regulator sub device data */
 #define FIXED_SUPPLY(_name) "fixed_reg_"#_name
 #define FIXED_REG_OD(_id, _var, _name, _in_supply, _always_on,		\
@@ -517,12 +513,12 @@ static struct regulator_consumer_supply fixed_reg_en_vbrtr_supply[] = {
 		_gpio_nr, _active_high, _boot_state, _millivolts, false)
 
 /* common to most of boards */
-FIXED_REG(0,  en_5v_cp,          en_5v_cp,     NULL,                     1, 0, TPS6591X_GPIO_0,	true, 1, 5000);
+FIXED_REG(0,  en_5v_cp,          en_5v_cp,     NULL,                     1, 0, TPS6591X_GPIO_0, true, 1, 5000);
 FIXED_REG(5,  en_3v3_modem,      en_3v3_modem, NULL,                     1, 0, TEGRA_GPIO_PD6,  true, 1, 3300);
 FIXED_REG(7,  cam3_ldo_en,       cam3_ldo_en,  FIXED_SUPPLY(en_3v3_sys), 0, 0, TEGRA_GPIO_PS0,  true, 0, 3300);
 FIXED_REG(8,  en_vdd_com,        en_vdd_com,   FIXED_SUPPLY(en_3v3_sys), 1, 0, TEGRA_GPIO_PD0,  true, 1, 3300);
 FIXED_REG(10, en_3v3_emmc,       en_3v3_emmc,  FIXED_SUPPLY(en_3v3_sys), 1, 0, TEGRA_GPIO_PD1,  true, 1, 3300);
-FIXED_REG(13, en_1v8_cam,        en_1v8_cam,   tps6591x_rails(VIO),      0, 0, TEGRA_GPIO_PBB4,	true, 0, 1800);
+FIXED_REG(13, en_1v8_cam,        en_1v8_cam,   tps6591x_rails(VIO),      0, 0, TEGRA_GPIO_PBB4, true, 0, 1800);
 
 /* E1291-A04/A05 specific */
 FIXED_REG(1,  en_5v0_a04,        en_5v0,       NULL,                     1, 0, TPS6591X_GPIO_8,  true, 1, 5000);
@@ -536,9 +532,6 @@ FIXED_REG(9,  en_3v3_fuse_pm269, en_3v3_fuse,  FIXED_SUPPLY(en_3v3_sys), 0, 0, T
 
 /* E1198/E1291 specific */
 FIXED_REG(18, cam1_ldo_en,       cam1_ldo_en,  FIXED_SUPPLY(en_3v3_sys), 0, 0, TEGRA_GPIO_PR6,   true,	0, 2800);
-
-/* E1291 A03 specific */
-FIXED_REG(22, en_vbrtr,          en_vbrtr,     FIXED_SUPPLY(en_3v3_sys), 0, 0, PMU_TCA6416_GPIO_PORT12, true, 0, 3300);
 
 /*
  * Creating the fixed/gpio-switch regulator device tables for different boards
@@ -556,8 +549,7 @@ FIXED_REG(22, en_vbrtr,          en_vbrtr,     FIXED_SUPPLY(en_3v3_sys), 0, 0, P
 	ADD_FIXED_REG(en_vdd_com),		\
 	ADD_FIXED_REG(en_3v3_fuse_pm269),	\
 	ADD_FIXED_REG(en_3v3_emmc),		\
-	ADD_FIXED_REG(en_1v8_cam),		\
-	ADD_FIXED_REG(en_vbrtr),
+	ADD_FIXED_REG(en_1v8_cam),
 
 #define E1247_DISPLAY_FIXED_REG			\
 	ADD_FIXED_REG(en_vdd_bl_pm269),		\
