@@ -1668,9 +1668,10 @@ static int mxt_get_object_table(struct mxt_data *data)
 		/* save data for objects used when processing interrupts */
 		switch (object->type) {
 		case MXT_TOUCH_MULTI_T9:
-			data->T9_reportid_max = object->max_reportid;
 			data->T9_reportid_min = object->min_reportid;
-			data->num_touchids = object->num_report_ids * object->instances;
+			data->T9_reportid_max = object->min_reportid +
+						object->num_report_ids - 1;
+			data->num_touchids = object->num_report_ids;
 			break;
 		case MXT_GEN_COMMAND_T6:
 			data->T6_reportid = object->max_reportid;
@@ -1704,10 +1705,9 @@ static int mxt_get_object_table(struct mxt_data *data)
                         data->T48_reportid = object->max_reportid;
 			break;
 		case MXT_PROCI_ACTIVE_STYLUS_T63:
-			data->T63_reportid_max = object->max_reportid;
 			data->T63_reportid_min = object->min_reportid;
-			data->num_stylusids =
-				object->num_report_ids * object->instances;
+			data->T63_reportid_max = object->min_reportid;
+			data->num_stylusids = 1;
 			break;
 		}
 
