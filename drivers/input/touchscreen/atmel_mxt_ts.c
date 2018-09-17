@@ -2560,6 +2560,9 @@ static int __devinit mxt_probe(struct i2c_client *client,
 	if (error)
 		goto err_free_object;
 
+	/* Need a delay for stabilization */
+	msleep(150);
+
 	error = request_threaded_irq(client->irq, NULL, mxt_interrupt,
 			pdata->irqflags, client->dev.driver->name, data);
 	if (error) {
