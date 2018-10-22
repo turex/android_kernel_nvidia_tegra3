@@ -39,7 +39,9 @@
 
 static int mi1040_rst_gpio = CAM2_RST_GPIO;
 
+#ifdef CONFIG_VIDEO_MI1040
 static struct regulator *grouper_1v8_ldo5;
+#endif
 
 static unsigned int pmic_id;
 
@@ -164,6 +166,7 @@ static int grouper_camera_init(void)
 	return 0;
 }
 
+#ifdef CONFIG_VIDEO_MI1040
 static int grouper_mi1040_power_on(void)
 {
 	if (grouper_1v8_ldo5 == NULL) {
@@ -217,7 +220,6 @@ static int grouper_mi1040_power_off(void)
 	return 0;
 }
 
-#ifdef CONFIG_VIDEO_MI1040
 struct yuv_sensor_platform_data grouper_mi1040_data = {
 	.power_on = grouper_mi1040_power_on,
 	.power_off = grouper_mi1040_power_off,
