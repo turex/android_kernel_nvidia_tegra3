@@ -117,7 +117,9 @@ static struct platform_device cardhu_bluesleep_device = {
 	.resource	= cardhu_bluesleep_resources,
 };
 
+#ifdef CONFIG_BT_BLUESLEEP
 extern void bluesleep_setup_uart_port(struct platform_device *uart_dev);
+#endif
 
 static noinline void __init cardhu_setup_bluesleep(void)
 {
@@ -125,7 +127,9 @@ static noinline void __init cardhu_setup_bluesleep(void)
 		cardhu_bluesleep_resources[2].end =
 			gpio_to_irq(TEGRA_GPIO_PU6);
 	platform_device_register(&cardhu_bluesleep_device);
+#ifdef CONFIG_BT_BLUESLEEP
 	bluesleep_setup_uart_port(&tegra_uartc_device);
+#endif
 }
 
 static __initdata struct tegra_clk_init_table kai_clk_init_table[] = {
@@ -429,6 +433,7 @@ static struct platform_device tegra_rtc_device = {
 	.num_resources = ARRAY_SIZE(tegra_rtc_resources),
 };
 
+#ifdef CONFIG_TEGRA_WAKEUP_MONITOR
 static struct tegra_wakeup_monitor_platform_data
 					kai_tegra_wakeup_monitor_pdata = {
 	.wifi_wakeup_source	= 1,  /* kai's wifi wakeup source */
@@ -441,6 +446,7 @@ static struct platform_device kai_tegra_wakeup_monitor_device = {
 		.platform_data = &kai_tegra_wakeup_monitor_pdata,
 	},
 };
+#endif
 
 static struct tegra_asoc_platform_data kai_audio_device_aic326x_platform_data ={
 	.gpio_spkr_en = -1,
