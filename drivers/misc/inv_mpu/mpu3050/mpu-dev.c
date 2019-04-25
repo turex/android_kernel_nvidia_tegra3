@@ -51,6 +51,7 @@
 
 #ifdef CONFIG_MACH_TRANSFORMER
 #include <mach/board-transformer-misc.h>
+#include "../gpio-names.h"
 #endif
 
 /* Platform data for the MPU */
@@ -817,7 +818,7 @@ void mpu_shutdown(struct i2c_client *client)
 
 int mpu_dev_suspend(struct device *dev)
 {
-    pm_message_t mesg;
+	pm_message_t mesg;
 	struct i2c_client *client = i2c_verify_client(dev);
 	struct mpu_private_data *mpu =
 	    (struct mpu_private_data *)i2c_get_clientdata(client);
@@ -1227,10 +1228,10 @@ static struct i2c_driver mpu_driver = {
 	.remove = mpu_remove,
 	.id_table = mpu_id,
 	.driver = {
-		   .owner = THIS_MODULE,
-		   .name = MPU_NAME,
-		   .pm = &mpu_dev_pm_ops,
-		   },
+		.owner = THIS_MODULE,
+		.name = MPU_NAME,
+		.pm = &mpu_dev_pm_ops,
+		},
 	.address_list = normal_i2c,
 	.shutdown = mpu_shutdown,	/* optional */
 };
@@ -1238,14 +1239,13 @@ static struct i2c_driver mpu_driver = {
 static int __init mpu_init(void)
 {
 #ifdef CONFIG_MACH_TRANSFORMER
-	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF201)
-	{
-        // nv hided this
-		// tegra_gpio_enable(143);
-		gpio_request(143, "gpio_pr7");
-		gpio_direction_output(143, 1);
-		pr_info("gpio 2.85V %d set to %d\n",143, gpio_get_value(143));
-		gpio_free(143);
+	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF201) {
+		// nv hided this
+		// tegra_gpio_enable(TEGRA_GPIO_PR7);
+		gpio_request(TEGRA_GPIO_PR7, "gpio_pr7");
+		gpio_direction_output(TEGRA_GPIO_PR7, 1);
+		pr_info("%s: gpio 2.85V %d set to %d\n", TEGRA_GPIO_PR7, gpio_get_value(TEGRA_GPIO_PR7));
+		gpio_free(TEGRA_GPIO_PR7);
 	}
 #endif
 	int res = i2c_add_driver(&mpu_driver);

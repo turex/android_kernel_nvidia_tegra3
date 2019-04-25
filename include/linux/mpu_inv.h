@@ -257,29 +257,29 @@ struct ext_slave_read_trigger {
  */
 struct ext_slave_descr {
 	int (*init) (void *mlsl_handle,
-		     struct ext_slave_descr *slave,
-		     struct ext_slave_platform_data *pdata);
+			struct ext_slave_descr *slave,
+			struct ext_slave_platform_data *pdata);
 	int (*exit) (void *mlsl_handle,
-		     struct ext_slave_descr *slave,
-		     struct ext_slave_platform_data *pdata);
+			struct ext_slave_descr *slave,
+			struct ext_slave_platform_data *pdata);
 	int (*suspend) (void *mlsl_handle,
 			struct ext_slave_descr *slave,
 			struct ext_slave_platform_data *pdata);
 	int (*resume) (void *mlsl_handle,
-		       struct ext_slave_descr *slave,
-		       struct ext_slave_platform_data *pdata);
+			struct ext_slave_descr *slave,
+			struct ext_slave_platform_data *pdata);
 	int (*read) (void *mlsl_handle,
-		     struct ext_slave_descr *slave,
-		     struct ext_slave_platform_data *pdata,
-		     __u8 *data);
+			struct ext_slave_descr *slave,
+			struct ext_slave_platform_data *pdata,
+			__u8 *data);
 	int (*config) (void *mlsl_handle,
-		       struct ext_slave_descr *slave,
-		       struct ext_slave_platform_data *pdata,
-		       struct ext_slave_config *config);
+			struct ext_slave_descr *slave,
+			struct ext_slave_platform_data *pdata,
+			struct ext_slave_config *config);
 	int (*get_config) (void *mlsl_handle,
-			   struct ext_slave_descr *slave,
-			   struct ext_slave_platform_data *pdata,
-			   struct ext_slave_config *config);
+			struct ext_slave_descr *slave,
+			struct ext_slave_platform_data *pdata,
+			struct ext_slave_config *config);
 
 	char *name;
 	__u8 type;
@@ -360,6 +360,4 @@ struct mpu_platform_data {
 #define MPU_GET_MLDL_STATUS		_IOR(MPU_IOCTL, 0x42, __u8)
 #define MPU_GET_I2C_SLAVES_ENABLED	_IOR(MPU_IOCTL, 0x43, __u8)
 
-
 #endif				/* __MPU_H_ */
-
