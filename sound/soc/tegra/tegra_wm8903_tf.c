@@ -56,10 +56,10 @@
 
 #define DRV_NAME "tegra-snd-codec"
 
-#define DAI_LINK_HIFI			0
+#define DAI_LINK_HIFI		0
 #define DAI_LINK_SPDIF		1
 #define DAI_LINK_BTSCO		2
-#define NUM_DAI_LINKS			3
+#define NUM_DAI_LINKS		3
 
 struct tegra_wm8903 {
 	struct tegra_asoc_utils_data util_data;
