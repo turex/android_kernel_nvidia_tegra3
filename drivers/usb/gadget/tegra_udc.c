@@ -98,7 +98,7 @@ extern int asusdec_is_ac_over_10v_callback(void);
 #if GET_USB_CABLE_STATUS_ENABLED
 unsigned int tegra_get_usb_cable_status(void)
 {
-	pr_info("The USB cable status = %x\n", s_cable_info.cable_status);
+	pr_info("tf_charger: USB cable status = %x\n", s_cable_info.cable_status);
 	return s_cable_info.cable_status;
 }
 #endif
@@ -170,7 +170,7 @@ static void gpio_limit_set0_set(int enable)
 
 	ret = gpio_direction_output(TEGRA_GPIO_PR1, enable);
 	if (ret < 0)
-		pr_err("Failed to set the GPIO%d to the status(%d): %d\n", TEGRA_GPIO_PR1, enable, ret);
+		pr_err("Failed to set the GPIO %d to the status(%d): %d\n", TEGRA_GPIO_PR1, enable, ret);
 }
 
 void asus_cable_detection_work(void)
@@ -185,90 +185,90 @@ void asus_cable_detection_work(void)
 
 	switch (the_udc->connect_type) {
 	case CONNECT_TYPE_NONE:
-		pr_info("The USB/AC cable is disconnected.\n");
+		pr_info("tf_charger: USB/AC cable is disconnected\n");
 		s_cable_info.ac_15v_connected = 0;
 		s_cable_info.cable_status = 0x0; //0000
 		gpio_limit_set0_set(0);
 		break;
 	case CONNECT_TYPE_SDP:
-		pr_info("detected SDP port\n");
+		pr_info("tf_charger: detected SDP port\n");
 		if (adapter_in == 0) {
-			pr_info("The USB cable is connected (0.5A)\n");
+			pr_info("tf_charger: USB cable is connected (0.5A)\n");
 			s_cable_info.cable_status = 0x1; //0001
 			s_cable_info.ac_15v_connected = 0;
 			gpio_limit_set0_set(0);
 		} else {
-			pr_info("USB cable + AC adapter 15V connect (1A)\n");
+			pr_info("tf_charger: USB cable + AC adapter 15V is connected (1A)\n");
 			s_cable_info.cable_status = 0x3; //0011
 			s_cable_info.ac_15v_connected = 1;
 			gpio_limit_set0_set(1);
 		}
 		break;
 	case CONNECT_TYPE_DCP:
-		pr_info("detected DCP port(wall charger)\n");
-			if (dock_in == 0) {//no dock in
-				if (adapter_in == 1) {
-					pr_info("AC adapter 15V connect (1A)\n");
+		pr_info("tf_charger: detected DCP port(wall charger)\n");
+		if (dock_in == 0) {//no dock in
+			if (adapter_in == 1) {
+				pr_info("tf_charger: AC adapter 15V connected (1A)\n");
+				s_cable_info.cable_status = 0x3; //0011
+				s_cable_info.ac_15v_connected = 1;
+			} else if (adapter_in == 0) {
+				pr_info("tf_charger: AC adapter 5V connected (1A)\n");
+				s_cable_info.cable_status = 0x1; //0001
+				s_cable_info.ac_15v_connected = 0;
+			} else {
+				pr_err("tf_charger: undefined adapter status\n");
+				s_cable_info.cable_status = 0x1; //0001
+			}
+		} else if (dock_in == 1) {// dock in
+			if(usb_suspend_tag == 1) {
+				mutex_unlock(&s_cable_info.cable_info_mutex);
+				return;
+			}
+			while (ask_ec_num < 3) {
+				ask_ec_num ++;
+#if DOCK_EC_ENABLED
+				dock_ac = asusdec_is_ac_over_10v_callback();
+#endif
+				pr_info("tf_charger: limt_set1=%d dock_ac=%#X\n", __func__, adapter_in, dock_ac);
+				s_cable_info.cable_status = 0x1; //0001
+				s_cable_info.ac_15v_connected = 0;
+
+				if (dock_ac == 0x20) {
+					pr_info("tf_charger: AC adapter + Docking 15V connected (1A)\n");
 					s_cable_info.cable_status = 0x3; //0011
 					s_cable_info.ac_15v_connected = 1;
-				} else if (adapter_in == 0) {
-					pr_info("AC adapter 5V connect (1A)\n");
+					ask_ec_num = 0;
+					break;
+				} else if (dock_ac == 0) {
+					pr_info("tf_charger: AC adapter + Docking 5V connected (1A)\n");
 					s_cable_info.cable_status = 0x1; //0001
 					s_cable_info.ac_15v_connected = 0;
+					ask_ec_num = 0;
+					break;
 				} else {
-					pr_err("No define adapter status\n");
-					s_cable_info.cable_status = 0x1; //0001
+					msleep(500);
+					continue;
 				}
-			} else if (dock_in == 1) {// dock in
-				if(usb_suspend_tag == 1) {
-					mutex_unlock(&s_cable_info.cable_info_mutex);
-					return;
-				}
-				while (ask_ec_num < 3) {
-					ask_ec_num ++;
-#if DOCK_EC_ENABLED
-					dock_ac = asusdec_is_ac_over_10v_callback();
-#endif
-					pr_info("%s limt_set1=%d dock_ac=%#X\n", __func__, adapter_in, dock_ac);
-					s_cable_info.cable_status = 0x1; //0001
-					s_cable_info.ac_15v_connected = 0;
-
-					if (dock_ac == 0x20) {
-						pr_info("AC adapter + Docking 15V connect (1A)\n");
-						s_cable_info.cable_status = 0x3; //0011
-						s_cable_info.ac_15v_connected = 1;
-						ask_ec_num = 0;
-						break;
-					} else if (dock_ac == 0) {
-						pr_info("AC adapter + Docking 5V connect (1A)\n");
-						s_cable_info.cable_status = 0x1; //0001
-						s_cable_info.ac_15v_connected = 0;
-						ask_ec_num = 0;
-						break;
-					} else {
-						msleep(500);
-						continue;
-					}
-				}
-			} else {
-				pr_err("No define the USB status\n");
 			}
-			gpio_limit_set0_set(1);
+		} else {
+			pr_err("tf_charger: undefined USB status\n");
+		}
+		gpio_limit_set0_set(1);
 		break;
 	case CONNECT_TYPE_CDP:
-		pr_info("detected CDP port(1A USB port)\n");
+		pr_info("tf_charger: detected CDP port (1A USB port)\n");
 		s_cable_info.cable_status = 0x1; //0001
 		s_cable_info.ac_15v_connected = 0;
 		gpio_limit_set0_set(1);	//(5V/1.0A)
 		break;
 	case CONNECT_TYPE_NON_STANDARD_CHARGER:
-		pr_info("detected non-standard charging port\n");
+		pr_info("tf_charger: detected non-standard charging port\n");
 		s_cable_info.cable_status = 0x1; //0001
 		s_cable_info.ac_15v_connected = 0;
 		gpio_limit_set0_set(0);	//(5V/0.5A)
 		break;
 	default:
-		pr_info("detected USB charging type is unknown\n");
+		pr_info("tf_charger: detected USB charging type is unknown\n");
 		s_cable_info.cable_status = 0x1; //0001
 		s_cable_info.ac_15v_connected = 0;
 		gpio_limit_set0_set(0);	//(5V/0.5A)
@@ -282,22 +282,22 @@ static void charging_gpios_init(void)
 
 	ret = gpio_request(TEGRA_GPIO_PR1, "LIMIT_SET0");
 	if (ret < 0)
-		pr_err("Failed to request the GPIO%d: %d\n", TEGRA_GPIO_PR1, ret);
+		pr_err("tf_charger: failed to request the GPIO%d: %d\n", TEGRA_GPIO_PR1, ret);
 
 	ret = gpio_request(TEGRA_GPIO_PH5, "LIMIT_SET1");
 	if (ret < 0)
-		pr_err("LIMIT_SET1 GPIO%d request fault!%d\n",TEGRA_GPIO_PH5, ret);
+		pr_err("tf_charger: LIMIT_SET1 GPIO%d request fault! %d\n", TEGRA_GPIO_PH5, ret);
 
 	ret = gpio_direction_input(TEGRA_GPIO_PH5);
 	if (ret)
-		pr_err("gpio_direction_input failed for input %d\n", TEGRA_GPIO_PH5);
+		pr_err("tf_charger: gpio_direction_input failed for input %d\n", TEGRA_GPIO_PH5);
 
 	/* Requesting gpio in case it wasn't requested before */
 	ret = gpio_request(TEGRA_GPIO_PU4, "DOCK_IN");
 
 	ret = gpio_direction_input(TEGRA_GPIO_PU4);
 	if (ret)
-		pr_err("gpio_direction_input failed for input %d\n", TEGRA_GPIO_PU4);
+		pr_err("tf_charger: gpio_direction_input failed for input %d\n", TEGRA_GPIO_PU4);
 
 	gpio_limit_set0_set(0);
 }
@@ -1685,7 +1685,7 @@ void fsl_dock_ec_callback(void)
 {
 	int dock_in = !gpio_get_value(TEGRA_GPIO_PU4);
 
-	pr_info("%s cable_status=%d\n", __func__, s_cable_info.cable_status);
+	pr_info("tf_charger: cable status %d\n", s_cable_info.cable_status);
 
 	if(dock_in == 1 && (s_cable_info.cable_status != 0) && (the_udc->connect_type == CONNECT_TYPE_NON_STANDARD_CHARGER)) {//dock in
 	    schedule_delayed_work(&s_cable_info.gpio_limit_set1_detection_work, 0*HZ);
@@ -1698,7 +1698,7 @@ static irqreturn_t gpio_limit_set1_irq_handler(int irq, void *dev_id)
 	int adapter_in = gpio_get_value(TEGRA_GPIO_PH5);
 	int dock_in = !gpio_get_value(TEGRA_GPIO_PU4);
 
-	pr_info("%s gpio_limit_set1=%d, ac_15v_connected=%d\n", __func__, adapter_in, s_cable_info.ac_15v_connected);
+	pr_info("tf_charger: gpio_limit_set1=%d, ac_15v_connected=%d\n", adapter_in, s_cable_info.ac_15v_connected);
 
 	if(dock_in == 0 && (adapter_in != s_cable_info.ac_15v_connected) && (the_udc->connect_type == CONNECT_TYPE_NON_STANDARD_CHARGER)) {//no dock in
 		schedule_delayed_work(&s_cable_info.gpio_limit_set1_detection_work, 0.2*HZ);
@@ -1714,9 +1714,9 @@ static void gpio_limit_set1_irq_init(void)
 
 	ret = request_irq(gpio_limit_set1_irq, gpio_limit_set1_irq_handler, IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING, "gpio_limit_set1_irq_handler", NULL);
 	if (ret < 0) {
-		printk(KERN_ERR"%s: Could not request IRQ for the GPIO limit set1, irq = %d, ret = %d\n", __func__, gpio_limit_set1_irq, ret);
+		pr_err("tf_charger: could not request IRQ for the GPIO limit set1, irq = %d, ret = %d\n", gpio_limit_set1_irq, ret);
 	}
-	pr_info("%s: request irq = %d, ret = %d\n", __func__, gpio_limit_set1_irq, ret);
+	pr_info("tf_charger: request irq = %d, ret = %d\n", gpio_limit_set1_irq, ret);
 }
 #endif /* CONFIG_MACH_TRANSFORMER */
 

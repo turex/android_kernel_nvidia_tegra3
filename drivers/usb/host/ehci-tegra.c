@@ -126,11 +126,11 @@ static void gpio_dock_in_irq_init(struct usb_hcd *hcd)
 
 	ret = gpio_direction_input(TEGRA_GPIO_PU4);
 	if (ret)
-		pr_err("gpio_direction_input failed for input TEGRA_GPIO_PU4 = %d\n", TEGRA_GPIO_PU4);
+		pr_err("%s: gpio_direction_input failed for input TEGRA_GPIO_PU4 = %d\n", __func__, TEGRA_GPIO_PU4);
 
 	ret = request_irq(gpio_dock_in_irq, gpio_dock_in_irq_handler, IRQF_SHARED|IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING, "usb3_dock_in_irq_handler", hcd);
 	if (ret < 0)
-		pr_err("%s: Could not request IRQ for the GPIO dock in, irq = %d, ret = %d\n", __func__, gpio_dock_in_irq, ret);
+		pr_err("%s: could not request IRQ for the GPIO dock in, irq = %d, ret = %d\n", __func__, gpio_dock_in_irq, ret);
 
 	INIT_DELAYED_WORK(&usb3_ehci_dock_in_work, usb3_ehci_dock_in_work_handler);
 }
