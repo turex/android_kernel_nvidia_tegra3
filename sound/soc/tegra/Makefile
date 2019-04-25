@@ -47,7 +47,6 @@ obj-$(CONFIG_SND_SOC_TEGRA_TRIMSLICE) += snd-soc-tegra-trimslice.o
 obj-$(CONFIG_SND_SOC_TEGRA_ALC5632) += snd-soc-tegra-alc5632.o
 obj-$(CONFIG_SND_SOC_TEGRA_WM8753) += snd-soc-tegra-wm8753.o
 obj-$(CONFIG_SND_SOC_TEGRA_MAX98088) += snd-soc-tegra-max98088.o
-obj-$(CONFIG_DSP_FM34) += dsp_fm34.o
 obj-$(CONFIG_SND_SOC_TEGRA_TLV320AIC326X) += snd-soc-tegra-aic326x.o
 obj-$(CONFIG_SND_SOC_TEGRA_RT5631) += snd-soc-tegra-rt5631.o
 obj-$(CONFIG_SND_SOC_TEGRA_RT5640) += snd-soc-tegra-rt5640.o
@@ -55,6 +54,8 @@ obj-$(CONFIG_SND_SOC_TEGRA_MAX98095) += snd-soc-tegra-max98095.o
 obj-$(CONFIG_SND_SOC_TEGRA_P1852) += snd-soc-tegra-vcm.o
 obj-$(CONFIG_SND_SOC_TEGRA_P852) += snd-soc-tegra-vcm.o
 obj-$(CONFIG_SND_SOC_TEGRA_CS42L73) += snd-soc-tegra-cs42l73.o
+
+obj-$(CONFIG_DSP_FM34) += dsp_fm34.o
 ifdef CONFIG_MACH_TRANSFORMER
 obj-$(CONFIG_HEADSET_FUNCTION)	+= headset_tf.o
 else

@@ -312,13 +312,13 @@ static long fm34_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 						}
 #else
 #ifdef BYPASS_DSP_FOR_VR
-                        pr_info("DSP: Start recording(DMIC)\n");
-                        if(input_source == INPUT_SOURCE_VR){
-                            pr_info("DSP: bypass DSP since BYPASS_DSP_FOR_VR\n");
-                            fm34_i2c_retry(dsp_chip->client, (u8 *)bypass_parameter,
+						pr_info("DSP: Start recording(DMIC)\n");
+						if(input_source == INPUT_SOURCE_VR){
+							pr_info("DSP: bypass DSP since BYPASS_DSP_FOR_VR\n");
+							fm34_i2c_retry(dsp_chip->client, (u8 *)bypass_parameter,
 										sizeof(bypass_parameter));
-                            gpio_set_value(TEGRA_GPIO_PBB6, 0);
-                        } else {
+							gpio_set_value(TEGRA_GPIO_PBB6, 0);
+						} else {
 							pr_info("enable DSP\n");
 							fm34_i2c_retry(dsp_chip->client, (u8 *)enable_parameter,
 										 sizeof(enable_parameter));
@@ -343,7 +343,7 @@ static long fm34_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 										sizeof(TF700T_disable_NS));
 							else
 								fm34_i2c_retry(dsp_chip->client, (u8 *)TF201_disable_NS,
-                                        sizeof(TF201_disable_NS));
+										sizeof(TF201_disable_NS));
 							} else {
 							pr_info("DSP: Enable Noise Suppression\n");
 
