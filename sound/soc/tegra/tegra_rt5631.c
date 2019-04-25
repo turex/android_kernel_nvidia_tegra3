@@ -69,7 +69,7 @@ static int tegra_rt5631_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	i2s_daifmt = SND_SOC_DAIFMT_NB_NF |
-		     SND_SOC_DAIFMT_CBS_CFS;
+			SND_SOC_DAIFMT_CBS_CFS;
 
 	i2s_daifmt |= SND_SOC_DAIFMT_I2S;
 

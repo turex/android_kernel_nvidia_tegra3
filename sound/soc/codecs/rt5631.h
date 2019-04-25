@@ -87,7 +87,7 @@
 #define RT5631_R_MUTE_SHIFT				7
 #define RT5631_R_EN					(0x1 << 6)
 #define RT5631_R_EN_SHIFT				6
-#define RT5631_VOL_MASK				0x3f
+#define RT5631_VOL_MASK					0x3f
 #define RT5631_L_VOL					(0x3f << 8)
 #define RT5631_L_VOL_SHIFT				8
 #define RT5631_R_VOL					(0x3f)
