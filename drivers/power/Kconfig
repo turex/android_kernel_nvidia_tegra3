@@ -358,9 +358,11 @@ config CHARGER_MAX8998
 
 config BATTERY_PAD
 	tristate "PAD battery driver"
-	depends on I2C
+	depends on I2C && ASUSPEC
 	help
-	  Say Y here to enable support for batteries with BQ20Z45 chip.
+	  Say Y here to enable support for battery driver in Asus Transformers.
+	  This driver takes data from Asus EC driver and highly depends from it.
+	  Batteries are based on BQ20Z45 chip. 
 
 config CHARGER_SMB347
 	tristate "Summit Microelectronics SMB347 Battery Charger"
