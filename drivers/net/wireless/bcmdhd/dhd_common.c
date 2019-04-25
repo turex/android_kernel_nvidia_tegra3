@@ -204,7 +204,7 @@ dhd_common_init(osl_t *osh)
 		case TEGRA3_PROJECT_TF700T:
 			strncat(nv_path, "/nvram_nh665.txt", MOD_PARAM_PATHLEN-1);
 			break;
-    }
+	}
 #endif /* CONFIG_MACH_TRANSFORMER */
 #else /* CONFIG_BCMDHD_NVRAM_PATH */
 	nv_path[0] = '\0';
