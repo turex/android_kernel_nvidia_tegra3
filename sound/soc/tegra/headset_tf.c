@@ -44,44 +44,40 @@
 #include "../board-transformer.h"
 #include <mach/pinmux-tegra30.h>
 #include "../board.h"
-MODULE_DESCRIPTION("Headset detection driver");
-MODULE_LICENSE("GPL");
 
 #define DEFAULT_PINMUX(_pingroup, _mux, _pupd, _tri, _io)       \
-        {                                                       \
-                .pingroup       = TEGRA_PINGROUP_##_pingroup,   \
-                .func           = TEGRA_MUX_##_mux,             \
-                .pupd           = TEGRA_PUPD_##_pupd,           \
-                .tristate       = TEGRA_TRI_##_tri,             \
-                .io             = TEGRA_PIN_##_io,              \
-                .lock           = TEGRA_PIN_LOCK_DEFAULT,       \
-                .od             = TEGRA_PIN_OD_DEFAULT,         \
-                .ioreset        = TEGRA_PIN_IO_RESET_DEFAULT,   \
-        }
+	{                                                       \
+		.pingroup       = TEGRA_PINGROUP_##_pingroup,   \
+		.func           = TEGRA_MUX_##_mux,             \
+		.pupd           = TEGRA_PUPD_##_pupd,           \
+		.tristate       = TEGRA_TRI_##_tri,             \
+		.io             = TEGRA_PIN_##_io,              \
+		.lock           = TEGRA_PIN_LOCK_DEFAULT,       \
+		.od             = TEGRA_PIN_OD_DEFAULT,         \
+		.ioreset        = TEGRA_PIN_IO_RESET_DEFAULT,   \
+	}
 
 /*----------------------------------------------------------------------------
  ** FUNCTION DECLARATION
  **----------------------------------------------------------------------------*/
 static int __init 	headset_init(void);
-static void __exit headset_exit(void);
+static void __exit	headset_exit(void);
 static irqreturn_t 	detect_irq_handler(int irq, void *dev_id);
 static void 		detection_work(struct work_struct *work);
 static int		jack_config_gpio(void);
 static void 		lineout_work_queue(struct work_struct *work);
-static int              lineout_config_gpio(u32 project_info);
+static int              lineout_config_gpio(void);
 static void 		detection_work(struct work_struct *work);
 static int              btn_config_gpio(void);
 static int 		hs_micbias_power(int on);
 static irqreturn_t 	lineout_irq_handler(int irq, void *dev_id);
+
 /*----------------------------------------------------------------------------
  ** GLOBAL VARIABLES
  **----------------------------------------------------------------------------*/
 #define JACK_GPIO		(TEGRA_GPIO_PW2)
-#define LINEOUT_GPIO_TF		(TEGRA_GPIO_PX3)
-#define LINEOUT_GPIO_NAKASI	(TEGRA_GPIO_PW3)
-#define LINEOUT_GPIO_BACH	(TEGRA_GPIO_PX6)
+#define LINEOUT_GPIO		(TEGRA_GPIO_PX3)
 #define HOOK_GPIO		(TEGRA_GPIO_PX2)
-#define UART_HEADPHONE_SWITCH (TEGRA_GPIO_PS2)
 #define ON	(1)
 #define OFF	(0)
 
@@ -105,18 +101,18 @@ struct headset_data {
 	ktime_t debouncing_time;
 };
 
-static struct headset_data *hs_data;
 bool headset_alive = false;
 EXPORT_SYMBOL(headset_alive);
+
 bool lineout_alive;
 EXPORT_SYMBOL(lineout_alive);
 
+static struct headset_data *hs_data;
 static struct workqueue_struct *g_detection_work_queue;
 static DECLARE_WORK(g_detection_work, detection_work);
 
 struct work_struct headset_work;
 struct work_struct lineout_work;
-static u32 lineout_gpio;
 
 extern struct snd_soc_codec *rt5631_audio_codec;
 extern struct snd_soc_codec *wm8903_codec;
@@ -125,13 +121,9 @@ static ssize_t lineout_name_show(struct switch_dev *ldev, char *buf)
 {
 	switch (switch_get_state(&hs_data->ldev)){
 		case NO_LINEOUT:
-			{
-				return sprintf(buf, "%s\n", "No Device");
-			}
+			return sprintf(buf, "%s\n", "No Device");
 		case LINEOUT_IN:
-			{
-				return sprintf(buf, "%s\n", "LINEOUT_IN");
-			}
+			return sprintf(buf, "%s\n", "LINEOUT_IN");
 	}
 	return -EINVAL;
 }
@@ -163,15 +155,12 @@ static irqreturn_t lineout_irq_handler(int irq, void *dev_id)
 static ssize_t headset_name_show(struct switch_dev *sdev, char *buf)
 {
 	switch (switch_get_state(&hs_data->sdev)){
-	case NO_DEVICE:{
+	case NO_DEVICE:
 		return sprintf(buf, "%s\n", "No Device");
-		}
-	case HEADSET_WITH_MIC:{
+	case HEADSET_WITH_MIC:
 		return sprintf(buf, "%s\n", "HEADSET");
-		}
-	case HEADSET_WITHOUT_MIC:{
+	case HEADSET_WITHOUT_MIC:
 		return sprintf(buf, "%s\n", "HEADPHONE");
-		}
 	}
 	return -EINVAL;
 }
@@ -191,7 +180,7 @@ static ssize_t headset_state_show(struct switch_dev *sdev, char *buf)
 
 static void insert_headset(void)
 {
-    if(gpio_get_value(HOOK_GPIO)){ 
+	if(gpio_get_value(HOOK_GPIO)){ 
 		pr_info("HEADSET: %s: headphone\n", __func__);
 		switch_set_state(&hs_data->sdev, HEADSET_WITHOUT_MIC);
 		hs_micbias_power(OFF);
@@ -235,7 +224,7 @@ static void detection_work(struct work_struct *work)
 
 	if (gpio_get_value(JACK_GPIO) != 0) {
 		/* Headset not plugged in */
-			remove_headset();
+		remove_headset();
 		goto closed_micbias;
 	}
 
@@ -245,7 +234,7 @@ static void detection_work(struct work_struct *work)
 	    pr_info("HEADSET: HOOK_GPIO value: %d\n", mic_in);
 		if(switch_get_state(&hs_data->sdev) == NO_DEVICE)
 			insert_headset();
-		else if ( mic_in == 1)
+		else if (mic_in == 1)
 			goto closed_micbias;
 	} else {
 		pr_info("HEADSET: Jack-in GPIO is low, but not a headset \n");
@@ -281,7 +270,7 @@ static int jack_config_gpio()
 
 	hs_data->irq = gpio_to_irq(JACK_GPIO);
 	ret = request_irq(hs_data->irq, detect_irq_handler,
-			  IRQF_TRIGGER_FALLING|IRQF_TRIGGER_RISING, "h2w_detect", NULL);
+			IRQF_TRIGGER_FALLING|IRQF_TRIGGER_RISING, "h2w_detect", NULL);
 
 	ret = irq_set_irq_wake(hs_data->irq, 1);
 
@@ -319,10 +308,10 @@ static int btn_config_gpio()
 static void lineout_work_queue(struct work_struct *work)
 {
 	msleep(300);
-	if (gpio_get_value(lineout_gpio) == 0){
+	if (gpio_get_value(LINEOUT_GPIO) == 0){
 		pr_info("HEADSET: LINEOUT: LineOut inserted\n");
 		lineout_alive = true;
-	} else if(gpio_get_value(lineout_gpio)){
+	} else {
 		pr_info("HEADSET: LINEOUT: LineOut removed\n");
 		lineout_alive = false;
 	}
@@ -334,24 +323,25 @@ static void lineout_work_queue(struct work_struct *work)
 **  Return value: IRQ_HANDLED
 **
 ************************************************************/
-static int lineout_config_gpio(u32 project_info)
+static int lineout_config_gpio(void)
 {
 	int ret;
 
 	pr_info("HEADSET: Config LineOut detection gpio\n");
-	lineout_gpio = LINEOUT_GPIO_TF;
-	ret = gpio_request(lineout_gpio, "lineout_int");
-	ret = gpio_direction_input(lineout_gpio);
+	ret = gpio_request(LINEOUT_GPIO, "lineout_int");
+	ret = gpio_direction_input(LINEOUT_GPIO);
 
-	ret = request_irq(gpio_to_irq(lineout_gpio),
+	ret = request_irq(gpio_to_irq(LINEOUT_GPIO),
 			&lineout_irq_handler,
 			IRQF_TRIGGER_FALLING|IRQF_TRIGGER_RISING,
 			"lineout_int", 0);
-	if (gpio_get_value(lineout_gpio) == 0){
+
+	if (gpio_get_value(LINEOUT_GPIO) == 0){
 		lineout_alive = true;
 	} else {
 		lineout_alive = false;
 	}
+
 	return 0;
 }
 
@@ -444,9 +434,6 @@ static int hs_micbias_power(int on)
 static int __init headset_init(void)
 {
 	int ret;
-	u32 project_info = tegra3_get_project_id();
-
-	pr_info("%s+ #####\n", __func__);
 
 	pr_info("HEADSET: Headset detection init\n");
 
@@ -477,12 +464,12 @@ static int __init headset_init(void)
 	hs_data->timer.function = detect_event_timer_func;
 
 	pr_info("HEADSET: Headset detection mode\n");
-	lineout_config_gpio(project_info);
-	btn_config_gpio();/*Config hook detection GPIO*/
-	jack_config_gpio();/*Config jack detection GPIO*/
+	lineout_config_gpio();  /* Config line detection GPIO */
+	btn_config_gpio();      /* Config hook detection GPIO */
+	jack_config_gpio();     /* Config jack detection GPIO */
+
 	INIT_WORK(&lineout_work, lineout_work_queue);
 
-	pr_info("%s- #####\n", __func__);
 	return 0;
 
 err_switch_dev_register:
@@ -500,11 +487,13 @@ err_switch_dev_register:
 static void __exit headset_exit(void)
 {
 	pr_info("HEADSET: Headset exit\n");
+
 	if (switch_get_state(&hs_data->sdev))
 		remove_headset();
+
 	gpio_free(JACK_GPIO);
 	gpio_free(HOOK_GPIO);
-	gpio_free(lineout_gpio);
+	gpio_free(LINEOUT_GPIO);
 
 	free_irq(hs_data->irq, 0);
 	destroy_workqueue(g_detection_work_queue);
@@ -513,3 +502,6 @@ static void __exit headset_exit(void)
 
 module_init(headset_init);
 module_exit(headset_exit);
+
+MODULE_DESCRIPTION("Headset detection driver");
+MODULE_LICENSE("GPL");
