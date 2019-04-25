@@ -1238,17 +1238,17 @@ static struct i2c_driver mpu_driver = {
 
 static int __init mpu_init(void)
 {
+	int res = i2c_add_driver(&mpu_driver);
 #ifdef CONFIG_MACH_TRANSFORMER
 	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF201) {
 		// nv hided this
 		// tegra_gpio_enable(TEGRA_GPIO_PR7);
 		gpio_request(TEGRA_GPIO_PR7, "gpio_pr7");
 		gpio_direction_output(TEGRA_GPIO_PR7, 1);
-		pr_info("%s: gpio 2.85V %d set to %d\n", TEGRA_GPIO_PR7, gpio_get_value(TEGRA_GPIO_PR7));
+		pr_info("%s: gpio 2.85V TEGRA_GPIO_PR7 set to %d\n", __func__, gpio_get_value(TEGRA_GPIO_PR7));
 		gpio_free(TEGRA_GPIO_PR7);
 	}
 #endif
-	int res = i2c_add_driver(&mpu_driver);
 	pr_info("%s: Probe name %s\n", __func__, MPU_NAME);
 	if (res)
 		pr_err("%s failed\n", __func__);
