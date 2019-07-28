@@ -391,6 +391,7 @@ obj-${CONFIG_ARCH_ACER_T30}             += board-acer-t30-sensors.o
 obj-${CONFIG_ARCH_ACER_T30}             += board-acer-t30-memory.o
 
 obj-${CONFIG_MACH_TRANSFORMER}          += board-transformer.o
+obj-${CONFIG_MACH_TRANSFORMER}          += board-transformer-camera.o
 obj-${CONFIG_MACH_TRANSFORMER}          += board-transformer-kbc.o
 obj-${CONFIG_MACH_TRANSFORMER}          += board-transformer-panel.o
 obj-${CONFIG_MACH_TRANSFORMER}          += board-transformer-pinmux.o

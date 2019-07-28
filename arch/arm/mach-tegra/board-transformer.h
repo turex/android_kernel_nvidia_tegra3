@@ -51,22 +51,6 @@
 #define TEGRA_GPIO_SPKR_EN			CARDHU_GPIO_WM8903(2)
 #define TEGRA_GPIO_HP_DET			TEGRA_GPIO_PW2
 
-/* CAMERA RELATED GPIOs on TF201 */
-#define ISP_POWER_1V2_EN_GPIO			TEGRA_GPIO_PS3      //ISP_1V2_EN VDD_ISP_1V2
-#define ISP_POWER_RESET_GPIO			TEGRA_GPIO_PBB0     //CAM_RST_5M, RSTX
-#define CAM3_POWER_DWN_GPIO			TEGRA_GPIO_PBB7
-#define FRONT_YUV_SENSOR_RST_GPIO		TEGRA_GPIO_PO0      //1.2M CAM_RST
-
-/* CAMERA RELATED GPIOs on TF700T */
-#define TF700T_ISP_POWER_1V2_EN_GPIO		TEGRA_GPIO_PR7      //ISP_1V2_EN VDD_ISP_1V2
-#define TF700T_ISP_POWER_1V8_EN_GPIO		TEGRA_GPIO_PBB7     //ISP_1V8_EN VDD_ISP_1V8
-
-/* CAMERA RELATED GPIOs on TF300T */
-#define ICATCH7002A_RST_GPIO			TEGRA_GPIO_PBB0
-#define ICATCH7002A_VDDIO_EN_GPIO		TEGRA_GPIO_PBB4
-#define ICATCH7002A_PWR_DN_GPIO			TEGRA_GPIO_PBB5
-#define ICATCH7002A_VDDC_EN_GPIO		TEGRA_GPIO_PBB7
-
 /*****************Interrupt tables ******************/
 /* External peripheral act as interrupt controller */
 /* TPS6591x IRQs */
@@ -82,6 +66,7 @@ void __init cardhu_pinmux_init_early(void);
 int __init cardhu_gpio_init(void);
 int __init cardhu_panel_init(void);
 int __init cardhu_sensors_init(void);
+int __init cardhu_camera_init(void);
 int __init cardhu_keys_init(void);
 int __init cardhu_pins_state_init(void);
 int __init cardhu_emc_init(void);
