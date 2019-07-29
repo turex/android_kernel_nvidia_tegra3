@@ -71,6 +71,7 @@ int __init cardhu_keys_init(void);
 int __init cardhu_pins_state_init(void);
 int __init cardhu_emc_init(void);
 void __init cardhu_edp_init(void);
+void cardhu_mipi_bridge_init(void);
 //struct platform_device *tegra_cardhu_usb_utmip_host_register(void);
 //void tegra_cardhu_usb_utmip_host_unregister(struct platform_device *pdev);
 
@@ -136,4 +137,5 @@ enum tegra_bb_type {
 	TEGRA_BB_TANGO = 1,
 };
 
+extern int I2C_command_flag;
 #endif

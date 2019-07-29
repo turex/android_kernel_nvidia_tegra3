@@ -31,6 +31,10 @@
 #include <linux/slab.h>
 #include <linux/edp.h>
 
+#ifdef CONFIG_MACH_TRANSFORMER
+#include "../board-transformer.h"
+#endif
+
 struct pwm_bl_data {
 	struct pwm_device	*pwm;
 	struct device		*dev;
@@ -84,7 +88,13 @@ static int pwm_backlight_update_status(struct backlight_device *bl)
 	if (brightness == 0) {
 		pwm_config(pb->pwm, 0, pb->period);
 		pwm_disable(pb->pwm);
+#ifdef CONFIG_MACH_TRANSFORMER
+		I2C_command_flag = 0;
 	} else {
+		cardhu_mipi_bridge_init();
+#else
+	} else {
+#endif
 		brightness = pb->lth_brightness +
 			(brightness * (pb->period - pb->lth_brightness) / max);
 		pwm_config(pb->pwm, brightness, pb->period);
