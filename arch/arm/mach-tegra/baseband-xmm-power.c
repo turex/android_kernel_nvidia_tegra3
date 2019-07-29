@@ -87,7 +87,7 @@ static struct gpio tegra_baseband_gpios[] = {
 	{ -1, GPIOF_IN,            "IPC_AP_WAKE" },
 	{ -1, GPIOF_OUT_INIT_LOW,  "IPC_HSIC_ACTIVE" },
 	{ -1, GPIOF_IN,            "IPC_HSIC_SUS_REQ" },
-#ifdef CONFIG_MACH_GROUPER
+#if defined (CONFIG_MACH_GROUPER) || defined (CONFIG_MACH_TRANSFORMER)
 	{ -1, GPIOF_OUT_INIT_LOW,  "BB_VBAT" },
 	{ -1, GPIOF_IN,            "IPC_BB_RST_IND" },
 	{ -1, GPIOF_OUT_INIT_LOW,  "IPC_BB_FORCE_CRASH" },
@@ -455,7 +455,7 @@ static int xmm_power_off(struct platform_device *device)
 	gpio_set_value(pdata->modem.xmm.bb_rst, 0);
 	/* sleep 1ms */
 	usleep_range(1000, 2000);
-#ifdef CONFIG_MACH_GROUPER
+#if defined (CONFIG_MACH_GROUPER) || defined (CONFIG_MACH_TRANSFORMER)
 	gpio_set_value(pdata->modem.xmm.bb_vbat, 0);
 	usleep_range(1000, 2000);
 #endif
@@ -1105,7 +1105,7 @@ static int xmm_power_driver_probe(struct platform_device *device)
 	tegra_baseband_gpios[3].gpio = pdata->modem.xmm.ipc_ap_wake;
 	tegra_baseband_gpios[4].gpio = pdata->modem.xmm.ipc_hsic_active;
 	tegra_baseband_gpios[5].gpio = pdata->modem.xmm.ipc_hsic_sus_req;
-#ifdef CONFIG_MACH_GROUPER
+#if defined (CONFIG_MACH_GROUPER) || defined (CONFIG_MACH_TRANSFORMER)
 	tegra_baseband_gpios[6].gpio = pdata->modem.xmm.bb_vbat;
 	tegra_baseband_gpios[7].gpio = pdata->modem.xmm.ipc_bb_rst_ind;
 	tegra_baseband_gpios[8].gpio = pdata->modem.xmm.ipc_bb_force_crash;

@@ -58,7 +58,7 @@ struct baseband_power_platform_data {
 			int ipc_ap_wake;
 			int ipc_hsic_active;
 			int ipc_hsic_sus_req;
-#ifdef CONFIG_MACH_GROUPER
+#if defined (CONFIG_MACH_GROUPER) || defined (CONFIG_MACH_TRANSFORMER)
 			int bb_vbat;
 			int bb_vbus;
 			int bb_sw_sel;

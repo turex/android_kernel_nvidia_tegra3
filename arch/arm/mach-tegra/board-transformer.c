@@ -183,6 +183,7 @@ static struct tegra_i2c_platform_data cardhu_i2c3_platform_data = {
 	.arb_recovery		= arb_lost_recovery,
 };
 
+/* Higher freq could be applied for TF300T/TF300TG/TF300TL Camera FW update */
 static struct tegra_i2c_platform_data cardhu_i2c3_platform_data_for_TF300 = {
 	.adapter_nr		= 2,
 	.bus_count		= 1,
@@ -192,7 +193,6 @@ static struct tegra_i2c_platform_data cardhu_i2c3_platform_data_for_TF300 = {
 	.arb_recovery		= arb_lost_recovery,
 };
 
-/* Higher freq could be applied for TF300T/TF300TG/TF300TL Camera FW update */
 static struct tegra_i2c_platform_data cardhu_i2c4_platform_data = {
 	.adapter_nr		= 3,
 	.bus_count		= 1,
@@ -611,35 +611,82 @@ static int __init cardhu_touch_init(void)
 }
 
 #ifdef CONFIG_USB_SUPPORT
-static void cardu_usb_hsic_postsupend(void)
+static int hsic_enable_gpio = TEGRA_GPIO_PR7;
+
+static void cardhu_usb_hsic_postsupend(void)
 {
 	pr_debug("%s\n", __func__);
 	baseband_xmm_set_power_status(BBXMM_PS_L2);
 }
 
-static void cardu_usb_hsic_preresume(void)
+static void cardhu_usb_hsic_preresume(void)
 {
 	pr_debug("%s\n", __func__);
 	baseband_xmm_set_power_status(BBXMM_PS_L2TOL0);
 }
 
-static void cardu_usb_hsic_phy_ready(void)
+static void cardhu_usb_hsic_postresume(void)
 {
 	pr_debug("%s\n", __func__);
 	baseband_xmm_set_power_status(BBXMM_PS_L0);
 }
 
-static void cardu_usb_hsic_phy_off(void)
+static void cardhu_usb_hsic_phy_ready(void)
 {
 	pr_debug("%s\n", __func__);
-	baseband_xmm_set_power_status(BBXMM_PS_L3);
+	baseband_xmm_set_power_status(BBXMM_PS_L0);
 }
 
+static void cardhu_usb_hsic_phy_off(void)
+{
+	pr_debug("%s\n", __func__);
+	baseband_xmm_set_power_status(BBXMM_PS_L2);
+	if (hsic_enable_gpio != -1) {
+		gpio_set_value_cansleep(hsic_enable_gpio, 0);
+		udelay(1000);
+		tegra_baseband_rail_off();
+	}
+}
+
+static void cardhu_usb_hsic_phy_on(void)
+{
+	pr_debug("%s\n", __func__);
+	if (hsic_enable_gpio != -1) {
+		tegra_baseband_rail_on();
+		gpio_set_value_cansleep(hsic_enable_gpio, 1);
+		udelay(1000);
+	}
+}
+
+static void cardhu_hsic_platform_open(void)
+{
+	int enable_gpio = -1;
+
+	pr_debug("%s\n", __func__);
+	if (hsic_enable_gpio != -1)
+		enable_gpio = gpio_request(hsic_enable_gpio, "uhsic_enable");
+
+	if (!enable_gpio)
+		gpio_direction_output(hsic_enable_gpio, 0 /* deasserted */);
+
+	/* keep hsic reset asserted for 1 ms */
+	udelay(1000);
+
+	/* enable (power on) hsic */
+	if (!enable_gpio)
+		gpio_set_value_cansleep(hsic_enable_gpio, 1);
+	udelay(1000);
+}
+
+
 static struct tegra_usb_phy_platform_ops hsic_xmm_plat_ops = {
-	.post_suspend = cardu_usb_hsic_postsupend,
-	.pre_resume = cardu_usb_hsic_preresume,
-	.port_power = cardu_usb_hsic_phy_ready,
-	.post_phy_off = cardu_usb_hsic_phy_off,
+	.open = &cardhu_hsic_platform_open,
+	.pre_phy_on = &cardhu_usb_hsic_phy_on,
+	.post_suspend = &cardhu_usb_hsic_postsupend,
+	.pre_resume = &cardhu_usb_hsic_preresume,
+	.post_resume = &cardhu_usb_hsic_postresume,
+	.port_power = &cardhu_usb_hsic_phy_ready,
+	.post_phy_off = &cardhu_usb_hsic_phy_off,
 };
 
 static struct tegra_usb_platform_data tegra_ehci2_hsic_xmm_pdata = {
@@ -648,7 +695,6 @@ static struct tegra_usb_platform_data tegra_ehci2_hsic_xmm_pdata = {
 	.phy_intf = TEGRA_USB_PHY_INTF_HSIC,
 	.op_mode = TEGRA_USB_OPMODE_HOST,
 	.u_data.host = {
-//		.enable_gpio = EN_HSIC_GPIO,
 		.vbus_gpio = -1,
 		.hot_plug = false,
 		.remote_wakeup_supported = false,
@@ -760,6 +806,8 @@ static struct tegra_usb_otg_data tegra_otg_pdata = {
 
 static void __init cardhu_usb_init(void)
 {
+	pr_info("%s\n", __func__);
+
 	/* OTG should be the first to be registered */
 	tegra_otg_device.dev.platform_data = &tegra_otg_pdata;
 	platform_device_register(&tegra_otg_device);
@@ -782,26 +830,24 @@ static void __init cardhu_usb_init(void)
 	platform_device_register(&tegra_ehci3_device);
 }
 
-#if 0
-static struct platform_device *tegra_cardhu_usb_hsic_host_register(void)
+static struct platform_device *tegra_usb_hsic_host_register(struct platform_device *ehci_dev)
 {
 	struct platform_device *pdev;
 	int val;
 
-	pdev = platform_device_alloc(tegra_ehci2_device.name,
-		tegra_ehci2_device.id);
+	pdev = platform_device_alloc(ehci_dev->name, ehci_dev->id);
 	if (!pdev)
 		return NULL;
 
-	val = platform_device_add_resources(pdev, tegra_ehci2_device.resource,
-		tegra_ehci2_device.num_resources);
+	val = platform_device_add_resources(pdev, ehci_dev->resource,
+			ehci_dev->num_resources);
 	if (val)
 		goto error;
 
-	pdev->dev.dma_mask =  tegra_ehci2_device.dev.dma_mask;
-	pdev->dev.coherent_dma_mask = tegra_ehci2_device.dev.coherent_dma_mask;
+	pdev->dev.dma_mask = ehci_dev->dev.dma_mask;
+	pdev->dev.coherent_dma_mask = ehci_dev->dev.coherent_dma_mask;
 
-	val = platform_device_add_data(pdev, &tegra_ehci2_hsic_xmm_pdata,
+	val = platform_device_add_data(pdev, &tegra_ehci_uhsic_pdata,
 			sizeof(struct tegra_usb_platform_data));
 	if (val)
 		goto error;
@@ -818,9 +864,9 @@ error:
 	return NULL;
 }
 
-static void tegra_cardhu_usb_hsic_host_unregister(struct platform_device *pdev)
+static void tegra_usb_hsic_host_unregister(struct platform_device **platdev)
 {
-	platform_device_unregister(pdev);
+	struct platform_device *pdev = *platdev;
 
 	if (pdev && &pdev->dev) {
 		platform_device_unregister(pdev);
@@ -829,6 +875,7 @@ static void tegra_cardhu_usb_hsic_host_unregister(struct platform_device *pdev)
 		pr_err("%s: no platform device\n", __func__);
 }
 
+#if 0
 struct platform_device *tegra_cardhu_usb_utmip_host_register(void)
 {
 	struct platform_device *pdev;
@@ -868,6 +915,7 @@ void tegra_cardhu_usb_utmip_host_unregister(struct platform_device *pdev)
 {
 	platform_device_unregister(pdev);
 }
+#endif
 
 static struct baseband_power_platform_data tegra_baseband_power_data = {
 	.baseband_type = BASEBAND_XMM,
@@ -885,9 +933,7 @@ static struct baseband_power_platform_data tegra_baseband_power_data = {
 		.ipc_hsic_active = XMM_GPIO_IPC_HSIC_ACTIVE,
 		.ipc_hsic_sus_req = XMM_GPIO_IPC_HSIC_SUS_REQ,
 		.ipc_bb_force_crash = XMM_GPIO_IPC_BB_FORCE_CRASH,
-
-		.bb_sar_det = BB_GPIO_SAR_DET,
-		.hsic_device = &tegra_ehci2_device,
+//		.bb_sar_det = XMM_GPIO_BB_SAR_DET,
 		},
 	},
 };
@@ -900,6 +946,7 @@ static struct platform_device tegra_baseband_power_device = {
 	},
 };
 
+/*
 static struct platform_device tegra_baseband_power2_device = {
 	.name = "baseband_xmm_power2",
 	.id = -1,
@@ -907,6 +954,7 @@ static struct platform_device tegra_baseband_power2_device = {
 		.platform_data = &tegra_baseband_power_data,
 	},
 };
+*/
 
 static void __init cardhu_modem_init(void)
 {
@@ -914,37 +962,41 @@ static void __init cardhu_modem_init(void)
 
 	switch (tegra3_get_project_id()) {
 	case TEGRA3_PROJECT_TF300TG:
-		// continue init
+		/* continue init */
 		break;
 	case TEGRA3_PROJECT_TF300TL:
-		// TF300TL init GPIOs in ASUS's customized RIL driver.
+		/* TF300TL init GPIOs in ASUS's customized RIL driver */
 		return;
 	default:
-		pr_info("%s: Device doesn't include modile data module\n", __func__);
+		pr_info("%s: device does not include modile data module\n", __func__);
 		return;
 	}
 
+	pr_info("%s\n", __func__);
+	tegra_baseband_power_data.ehci_device =
+		&tegra_ehci2_device;
 	tegra_baseband_power_data.hsic_register =
-		&tegra_cardhu_usb_hsic_host_register;
+		&tegra_usb_hsic_host_register;
 	tegra_baseband_power_data.hsic_unregister =
-		&tegra_cardhu_usb_hsic_host_unregister;
-	tegra_baseband_power_data.utmip_register =
-		&tegra_cardhu_usb_utmip_host_register;
-	tegra_baseband_power_data.utmip_unregister =
-		&tegra_cardhu_usb_utmip_host_unregister;
+		&tegra_usb_hsic_host_unregister;
+
+//	tegra_baseband_power_data.utmip_register =
+//		&tegra_cardhu_usb_utmip_host_register;
+//	tegra_baseband_power_data.utmip_unregister =
+//		&tegra_cardhu_usb_utmip_host_unregister;
+
 	platform_device_register(&tegra_baseband_power_device);
-	platform_device_register(&tegra_baseband_power2_device);
+//	platform_device_register(&tegra_baseband_power2_device);
 
 	if (modem_id == TEGRA_BB_TANGO) {
-		tegra_ehci2_device.dev.platform_data = &tegra_ehci2_utmi_pdata;
-		platform_device_register(&tegra_ehci2_device);
+		pr_info("%s: modem is TEGRA_BB_TANGO\n", __func__);
+//		tegra_ehci2_device.dev.platform_data = &tegra_ehci2_utmi_pdata;
+//		platform_device_register(&tegra_ehci2_device);
 	}
 }
-#endif
-
 #else
 static void __init cardhu_usb_init(void)  { }
-//static void __init cardhu_modem_init(void)  { }
+static void __init cardhu_modem_init(void)  { }
 #endif /* CONFIG_USB_SUPPORT */
 
 static void __init cardhu_booting_info(void)
@@ -993,7 +1045,7 @@ static void __init tegra_cardhu_init(void)
 	cardhu_regulator_init();
 	cardhu_suspend_init();
 	cardhu_touch_init();
-//	cardhu_modem_init();
+	cardhu_modem_init();
 	cardhu_keys_init();
 	cardhu_panel_init();
 	cardhu_sensors_init();
