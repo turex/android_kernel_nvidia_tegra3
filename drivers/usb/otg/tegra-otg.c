@@ -333,6 +333,11 @@ static void tegra_change_otg_state(struct tegra_otg_data *tegra,
 			tegra_otg_notify_event(tegra, USB_EVENT_NONE);
 		}
 #ifdef CONFIG_MACH_TRANSFORMER
+		/*
+		 *  USB_VBUS_STATUS	(1 << 10)
+		 *  usb_vbus_val = 0, VBUS disable.
+		 *  usb_vbus_val = 1024, VBUS enable.
+		 */
 	} else if ((from == OTG_STATE_A_SUSPEND) && (to == OTG_STATE_A_SUSPEND) && (usb_vbus_val == 1024)) {
 		usb_vbus_val = otg_readl(tegra, USB_PHY_WAKEUP) & USB_VBUS_STATUS;
 #if BATTERY_CALLBACK_ENABLED
@@ -808,6 +813,9 @@ static void tegra_otg_resume(struct device *dev)
 		if (!tegra->support_pmu_vbus)
 			val |= USB_VBUS_INT_EN | USB_VBUS_WAKEUP_EN;
 		tegra->int_status = val;
+#ifdef CONFIG_MACH_TRANSFORMER
+		usb_suspend_tag = false;
+#endif
 		spin_unlock_irqrestore(&tegra->lock, flags);
 	}
 
@@ -819,10 +827,6 @@ static void tegra_otg_resume(struct device *dev)
 		check_host_cable_connection(tegra);
 		mutex_lock(&tegra->irq_work_mutex);
 	}
-
-#ifdef CONFIG_MACH_TRANSFORMER
-	usb_suspend_tag = false;
-#endif
 
 	/* Call work to set appropriate state */
 	schedule_work(&tegra->work);

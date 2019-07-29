@@ -78,11 +78,11 @@
 
 struct cable_info {
 	/*
-	* The cable status:
-	* 0000: no cable
-	* 0001: USB cable
-	* 0011: AC apdater
-	*/
+	 * The cable status:
+	 * 0000: no cable
+	 * 0001: USB cable
+	 * 0011: AC apdater
+	 */
 	unsigned int cable_status;
 	int ac_15v_connected;
 	struct delayed_work gpio_limit_set1_detection_work;
@@ -192,7 +192,7 @@ void asus_cable_detection_work(void)
 		break;
 	case CONNECT_TYPE_SDP:
 		pr_info("tf_charger: detected SDP port\n");
-		if (adapter_in == 0) {
+		if (!adapter_in) {
 			pr_info("tf_charger: USB cable is connected (0.5A)\n");
 			s_cable_info.cable_status = 0x1; //0001
 			s_cable_info.ac_15v_connected = 0;
@@ -205,13 +205,13 @@ void asus_cable_detection_work(void)
 		}
 		break;
 	case CONNECT_TYPE_DCP:
-		pr_info("tf_charger: detected DCP port(wall charger)\n");
-		if (dock_in == 0) {//no dock in
+		pr_info("tf_charger: detected DCP port (wall charger)\n");
+		if (!dock_in) { //no dock in
 			if (adapter_in == 1) {
 				pr_info("tf_charger: AC adapter 15V connected (1A)\n");
 				s_cable_info.cable_status = 0x3; //0011
 				s_cable_info.ac_15v_connected = 1;
-			} else if (adapter_in == 0) {
+			} else if (!adapter_in) {
 				pr_info("tf_charger: AC adapter 5V connected (1A)\n");
 				s_cable_info.cable_status = 0x1; //0001
 				s_cable_info.ac_15v_connected = 0;
@@ -220,7 +220,7 @@ void asus_cable_detection_work(void)
 				s_cable_info.cable_status = 0x1; //0001
 			}
 		} else if (dock_in == 1) {// dock in
-			if(usb_suspend_tag == 1) {
+			if(usb_suspend_tag) {
 				mutex_unlock(&s_cable_info.cable_info_mutex);
 				return;
 			}
@@ -229,7 +229,7 @@ void asus_cable_detection_work(void)
 #if DOCK_EC_ENABLED
 				dock_ac = asusdec_is_ac_over_10v_callback();
 #endif
-				pr_info("tf_charger: limt_set1=%d dock_ac=%#X\n", __func__, adapter_in, dock_ac);
+				pr_info("tf_charger: limt_set1= %d dock_ac= %#X\n", adapter_in, dock_ac);
 				s_cable_info.cable_status = 0x1; //0001
 				s_cable_info.ac_15v_connected = 0;
 
@@ -239,7 +239,7 @@ void asus_cable_detection_work(void)
 					s_cable_info.ac_15v_connected = 1;
 					ask_ec_num = 0;
 					break;
-				} else if (dock_ac == 0) {
+				} else if (!dock_ac) {
 					pr_info("tf_charger: AC adapter + Docking 5V connected (1A)\n");
 					s_cable_info.cable_status = 0x1; //0001
 					s_cable_info.ac_15v_connected = 0;
