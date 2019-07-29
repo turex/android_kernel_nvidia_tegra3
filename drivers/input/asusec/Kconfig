@@ -5,11 +5,22 @@
 config INPUT_ASUSEC
 	bool "ASUS embedded controller interface"
 	depends on I2C
+	help
+	  Say Y here to enable support for Asus embedded controller interface.
+	  This config is base, needed by PAD and DOCK controller interfaces
+	  used in Asus Transformer Series.
 
 config ASUSPEC
-	bool "ASUS embedded controller interface"
+	bool "ASUS PAD controller interface"
 	depends on INPUT_ASUSEC
+	help
+	  Say Y here to enable support for Asus PAD controller interface.
+	  Main purpose of this driver is to read and control PAD controller
+	  interface, which provides information about battery state, charging
+	  process, pad state and firmware version.
 
 config ASUSDEC
-	bool "ASUS embedded controller interface"
+	bool "ASUS DOCK controller interface"
 	depends on INPUT_ASUSEC
+	help
+	  Say Y here to enable support for Asus DOCK controller interface.

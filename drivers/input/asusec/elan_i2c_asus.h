@@ -137,7 +137,6 @@ struct elantech_data {
 	struct input_dev *abs_dev;
 };
 
-int elantech_detect(struct asusdec_chip *ec_chip);
 int elantech_init(struct asusdec_chip *ec_chip);
 void elantech_report_absolute_to_related(struct asusdec_chip *ec_chip, int *Null_data_times);
 #endif
