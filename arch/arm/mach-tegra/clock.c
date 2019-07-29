@@ -877,9 +877,11 @@ static void __init tegra_clk_verify_rates(void)
 
 	list_for_each_entry(c, &clocks, node) {
 		rate = clk_get_rate(c);
+#if !defined(CONFIG_MACH_TRANSFORMER) || !defined(CONFIG_MACH_PICASSO)
 		if (rate > clk_get_max_rate(c))
 			WARN(1, "tegra: %s boot rate %lu exceeds max rate %lu\n",
 			     c->name, rate, clk_get_max_rate(c));
+#endif
 		c->boot_rate = rate;
 	}
 	mutex_unlock(&clock_list_lock);
