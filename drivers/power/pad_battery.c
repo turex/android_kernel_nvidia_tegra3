@@ -418,7 +418,6 @@ void battery_callback(unsigned usb_cable_state)
 
 static irqreturn_t charger_pad_dock_interrupt(int irq, void *dev_id)
 {
-	pr_info("pad_battery: charger_pad_dock_interrupt\n");
 	mod_timer(&pad_device->charger_pad_dock_detect_timer, jiffies + (5*HZ));
 	return IRQ_HANDLED;
 }
@@ -466,12 +465,12 @@ int docking_callback(int docking_in)
 	if(battery_driver_ready){
 		cancel_delayed_work_sync(&pad_device->status_poll_work);
 		power_supply_changed(&pad_supply[Charger_Type_Battery]);
-		mod_timer(&pad_device->charger_pad_dock_detect_timer, jiffies +(5*HZ));
+		mod_timer(&pad_device->charger_pad_dock_detect_timer, jiffies + (5*HZ));
 	}
 	return 0;
 }
 
-void init_docking_charging_irq(void)
+static void init_docking_charging_irq(void)
 {
 	int rc;
 
