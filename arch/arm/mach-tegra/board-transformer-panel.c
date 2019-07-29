@@ -580,6 +580,17 @@ static struct tegra_dc_mode cardhu_tf700t_modes[] = {
 	},
 };
 
+static struct tegra_dc_out_pin cardhu_dc_out_pins[] = {
+	{
+		.name   = TEGRA_DC_OUT_PIN_H_SYNC,
+		.pol    = TEGRA_DC_OUT_PIN_POL_LOW,
+	},
+	{
+		.name   = TEGRA_DC_OUT_PIN_V_SYNC,
+		.pol    = TEGRA_DC_OUT_PIN_POL_LOW,
+	},
+};
+
 static struct resource cardhu_disp1_resources[] = {
 	{
 		.name	= "irq",
@@ -793,6 +804,9 @@ int __init cardhu_panel_init(void)
 
 		cardhu_disp1_out.modes = cardhu_tf700t_modes;
 		cardhu_disp1_out.n_modes = ARRAY_SIZE(cardhu_tf700t_modes);
+
+		cardhu_disp1_out.out_pins = cardhu_dc_out_pins;
+		cardhu_disp1_out.n_out_pins = ARRAY_SIZE(cardhu_dc_out_pins);
 
 		cardhu_disp1_out.parent_clk = "pll_d_out0";
 		cardhu_disp1_out.depth = 24;
