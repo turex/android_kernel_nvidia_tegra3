@@ -730,10 +730,17 @@ static int mxt_soft_reset(struct mxt_data *data, u8 value)
 	int timeout_counter = 0;
 	struct device *dev = &data->client->dev;
 
-	dev_info(dev, "Resetting chip\n");
+	dev_info(dev, "Resetting device\n");
+
+	disable_irq(data->irq);
 
 	mxt_write_object(data, MXT_GEN_COMMAND_T6,
 			MXT_COMMAND_RESET, value);
+
+	/* Ignore CHG line for 100ms after reset */
+	msleep(100);
+
+	enable_irq(data->irq);
 
 	if (data->pdata->read_chg == NULL) {
 		msleep(MXT_RESET_NOCHGREAD);
