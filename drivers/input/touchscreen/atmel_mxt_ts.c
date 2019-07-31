@@ -823,19 +823,6 @@ static void mxt_proc_t9_messages(struct mxt_data *data, u8 *message)
 	amplitude = message[6];
 	vector = message[7];
 
-	dev_dbg(dev,
-		"[%d] %c%c%c%c%c%c%c%c x: %d y: %d area: %d amp: %d vector: %02X\n",
-		id,
-		(status & MXT_T9_DETECT) ? 'D' : '.',
-		(status & MXT_T9_PRESS) ? 'P' : '.',
-		(status & MXT_T9_RELEASE) ? 'R' : '.',
-		(status & MXT_T9_MOVE) ? 'M' : '.',
-		(status & MXT_T9_VECTOR) ? 'V' : '.',
-		(status & MXT_T9_AMP) ? 'A' : '.',
-		(status & MXT_T9_SUPPRESS) ? 'S' : '.',
-		(status & MXT_T9_UNGRIP) ? 'U' : '.',
-		x, y, area, amplitude, vector);
-
 	input_mt_slot(input_dev, id);
 
 	if ((status & MXT_T9_DETECT) && (status & MXT_T9_RELEASE)) {
@@ -858,6 +845,18 @@ static void mxt_proc_t9_messages(struct mxt_data *data, u8 *message)
 		input_report_abs(input_dev, ABS_MT_PRESSURE, amplitude);
 		input_report_abs(input_dev, ABS_MT_TOUCH_MAJOR, area);
 		input_report_abs(input_dev, ABS_MT_ORIENTATION, vector);
+
+	pr_info("MT: [%d] %c%c%c%c%c%c%c%c x: %d y: %d area: %d amp: %d vector: %02X\n",
+		id,
+		(status & MXT_T9_DETECT) ? 'D' : '.',
+		(status & MXT_T9_PRESS) ? 'P' : '.',
+		(status & MXT_T9_RELEASE) ? 'R' : '.',
+		(status & MXT_T9_MOVE) ? 'M' : '.',
+		(status & MXT_T9_VECTOR) ? 'V' : '.',
+		(status & MXT_T9_AMP) ? 'A' : '.',
+		(status & MXT_T9_SUPPRESS) ? 'S' : '.',
+		(status & MXT_T9_UNGRIP) ? 'U' : '.',
+		x, y, area, amplitude, vector);
 	} else {
 		/* Touch no longer in detect, so close out slot */
 		mxt_input_sync(data);
