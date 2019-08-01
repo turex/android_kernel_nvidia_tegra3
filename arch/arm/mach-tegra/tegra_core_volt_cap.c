@@ -24,6 +24,10 @@
 #include "clock.h"
 #include "dvfs.h"
 
+#ifdef CONFIG_MACH_TRANSFORMER
+#include <mach/board-transformer-misc.h>
+#endif
+
 /*
  * sysfs and kernel interfaces to limit tegra core shared bus frequencies based
  * on the required core voltage (cap level)
@@ -165,6 +169,13 @@ core_cap_level_store(struct kobject *kobj, struct kobj_attribute *attr,
 
 	if (sscanf(buf, "%d", &level) != 1)
 		return -1;
+
+#ifdef CONFIG_MACH_TRANSFORMER
+	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF700T) {
+		pr_info("[TF700T]: setting vdd_core voltage to 1300mV\n");
+		level = 1300;
+	}
+#endif
 
 	mutex_lock(&core_cap_lock);
 	user_core_cap.level = level;
