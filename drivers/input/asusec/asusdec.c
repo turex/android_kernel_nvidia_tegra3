@@ -1467,22 +1467,20 @@ static int asusdec_resume(struct device *dev)
 
 int asusdec_is_ac_over_10v_callback(void)
 {
-	int ret;
+	int err;
 
-	if (!gpio_get_value(asusdec_dock_in_gpio)){
-		if(!ec_chip && !ec_chip->indev)
-			goto not_ready;
+	if (!ec_chip || !ec_chip->dock_in || !ec_chip->client)
+		goto not_ready;
 
-		ret = asusdec_i2c_test(ec_chip->client);
-		if(ret < 0)
-			goto not_ready;
+	err = asusdec_i2c_test(ec_chip->client);
+	if (err < 0)
+		goto not_ready;
 
-		ret = asusdec_dockram_read_data(0x0A);
-		if(ret < 0)
-			goto not_ready;
+	err = asusdec_dockram_read_data(0x0A);
+	if (err < 0)
+		goto not_ready;
 
-		return ec_chip->i2c_dm_data[1] & 0x20;
-	}
+	return ec_chip->i2c_dm_data[1] & 0x20;
 
 not_ready:
 	pr_info("asusdec: dock isn't ready\n");
