@@ -38,6 +38,10 @@
 #include <mach/iomap.h>
 #include <mach/latency_allowance.h>
 
+#ifdef CONFIG_MACH_TRANSFORMER
+#include <mach/board-transformer-misc.h>
+#endif
+
 #include "clock.h"
 #include "dvfs.h"
 #include "tegra3_emc.h"
@@ -1353,8 +1357,14 @@ void tegra_emc_dram_type_init(struct clk *c)
 
 	dram_type = (emc_readl(EMC_FBIO_CFG5) &
 		     EMC_CFG5_TYPE_MASK) >> EMC_CFG5_TYPE_SHIFT;
-	if (dram_type == DRAM_TYPE_DDR3)
-		emc->min_rate = EMC_MIN_RATE_DDR3;
+	if (dram_type == DRAM_TYPE_DDR3) {
+#ifdef CONFIG_MACH_TRANSFORMER
+		if (tegra3_get_project_id() == TEGRA3_PROJECT_TF700T)
+			emc->min_rate = 102000000;
+		else
+#endif
+			emc->min_rate = EMC_MIN_RATE_DDR3;
+	}
 
 	dram_dev_num = (mc_readl(MC_EMEM_ADR_CFG) & 0x1) + 1; /* 2 dev max */
 	emc_cfg_saved = emc_readl(EMC_CFG);
