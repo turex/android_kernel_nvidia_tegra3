@@ -31,10 +31,13 @@
 
 //-----------------------------------------
 
+#define DOCKRAM_ENTRIES                 0x100
+#define DOCKRAM_ENTRY_SIZE              32
+#define DOCKRAM_ENTRY_BUFSIZE           (DOCKRAM_ENTRY_SIZE + 1)
+
+
 #define DELAY_TIME_MS                   50
 
-#define ASUSPEC_MAGIC_NUM               0x19850604
-#define ASUSPEC_I2C_ERR_TOLERANCE       32
 #define ASUSEC_RETRY_COUNT              3
 
 #define ASUSEC_OBF_MASK                 0x1
@@ -237,19 +240,17 @@ struct asusdec_chip {
 struct asuspec_chip {
 	struct input_dev	*indev;
 	struct i2c_client	*client;
-	struct mutex		irq_lock;
 	struct mutex		state_change_lock;
-	struct delayed_work asuspec_init_work;
+
 	struct delayed_work asuspec_work;
+	struct delayed_work asuspec_init_work;
 	struct delayed_work asuspec_enter_s3_work;
+
 	struct wake_lock 	wake_lock;
 	struct timer_list	asuspec_timer;
 
 	int status;
-	int ec_ram_init;      // 0: not init,    MAGIC_NUM: init successfully
 	int ec_in_s3;         // 0: normal mode, 1: ec in deep sleep mode
-	int i2c_err_count;
-	int apwake_disabled;  // 0: normal mode, 1: apwake gets disabled
 
 	u8 i2c_data[32];
 	u8 i2c_dm_data[32];
