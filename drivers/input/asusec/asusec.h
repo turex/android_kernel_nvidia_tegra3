@@ -31,18 +31,34 @@
 
 //-----------------------------------------
 
+struct i2c_client;
+
+/* dockram comm */
+
+int asus_dockram_init(struct i2c_client *client);
+int asus_dockram_read(struct i2c_client *client, int reg, char *buf);
+int asus_dockram_write(struct i2c_client *client, int reg, const char *buf);
+
+int asus_ec_read(struct i2c_client *client, char *buf);
+int asus_ec_write(struct i2c_client *client, u16 data);
+int asus_ec_reset(struct i2c_client *client);
+int asus_ec_signal_request(struct i2c_client *client, int ecreq_gpio);
+void asus_ec_clear_buffer(struct i2c_client *client, char *buf);
+
 #define DOCKRAM_ENTRIES                 0x100
 #define DOCKRAM_ENTRY_SIZE              32
 #define DOCKRAM_ENTRY_BUFSIZE           (DOCKRAM_ENTRY_SIZE + 1)
 
+#define ASUSPEC_DOCKRAM_ADDR            0x17
+#define ASUSDEC_DOCKRAM_ADDR            0x1b
 
 #define DELAY_TIME_MS                   50
 
 #define ASUSEC_RETRY_COUNT              3
 
-#define ASUSEC_OBF_MASK                 0x1
-#define ASUSEC_KEY_MASK                 0x4
-#define ASUSEC_KBC_MASK                 0x8
+#define ASUSEC_OBF_MASK                 0x01
+#define ASUSEC_KEY_MASK                 0x04
+#define ASUSEC_KBC_MASK                 0x08
 #define ASUSEC_AUX_MASK                 0x20
 #define ASUSEC_SCI_MASK                 0x40
 #define ASUSEC_SMI_MASK                 0x80

@@ -39,15 +39,12 @@
 
 #include "asusec.h"
 
-#define RSP_BUFFER_SIZE		8
-
 /*
  * global variable
  */
 static unsigned int asuspec_apwake_gpio = TEGRA_GPIO_PS2;
 static unsigned int asuspec_ecreq_gpio = TEGRA_GPIO_PQ1;
 
-struct i2c_client dockram_client;
 static struct class *asuspec_class;
 static struct device *asuspec_device;
 static struct asuspec_chip *ec_chip;
@@ -61,107 +58,15 @@ static struct workqueue_struct *asuspec_wq;
 /*
  * functions definition
  */
-static void asus_dockram_init(struct i2c_client *client)
-{
-	dockram_client.adapter = client->adapter;
-	dockram_client.addr = 0x17;
-	dockram_client.detected = client->detected;
-	dockram_client.dev = client->dev;
-	dockram_client.driver = client->driver;
-	dockram_client.flags = client->flags;
-	strcpy(dockram_client.name, client->name);
-}
-
-static int asus_dockram_write(int reg, const char *buf)
-{
-	if (buf[0] > DOCKRAM_ENTRY_SIZE)
-		return -EINVAL;
-
-	dev_dbg(&ec_chip->client->dev, "sending data; buffer: %*ph\n", 9, buf);
-
-	return i2c_smbus_write_i2c_block_data(&dockram_client,
-					reg, 9, buf);
-}
-
-static int asus_dockram_read(int reg, char *buf)
-{
-	int rc;
-
-	memset(buf, 0, DOCKRAM_ENTRY_BUFSIZE);
-	rc = i2c_smbus_read_i2c_block_data(&dockram_client,
-					reg, DOCKRAM_ENTRY_BUFSIZE, buf);
-
-	if (buf[0] > DOCKRAM_ENTRY_SIZE) {
-		dev_err(&ec_chip->client->dev, "bad data len; buffer: %*ph; rc: %d\n",
-			DOCKRAM_ENTRY_BUFSIZE, buf, rc);
-		return -EPROTO;
-	}
-
-	dev_dbg(&ec_chip->client->dev, "got data; buffer: %*ph; rc: %d\n",
-		DOCKRAM_ENTRY_BUFSIZE, buf, rc);
-
-	return rc;
-}
-
-static int asus_ec_write(struct i2c_client *client, u16 data)
-{
-	int ret = i2c_smbus_write_word_data(client, 0x64, data);
-	dev_dbg(&client->dev, "EC write: %04x, ret = %d\n", data, ret);
-	return ret;
-}
-
-static int asus_ec_read(struct i2c_client *client)
-{
-	int ret = i2c_smbus_read_i2c_block_data(client, 0x6A, 8, ec_chip->i2c_data);
-	dev_dbg(&client->dev, "EC read: %*ph, ret = %d\n", 8, ec_chip->i2c_data, ret);
-	return ret;
-}
-
-static void asus_ec_clear_buffer(struct i2c_client *client)
-{
-	int retry = RSP_BUFFER_SIZE;
-
-	while (retry--) {
-		if (asus_ec_read(client) < 0)
-			continue;
-
-		break;
-	}
-}
-
-static int asus_ec_reset(struct i2c_client *client)
-{
-	int retry, ret;
-
-	for (retry = 0; retry < 3; ++retry) {
-		ret = asus_ec_write(client, 0x0000);
-		if (!ret)
-			return 0;
-
-		msleep(300);
-	}
-
-	return ret;
-}
-
-static void asusec_signal_request(void)
-{
-	dev_dbg(&ec_chip->client->dev, "EC request\n");
-
-	gpio_set_value(asuspec_ecreq_gpio, 0);
-	msleep(50);
-	gpio_set_value(asuspec_ecreq_gpio, 1);
-	msleep(200);
-}
 
 int asuspec_battery_monitor(char *cmd)
 {
 	int ret = 0;
 
 	if (ec_chip->ec_in_s3)
-		asusec_signal_request();
+		asus_ec_signal_request(ec_chip->client, asuspec_ecreq_gpio);
 
-	ret = asus_dockram_read(0x14, ec_chip->i2c_dm_battery);
+	ret = asus_dockram_read(ec_chip->client, 0x14, ec_chip->i2c_dm_battery);
 	if (ret < 0){
 		pr_err("asuspec: fail to access battery info\n");
 		return -1;
@@ -196,7 +101,7 @@ static void asuspec_enter_normal_mode(void)
 	int i = 0;
 
 	for (i = 0; i < 3; i++){
-		err = asus_dockram_read(0x0A, ec_chip->i2c_dm_data);
+		err = asus_dockram_read(ec_chip->client, 0x0A, ec_chip->i2c_dm_data);
 		if (err < 0){
 			pr_err("asuspec: fail to get control flag\n");
 			msleep(100);
@@ -209,7 +114,7 @@ static void asuspec_enter_normal_mode(void)
 	ec_chip->i2c_dm_data[5] = ec_chip->i2c_dm_data[5] & 0xBF;
 
 	for (i = 0; i < 3; i++){
-		err = asus_dockram_write(0x0A, ec_chip->i2c_dm_data);
+		err = asus_dockram_write(ec_chip->client, 0x0A, ec_chip->i2c_dm_data);
 		if (err < 0){
 			pr_err("asuspec: entering normal mode failed\n");
 			msleep(100);
@@ -228,23 +133,23 @@ static int asuspec_chip_init(struct i2c_client *client)
 	if (err < 0)
 		goto fail_to_access_ec;
 
-	asus_ec_clear_buffer(client);
+	asus_ec_clear_buffer(client, ec_chip->i2c_data);
 
-	if (asus_dockram_read(0x01, ec_chip->i2c_dm_data) < 0)
+	if (asus_dockram_read(client, 0x01, ec_chip->i2c_dm_data) < 0)
 		goto fail_to_access_ec;
 	strcpy(ec_chip->ec_model_name, &ec_chip->i2c_dm_data[1]);
 	pr_info("PAD Model Name: %s\n", ec_chip->ec_model_name);
 
-	if (asus_dockram_read(0x02, ec_chip->i2c_dm_data) < 0)
+	if (asus_dockram_read(client, 0x02, ec_chip->i2c_dm_data) < 0)
 		goto fail_to_access_ec;
 	strcpy(ec_chip->ec_version, &ec_chip->i2c_dm_data[1]);
 	pr_info("PAD EC-FW Version: %s\n", ec_chip->ec_version);
 
-	if (asus_dockram_read(0x03, ec_chip->i2c_dm_data) < 0)
+	if (asus_dockram_read(client, 0x03, ec_chip->i2c_dm_data) < 0)
 		goto fail_to_access_ec;
 	pr_info("PAD EC-Config Format: %s\n", &ec_chip->i2c_dm_data[1]);
 
-	if (asus_dockram_read(0x04, ec_chip->i2c_dm_data) < 0)
+	if (asus_dockram_read(client, 0x04, ec_chip->i2c_dm_data) < 0)
 		goto fail_to_access_ec;
 	strcpy(ec_chip->ec_pcba, &ec_chip->i2c_dm_data[1]);
 	pr_info("PAD PCBA Version: %s\n", ec_chip->ec_pcba);
@@ -357,7 +262,7 @@ static void asuspec_enter_s3_work_function(struct work_struct *dat)
 
 	ec_chip->ec_in_s3 = 1;
 	for (i = 0; i < 3; i++) {
-		err = asus_dockram_read(0x0A, ec_chip->i2c_dm_data);
+		err = asus_dockram_read(ec_chip->client, 0x0A, ec_chip->i2c_dm_data);
 		if (err < 0){
 			pr_err("asuspec: fail to get control flag\n");
 			msleep(100);
@@ -369,7 +274,7 @@ static void asuspec_enter_s3_work_function(struct work_struct *dat)
 	ec_chip->i2c_dm_data[5] = ec_chip->i2c_dm_data[5] | 0x02;
 
 	for (i = 0; i < 3; i++) {
-		err = asus_dockram_write(0x0A, ec_chip->i2c_dm_data);
+		err = asus_dockram_write(ec_chip->client, 0x0A, ec_chip->i2c_dm_data);
 		if (err < 0){
 			pr_err("asuspec: Send s3 command fail\n");
 			msleep(100);
@@ -383,17 +288,16 @@ static void asuspec_enter_s3_work_function(struct work_struct *dat)
 
 static void asuspec_init_work_function(struct work_struct *dat)
 {
-	asusec_signal_request();
+	asus_ec_signal_request(ec_chip->client, asuspec_ecreq_gpio);
 	asuspec_chip_init(ec_chip->client);
 }
 
 static void asuspec_work_function(struct work_struct *dat)
 {
-	int gpio = asuspec_apwake_gpio;
-	int irq = gpio_to_irq(gpio);
+	int irq = gpio_to_irq(asuspec_apwake_gpio);
 	int err = 0;
 
-	err = asus_ec_read(ec_chip->client);
+	err = asus_ec_read(ec_chip->client, ec_chip->i2c_data);
 	enable_irq(irq);
 
 	pr_info("asuspec: 0x%x 0x%x 0x%x 0x%x\n", ec_chip->i2c_data[0],
