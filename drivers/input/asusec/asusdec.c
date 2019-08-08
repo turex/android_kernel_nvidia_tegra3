@@ -113,7 +113,7 @@ module_param_cb(key_autorepeat, &key_autorepeat_ops, &key_autorepeat, 0644);
 static void asusdec_dockram_init(struct i2c_client *client)
 {
 	dockram_client.adapter = client->adapter;
-	dockram_client.addr = 0x1b;
+	dockram_client.addr = ASUSDEC_DOCKRAM_ADDR;
 	dockram_client.detected = client->detected;
 	dockram_client.dev = client->dev;
 	dockram_client.driver = client->driver;
@@ -149,53 +149,12 @@ static int asusdec_dockram_read_data(int cmd)
 	return ret;
 }
 
-static int asusdec_i2c_write_data(struct i2c_client *client, u16 data)
-{
-	int ret = 0;
-
-	if (!ec_chip->dock_in)
-		return -1;
-
-	ret = i2c_smbus_write_word_data(client, 0x64, data);
-	if (ret < 0)
-		pr_err("asusdec: fail to write data, status %d\n", ret);
-
-	return ret;
-}
-
-static int asusdec_i2c_read_data(struct i2c_client *client)
-{
-	int ret = 0;
-
-	if (!ec_chip->dock_in)
-		return -1;
-
-	ret = i2c_smbus_read_i2c_block_data(client, 0x6A, 8, ec_chip->i2c_data);
-	if (ret < 0)
-		pr_err("asusdec: fail to read data, status %d\n", ret);
-
-	return ret;
-}
-
-static int asusdec_i2c_test(struct i2c_client *client)
-{
-	return asusdec_i2c_write_data(client, 0x0000);
-}
-
-static void asusdec_clear_i2c_buffer(struct i2c_client *client)
-{
-	int i;
-
-	for (i = 0; i < 8; i++)
-		asusdec_i2c_read_data(client);
-}
-
 static int asusdec_keypad_get_response(struct i2c_client *client, int res)
 {
 	int retry = ASUSEC_RETRY_COUNT;
 
 	while(retry-- > 0){
-		asusdec_i2c_read_data(client);
+		asus_ec_read(client, ec_chip->i2c_data);
 		if ((ec_chip->i2c_data[1] & ASUSEC_OBF_MASK) &&
 		    (!(ec_chip->i2c_data[1] & ASUSEC_AUX_MASK))) {
 			if (ec_chip->i2c_data[2] == res)
@@ -214,7 +173,7 @@ static int asusdec_keypad_enable(struct i2c_client *client)
 	int retry = ASUSEC_RETRY_COUNT;
 
 	while(retry-- > 0){
-		asusdec_i2c_write_data(client, 0xF400);
+		asus_ec_write(client, 0xF400);
 		if(!asusdec_keypad_get_response(client, ASUSDEC_PS2_ACK))
 			goto keypad_enable_ok;
 	}
@@ -231,7 +190,7 @@ static int asusdec_keypad_disable(struct i2c_client *client)
 	int retry = ASUSEC_RETRY_COUNT;
 
 	while(retry-- > 0){
-		asusdec_i2c_write_data(client, 0xF500);
+		asus_ec_write(client, 0xF500);
 		if(!asusdec_keypad_get_response(client, ASUSDEC_PS2_ACK))
 			goto keypad_disable_ok;
 	}
@@ -248,7 +207,7 @@ static void asusdec_keypad_led_on(struct work_struct *dat)
 	ec_chip->kbc_value = 1;
 	pr_info("asusdec: set led on\n");
 	msleep(250);
-	asusdec_i2c_write_data(ec_chip->client, 0xED00);
+	asus_ec_write(ec_chip->client, 0xED00);
 }
 
 static void asusdec_keypad_led_off(struct work_struct *dat)
@@ -256,7 +215,7 @@ static void asusdec_keypad_led_off(struct work_struct *dat)
 	ec_chip->kbc_value = 0;
 	pr_info("asusdec: set led off\n");
 	msleep(250);
-	asusdec_i2c_write_data(ec_chip->client, 0xED00);
+	asus_ec_write(ec_chip->client, 0xED00);
 }
 
 static int asusdec_touchpad_get_response(struct i2c_client *client, int res)
@@ -266,7 +225,7 @@ static int asusdec_touchpad_get_response(struct i2c_client *client, int res)
 	msleep(DELAY_TIME_MS);
 
 	while(retry-- > 0){
-		asusdec_i2c_read_data(client);
+		asus_ec_read(client, ec_chip->i2c_data);
 		if ((ec_chip->i2c_data[1] & ASUSEC_OBF_MASK) &&
 		    (ec_chip->i2c_data[1] & ASUSEC_AUX_MASK)) {
 			if (ec_chip->i2c_data[2] == res)
@@ -288,7 +247,7 @@ static int asusdec_touchpad_enable(struct i2c_client *client)
 	ec_chip->tp_wait_ack = 1;
 
 	while(retry-- > 0){
-		asusdec_i2c_write_data(client, 0xF4D4);
+		asus_ec_write(client, 0xF4D4);
 		if(!asusdec_touchpad_get_response(client, ASUSDEC_PS2_ACK))
 			goto touchpad_enable_ok;
 	}
@@ -305,7 +264,7 @@ static int asusdec_touchpad_disable(struct i2c_client *client)
 	int retry = ASUSEC_RETRY_COUNT;
 
 	while(retry-- > 0){
-		asusdec_i2c_write_data(client, 0xF5D4);
+		asus_ec_write(client, 0xF5D4);
 		if(!asusdec_touchpad_get_response(client, ASUSDEC_PS2_ACK))
 			goto touchpad_disable_ok;
 	}
@@ -315,15 +274,6 @@ static int asusdec_touchpad_disable(struct i2c_client *client)
 
 touchpad_disable_ok:
 	return 0;
-}
-
-static void asusdec_reset_dock(void)
-{
-	ec_chip->dock_init = 0;
-	pr_info("asusdec: send EC_Request\n");
-	gpio_set_value(asusdec_ecreq_gpio, 0);
-	msleep(20);
-	gpio_set_value(asusdec_ecreq_gpio, 1);
 }
 
 static void asusdec_tp_control(void)
@@ -344,7 +294,8 @@ static void asusdec_tp_control(void)
 		if (ec_chip->tp_model) {
 			ec_chip->susb_on = 1;
 			ec_chip->init_success = -1;
-			asusdec_reset_dock();
+			asus_ec_signal_request(ec_chip->client, asusdec_ecreq_gpio);
+			ec_chip->dock_init = 0;
 		}
 	}
 }
@@ -426,7 +377,6 @@ exit:
 static int asusdec_chip_init(struct i2c_client *client)
 {
 	int err = 0;
-	int i;
 
 	mutex_lock(&ec_chip->dock_init_lock);
 	err = ec_chip->dock_init;
@@ -441,19 +391,11 @@ static int asusdec_chip_init(struct i2c_client *client)
 	memset(ec_chip->ec_version, 0, 32);
 	disable_irq_nosync(gpio_to_irq(asusdec_apwake_gpio));
 
-	for (i = 0; i < 3; i++){
-		err = asusdec_i2c_test(client);
-		if (err < 0)
-			msleep(1000);
-		else
-			break;
-	}
-
+	err = asus_ec_reset(client);
 	if (err < 0)
 		goto fail_to_access_ec;
 
-	for (i = 0; i < 8; i++)
-		asusdec_i2c_read_data(client);
+	asus_ec_clear_buffer(client, ec_chip->i2c_data);
 
 	if (asusdec_dockram_read_data(0x01) < 0)
 		goto fail_to_access_ec;
@@ -480,25 +422,26 @@ static int asusdec_chip_init(struct i2c_client *client)
 	if (!ec_chip->init_success)
 		msleep(750);
 
-	asusdec_clear_i2c_buffer(client);
+	asus_ec_clear_buffer(client, ec_chip->i2c_data);
 	asusdec_touchpad_disable(client);
 	asusdec_keypad_disable(client);
 
 #if TOUCHPAD_MODE
-	asusdec_clear_i2c_buffer(client);
+	asus_ec_clear_buffer(client, ec_chip->i2c_data);
 	ec_chip->tp_model = elantech_init(ec_chip);
 #endif
 
 	ec_chip->d_index = 0;
 
 	asusdec_keypad_enable(client);
-	asusdec_clear_i2c_buffer(client);
+	asus_ec_clear_buffer(client, ec_chip->i2c_data);
 
 	if(ec_chip->tp_enable){
 		if(ec_chip->tp_model){
 			ec_chip->susb_on = 1;
 			ec_chip->init_success = -1;
-			asusdec_reset_dock();
+			asus_ec_signal_request(client, asusdec_ecreq_gpio);
+			ec_chip->dock_init = 0;
 		}
 		asusdec_touchpad_enable(client);
 	}
@@ -920,7 +863,8 @@ asusdec_tp_abs_end:
 	} else if (ec_chip->tp_model){
 		ec_chip->susb_on = 1;
 		ec_chip->init_success = -1;
-		asusdec_reset_dock();
+		asus_ec_signal_request(ec_chip->client, asusdec_ecreq_gpio);
+		ec_chip->dock_init = 0;
 	}
 }
 #else
@@ -995,12 +939,10 @@ static void asusdec_touchpad_processing(void)
 
 static void asusdec_dock_init_work_function(struct work_struct *dat)
 {
-	int gpio = asusdec_dock_in_gpio;
-
 	wake_lock(&ec_chip->wake_lock_init);
 	mutex_lock(&ec_chip->input_lock);
 
-	if (gpio_get_value(gpio)){
+	if (gpio_get_value(asusdec_dock_in_gpio)){
 		pr_info("asusdec: No dock detected\n");
 
 		ec_chip->dock_in = 0;
@@ -1029,7 +971,8 @@ static void asusdec_dock_init_work_function(struct work_struct *dat)
 			if (!ec_chip->init_success){
 				ec_chip->susb_on = 1;
 				msleep(200);
-				asusdec_reset_dock();
+				asus_ec_signal_request(ec_chip->client, asusdec_ecreq_gpio);
+				ec_chip->dock_init = 0;
 			}
 		} else {
 			pr_info("asusdec: Keyboard is closed\n");
@@ -1072,7 +1015,8 @@ static void asusdec_kp_smi(void)
 	} else if (ec_chip->i2c_data[2] == ASUSEC_SMI_BACKLIGHT_ON){
 		pr_info("asusdec: ASUSEC_SMI_BACKLIGHT_ON\n");
 		ec_chip->susb_on = 1;
-		asusdec_reset_dock();
+		asus_ec_signal_request(ec_chip->client, asusdec_ecreq_gpio);
+		ec_chip->dock_init = 0;
 #if DOCK_USB
 		tegra_usb3_smi_backlight_on_callback();
 #endif
@@ -1084,10 +1028,10 @@ static void asusdec_kp_kbc(void)
 	if (ec_chip->i2c_data[2] == ASUSDEC_PS2_ACK){
 		if (ec_chip->kbc_value == 0){
 			pr_info("asusdec: send led cmd 0x0000\n");
-			asusdec_i2c_write_data(ec_chip->client, 0x0000);
+			asus_ec_write(ec_chip->client, 0x0000);
 		} else {
 			pr_info("asusdec: send led cmd 0x0400\n");
-			asusdec_i2c_write_data(ec_chip->client, 0x0400);
+			asus_ec_write(ec_chip->client, 0x0400);
 		}
 	}
 }
@@ -1201,7 +1145,7 @@ static void asusdec_work_function(struct work_struct *dat)
 
 	ec_chip->dock_in = gpio_get_value(asusdec_dock_in_gpio) ? 0 : 1;
 
-	err = asusdec_i2c_read_data(ec_chip->client);
+	err = asus_ec_read(ec_chip->client, ec_chip->i2c_data);
 	enable_irq(irq);
 
 	if (err < 0)
@@ -1431,7 +1375,7 @@ static int asusdec_suspend(struct device *dev)
 	flush_workqueue(asusdec_wq);
 
 	if (ec_chip->dock_in && !ec_chip->ec_in_s3){
-		err = asusdec_i2c_test(ec_chip->client);
+		err = asus_ec_reset(ec_chip->client);
 		if (err < 0)
 			goto fail_to_access_ec;
 
@@ -1458,7 +1402,8 @@ static int asusdec_resume(struct device *dev)
 {
 	if (!gpio_get_value(asusdec_dock_in_gpio) &&
 	     gpio_get_value(asusdec_apwake_gpio)) {
-		asusdec_reset_dock();
+		asus_ec_signal_request(ec_chip->client, asusdec_ecreq_gpio);
+		ec_chip->dock_init = 0;
 	}
 
 	wake_lock(&ec_chip->wake_lock_init);
@@ -1476,7 +1421,7 @@ int asusdec_is_ac_over_10v_callback(void)
 	if (!ec_chip || !ec_chip->dock_in || !ec_chip->client)
 		goto not_ready;
 
-	err = asusdec_i2c_test(ec_chip->client);
+	err = asus_ec_reset(ec_chip->client);
 	if (err < 0)
 		goto not_ready;
 
