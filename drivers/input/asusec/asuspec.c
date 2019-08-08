@@ -129,30 +129,9 @@ static int asuspec_chip_init(struct i2c_client *client)
 {
 	int err = 0;
 
-	err = asus_ec_reset(client);
+	err = asus_ec_detect(client, ec_chip->i2c_data);
 	if (err < 0)
 		goto fail_to_access_ec;
-
-	asus_ec_clear_buffer(client, ec_chip->i2c_data);
-
-	if (asus_dockram_read(client, 0x01, ec_chip->i2c_dm_data) < 0)
-		goto fail_to_access_ec;
-	strcpy(ec_chip->ec_model_name, &ec_chip->i2c_dm_data[1]);
-	pr_info("PAD Model Name: %s\n", ec_chip->ec_model_name);
-
-	if (asus_dockram_read(client, 0x02, ec_chip->i2c_dm_data) < 0)
-		goto fail_to_access_ec;
-	strcpy(ec_chip->ec_version, &ec_chip->i2c_dm_data[1]);
-	pr_info("PAD EC-FW Version: %s\n", ec_chip->ec_version);
-
-	if (asus_dockram_read(client, 0x03, ec_chip->i2c_dm_data) < 0)
-		goto fail_to_access_ec;
-	pr_info("PAD EC-Config Format: %s\n", &ec_chip->i2c_dm_data[1]);
-
-	if (asus_dockram_read(client, 0x04, ec_chip->i2c_dm_data) < 0)
-		goto fail_to_access_ec;
-	strcpy(ec_chip->ec_pcba, &ec_chip->i2c_dm_data[1]);
-	pr_info("PAD PCBA Version: %s\n", ec_chip->ec_pcba);
 
 	asuspec_enter_normal_mode();
 
