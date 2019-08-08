@@ -70,59 +70,51 @@ int asuspec_battery_monitor(char *cmd)
 	if (ret < 0){
 		pr_err("asuspec: fail to access battery info\n");
 		return -1;
-	} else {
-		if (!strcmp(cmd, "status"))
-			ret = (ec_chip->i2c_dm_battery[2] << 8 ) | ec_chip->i2c_dm_battery[1];
-		else if (!strcmp(cmd, "temperature"))
-			ret = (ec_chip->i2c_dm_battery[8] << 8 ) | ec_chip->i2c_dm_battery[7];
-		else if (!strcmp(cmd, "voltage"))
-			ret = (ec_chip->i2c_dm_battery[10] << 8 ) | ec_chip->i2c_dm_battery[9];
-		else if (!strcmp(cmd, "current"))
-			ret = (ec_chip->i2c_dm_battery[12] << 8 ) | ec_chip->i2c_dm_battery[11];
-		else if (!strcmp(cmd, "capacity"))
-			ret = (ec_chip->i2c_dm_battery[14] << 8 ) | ec_chip->i2c_dm_battery[13];
-		else if (!strcmp(cmd, "remaining_capacity"))
-			ret = (ec_chip->i2c_dm_battery[16] << 8 ) | ec_chip->i2c_dm_battery[15];
-		else if (!strcmp(cmd, "avg_time_to_empty"))
-			ret = (ec_chip->i2c_dm_battery[18] << 8 ) | ec_chip->i2c_dm_battery[17];
-		else if (!strcmp(cmd, "avg_time_to_full"))
-			ret = (ec_chip->i2c_dm_battery[20] << 8 ) | ec_chip->i2c_dm_battery[19];
-		else {
-			pr_err("asuspec: unknown command\n");
-			ret = -2;
-		}
-		return ret;
 	}
+
+	if (!strcmp(cmd, "status"))
+		ret = (ec_chip->i2c_dm_battery[2] << 8 ) | ec_chip->i2c_dm_battery[1];
+	else if (!strcmp(cmd, "temperature"))
+		ret = (ec_chip->i2c_dm_battery[8] << 8 ) | ec_chip->i2c_dm_battery[7];
+	else if (!strcmp(cmd, "voltage"))
+		ret = (ec_chip->i2c_dm_battery[10] << 8 ) | ec_chip->i2c_dm_battery[9];
+	else if (!strcmp(cmd, "current"))
+		ret = (ec_chip->i2c_dm_battery[12] << 8 ) | ec_chip->i2c_dm_battery[11];
+	else if (!strcmp(cmd, "capacity"))
+		ret = (ec_chip->i2c_dm_battery[14] << 8 ) | ec_chip->i2c_dm_battery[13];
+	else if (!strcmp(cmd, "remaining_capacity"))
+		ret = (ec_chip->i2c_dm_battery[16] << 8 ) | ec_chip->i2c_dm_battery[15];
+	else if (!strcmp(cmd, "avg_time_to_empty"))
+		ret = (ec_chip->i2c_dm_battery[18] << 8 ) | ec_chip->i2c_dm_battery[17];
+	else if (!strcmp(cmd, "avg_time_to_full"))
+		ret = (ec_chip->i2c_dm_battery[20] << 8 ) | ec_chip->i2c_dm_battery[19];
+	else {
+		pr_err("asuspec: unknown command\n");
+		ret = -1;
+	}
+	return ret;
 }
 
-static void asuspec_enter_normal_mode(void)
+static void asuspec_enter_normal_mode(struct i2c_client *client)
 {
 	int err = 0;
-	int i = 0;
 
-	for (i = 0; i < 3; i++){
-		err = asus_dockram_read(ec_chip->client, 0x0A, ec_chip->i2c_dm_data);
-		if (err < 0){
-			pr_err("asuspec: fail to get control flag\n");
-			msleep(100);
-		}
-		else
-			break;
-	}
+	err = asus_dockram_read(client, 0x0A, ec_chip->i2c_dm_data);
+	if (err < 0)
+		goto err_exit;
 
 	ec_chip->i2c_dm_data[0] = 8;
 	ec_chip->i2c_dm_data[5] = ec_chip->i2c_dm_data[5] & 0xBF;
 
-	for (i = 0; i < 3; i++){
-		err = asus_dockram_write(ec_chip->client, 0x0A, ec_chip->i2c_dm_data);
-		if (err < 0){
-			pr_err("asuspec: entering normal mode failed\n");
-			msleep(100);
-		} else {
-			pr_info("asuspec: entering normal mode\n");
-			break;
-		}
-	}
+	err = asus_dockram_write(client, 0x0A, ec_chip->i2c_dm_data);
+	if (err < 0)
+		goto err_exit;
+
+	pr_info("asuspec: entering normal mode\n");
+
+err_exit:
+	if (err < 0)
+		pr_err("asuspec: entering normal mode failed\n");
 }
 
 static int asuspec_chip_init(struct i2c_client *client)
@@ -133,7 +125,7 @@ static int asuspec_chip_init(struct i2c_client *client)
 	if (err < 0)
 		goto fail_to_access_ec;
 
-	asuspec_enter_normal_mode();
+	asuspec_enter_normal_mode(client);
 
 	ec_chip->status = 1;
 
@@ -235,33 +227,27 @@ static void asuspec_smi(void)
 static void asuspec_enter_s3_work_function(struct work_struct *dat)
 {
 	int err = 0;
-	int i = 0;
 
 	mutex_lock(&ec_chip->state_change_lock);
 
 	ec_chip->ec_in_s3 = 1;
-	for (i = 0; i < 3; i++) {
-		err = asus_dockram_read(ec_chip->client, 0x0A, ec_chip->i2c_dm_data);
-		if (err < 0){
-			pr_err("asuspec: fail to get control flag\n");
-			msleep(100);
-		} else
-			break;
-	}
+
+	err = asus_dockram_read(ec_chip->client, 0x0A, ec_chip->i2c_dm_data);
+	if (err < 0)
+		goto err_exit;
 
 	ec_chip->i2c_dm_data[0] = 8;
 	ec_chip->i2c_dm_data[5] = ec_chip->i2c_dm_data[5] | 0x02;
 
-	for (i = 0; i < 3; i++) {
-		err = asus_dockram_write(ec_chip->client, 0x0A, ec_chip->i2c_dm_data);
-		if (err < 0){
-			pr_err("asuspec: Send s3 command fail\n");
-			msleep(100);
-		} else {
-			pr_info("asuspec: EC in S3\n");
-			break;
-		}
-	}
+	err = asus_dockram_write(ec_chip->client, 0x0A, ec_chip->i2c_dm_data);
+	if (err < 0)
+		goto err_exit;
+
+	pr_info("asuspec: EC in S3 mode\n");
+
+err_exit:
+	if (err < 0)
+		pr_err("asuspec: send s3 command fail\n");
 	mutex_unlock(&ec_chip->state_change_lock);
 }
 
@@ -358,7 +344,7 @@ static int asuspec_suspend(struct device *dev)
 
 static int asuspec_resume(struct device *dev)
 {
-	pr_info("asuspec: resumeed\n");
+	pr_info("asuspec: resumed\n");
 	return 0;
 }
 
