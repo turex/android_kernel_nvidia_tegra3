@@ -18,6 +18,7 @@
 #ifndef _ASUSEC_H
 #define _ASUSEC_H
 
+#include <linux/interrupt.h>
 #include <linux/switch.h>
 #include <linux/wakelock.h>
 
@@ -39,11 +40,15 @@ int asus_dockram_init(struct i2c_client *dockram_client, struct i2c_client *clie
 int asus_dockram_read(struct i2c_client *dockram_client, int reg, char *buf);
 int asus_dockram_write(struct i2c_client *dockram_client, int reg, const char *buf);
 
+/* ec comm */
+
 int asus_ec_detect(struct i2c_client *dockram_client, struct i2c_client *client, char *buf);
 int asus_ec_read(struct i2c_client *client, char *buf);
 int asus_ec_write(struct i2c_client *client, u16 data);
 int asus_ec_reset(struct i2c_client *client);
 int asus_ec_signal_request(struct i2c_client *client, int ecreq_gpio);
+int asus_ec_irq_request(struct i2c_client *client, int gpio, irq_handler_t handler,
+			unsigned long flags, const char *label);
 void asus_ec_clear_buffer(struct i2c_client *client, char *buf);
 
 #define DOCKRAM_ENTRIES                 0x100
@@ -69,6 +74,13 @@ void asus_ec_clear_buffer(struct i2c_client *client, char *buf);
 #define ASUSDEC_TP_DISABLE              0xF5D4
 #define ASUSDEC_KP_ENABLE               0xF400
 #define ASUSDEC_KP_DISABLE              0xF500
+
+/*            - IRQ labels -              */
+#define ASUSPEC_REQUEST                 "asuspec_request"
+#define ASUSPEC_APWAKE                  "asuspec_apwake"
+#define ASUSDEC_REQUEST                 "asusdec_request"
+#define ASUSDEC_INPUT                   "asusdec_input"
+#define ASUSDEC_DOCKIN                  "asusdec_dock_in"
 
 /*         - Function keys row -          */
 #define ASUSDEC_KEYPAD_ESC              0x76

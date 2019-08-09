@@ -20,7 +20,6 @@
 #include <linux/err.h>
 #include <linux/mutex.h>
 #include <linux/delay.h>
-#include <linux/interrupt.h>
 #include <linux/init.h>
 #include <linux/input.h>
 #include <linux/workqueue.h>
@@ -333,98 +332,6 @@ static irqreturn_t asusdec_interrupt_handler(int irq, void *dev_id)
 	}
 
 	return IRQ_HANDLED;
-}
-
-static int asusdec_irq_dock_in(struct i2c_client *client)
-{
-	int rc = 0;
-	unsigned gpio = asusdec_dock_in_gpio;
-	unsigned irq = gpio_to_irq(asusdec_dock_in_gpio);
-	const char* label = "asusdec_dock_in";
-
-	/* Requesting gpio in case it wasn't requested before */
-	rc = gpio_request(gpio, label);
-
-	rc = gpio_direction_input(gpio);
-	if (rc) {
-		pr_err("asusdec: gpio_direction_input failed for input %d\n", gpio);
-		goto err_gpio_direction_input_failed;
-	}
-
-	rc = request_irq(irq, asusdec_interrupt_handler, IRQF_SHARED |
-						IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, label, client);
-	if (rc < 0) {
-		pr_err("asusdec: Could not register for %s interrupt, irq = %d, rc = %d\n", label, irq, rc);
-		rc = -EIO;
-		goto err_gpio_request_irq_fail;
-	}
-
-	return 0;
-
-err_gpio_request_irq_fail:
-	gpio_free(gpio);
-err_gpio_direction_input_failed:
-	return rc;
-}
-
-static int asusdec_irq(struct i2c_client *client)
-{
-	int rc = 0;
-	unsigned gpio = asusdec_apwake_gpio;
-	unsigned irq = gpio_to_irq(asusdec_apwake_gpio);
-	const char* label = "asusdec_input";
-
-	rc = gpio_request(gpio, label);
-	if (rc) {
-		pr_err("asusdec: gpio_request failed for input %d\n", gpio);
-		goto err_request_input_gpio_failed;
-	}
-
-	rc = gpio_direction_input(gpio);
-	if (rc) {
-		pr_err("asusdec: gpio_direction_input failed for input %d\n", gpio);
-		goto err_gpio_direction_input_failed;
-	}
-
-	rc = request_irq(irq, asusdec_interrupt_handler, IRQF_TRIGGER_LOW, label, client);
-	if (rc < 0) {
-		pr_err("asusdec: Could not register for %s interrupt, irq = %d, rc = %d\n", label, irq, rc);
-		rc = -EIO;
-		goto err_gpio_request_irq_fail;
-	}
-	enable_irq_wake(irq);
-
-	return 0;
-
-err_gpio_request_irq_fail:
-	gpio_free(gpio);
-err_gpio_direction_input_failed:
-err_request_input_gpio_failed:
-	return rc;
-}
-
-static int asusdec_irq_ec_request(struct i2c_client *client)
-{
-	int rc = 0;
-	unsigned gpio = asusdec_ecreq_gpio;
-	const char* label = "asusdec_request";
-
-	rc = gpio_request(gpio, label);
-	if (rc) {
-		pr_err("asusdec: gpio_request failed for input %d\n", gpio);
-		goto err_exit;
-	}
-
-	rc = gpio_direction_output(gpio, 1);
-	if (rc) {
-		pr_err("asusdec: gpio_direction_output failed for input %d\n", gpio);
-		goto err_exit;
-	}
-
-	return 0;
-
-err_exit:
-	return rc;
 }
 
 static int asusdec_kp_key_mapping(int x)
@@ -1193,9 +1100,11 @@ static int __devinit asusdec_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_led_on_work, asusdec_keypad_led_on);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_led_off_work, asusdec_keypad_led_off);
 
-	asusdec_irq_dock_in(client);
-	asusdec_irq_ec_request(client);
-	asusdec_irq(client);
+	asus_ec_irq_request(client, asusdec_dock_in_gpio, asusdec_interrupt_handler,
+			IRQF_SHARED | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, ASUSDEC_DOCKIN);
+	asus_ec_irq_request(client, asusdec_ecreq_gpio, NULL, 0, ASUSDEC_REQUEST);
+	asus_ec_irq_request(client, asusdec_apwake_gpio, asusdec_interrupt_handler,
+			IRQF_TRIGGER_LOW, ASUSDEC_INPUT);
 
 	queue_delayed_work(asusdec_wq, &ec_chip->asusdec_dock_init_work, 0);
 

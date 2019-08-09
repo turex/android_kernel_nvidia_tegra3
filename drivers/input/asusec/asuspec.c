@@ -20,7 +20,6 @@
 #include <linux/err.h>
 #include <linux/mutex.h>
 #include <linux/delay.h>
-#include <linux/interrupt.h>
 #include <linux/init.h>
 #include <linux/input.h>
 #include <linux/workqueue.h>
@@ -144,67 +143,6 @@ static irqreturn_t asuspec_interrupt_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static int asuspec_irq_ec_request(struct i2c_client *client)
-{
-	int err = 0;
-	unsigned gpio = asuspec_ecreq_gpio;
-	const char* label = "asuspec_request";
-
-	err = gpio_request(gpio, label);
-	if (err) {
-		pr_err("asuspec: gpio_request failed for input %d\n", gpio);
-		goto err_exit;
-	}
-
-	err = gpio_direction_output(gpio, 1);
-	if (err) {
-		pr_err("asuspec: gpio_direction_output failed for input %d\n", gpio);
-		goto err_exit;
-	}
-
-	return 0;
-
-err_exit:
-	return err;
-}
-
-static int asuspec_irq_ec_apwake(struct i2c_client *client)
-{
-	int err = 0;
-	unsigned gpio = asuspec_apwake_gpio;
-	int irq = gpio_to_irq(gpio);
-	const char* label = "asuspec_apwake";
-
-	err = gpio_request(gpio, label);
-	if (err) {
-		pr_err("asuspec: gpio_request failed for input %d\n", gpio);
-		goto err_request_input_gpio_failed;
-	}
-
-	err = gpio_direction_input(gpio);
-	if (err) {
-		pr_err("asuspec: gpio_direction_input failed for input %d\n", gpio);
-		goto err_gpio_direction_input_failed;
-	}
-
-	err = request_irq(irq, asuspec_interrupt_handler, IRQF_TRIGGER_LOW, label, client);
-	if (err < 0) {
-		pr_err("asuspec: can't register for %s interrupt, irq = %d, err = %d\n", label, irq, err);
-		err = -EIO;
-		goto err_gpio_request_irq_fail;
-	}
-
-	enable_irq_wake(gpio_to_irq(asuspec_apwake_gpio));
-
-	return 0;
-
-err_gpio_request_irq_fail:
-	gpio_free(gpio);
-err_gpio_direction_input_failed:
-err_request_input_gpio_failed:
-	return err;
-}
-
 static void asuspec_enter_s3_timer(unsigned long data)
 {
 	queue_delayed_work(asuspec_wq, &ec_chip->asuspec_enter_s3_work, 0);
@@ -313,8 +251,9 @@ static int __devinit asuspec_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asuspec_init_work, asuspec_init_work_function);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asuspec_enter_s3_work, asuspec_enter_s3_work_function);
 
-	asuspec_irq_ec_request(client);
-	asuspec_irq_ec_apwake(client);
+	asus_ec_irq_request(client, asuspec_ecreq_gpio, NULL, 0, ASUSPEC_REQUEST);
+	asus_ec_irq_request(client, asuspec_apwake_gpio, asuspec_interrupt_handler,
+			IRQF_TRIGGER_LOW, ASUSPEC_APWAKE);
 
 	queue_delayed_work(asuspec_wq, &ec_chip->asuspec_init_work, 0);
 
