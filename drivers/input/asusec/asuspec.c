@@ -330,7 +330,6 @@ static int __devexit asuspec_remove(struct i2c_client *client)
 {
 	struct asuspec_chip *chip = i2c_get_clientdata(client);
 
-	input_unregister_device(chip->indev);
 	kfree(chip);
 	return 0;
 }

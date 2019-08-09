@@ -252,14 +252,9 @@ struct asusdec_chip {
 	u8 ec_data[32];
 	u8 i2c_data[32];
 	u8 i2c_dm_data[32];
-
-	char ec_model_name[32];
-	char ec_version[32];
-	char dock_pid[32];
 };
 
 struct asuspec_chip {
-	struct input_dev	*indev;
 	struct i2c_client	*client;
 	struct mutex		state_change_lock;
 
@@ -276,10 +271,6 @@ struct asuspec_chip {
 	u8 i2c_data[32];
 	u8 i2c_dm_data[32];
 	u8 i2c_dm_battery[32];
-
-	char ec_model_name[32];
-	char ec_version[32];
-	char ec_pcba[32];
 };
 
 #endif

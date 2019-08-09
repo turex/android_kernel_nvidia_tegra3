@@ -188,18 +188,6 @@ static void asusdec_dock_status_report(void)
 #endif
 }
 
-static void asusdec_keypad_set_input_params(struct input_dev *dev)
-{
-	int i = 0;
-
-	set_bit(EV_KEY, dev->evbit);
-
-	for (i = 0; i < 246; i++)
-		set_bit(i, dev->keybit);
-
-	input_set_capability(dev, EV_LED, LED_CAPSL);
-}
-
 static int asusdec_event(struct input_dev *dev, unsigned int type,
 				unsigned int code, int led)
 {
@@ -220,13 +208,14 @@ static int asusdec_event(struct input_dev *dev, unsigned int type,
 static int asusdec_input_device_create(struct i2c_client *client)
 {
 	int err = 0;
+	int i = 0;
 
 	if (ec_chip->indev)
 		return 0;
 
 	ec_chip->indev = input_allocate_device();
 	if (!ec_chip->indev) {
-		pr_err("asusdec: input_dev allocation fails\n");
+		dev_err(&client->dev, "input device allocation fails\n");
 		err = -ENOMEM;
 		goto exit;
 	}
@@ -236,11 +225,18 @@ static int asusdec_input_device_create(struct i2c_client *client)
 	ec_chip->indev->dev.parent = &client->dev;
 	ec_chip->indev->event = asusdec_event;
 
-	asusdec_keypad_set_input_params(ec_chip->indev);
+	/* Set keypad input parameters */
+	set_bit(EV_KEY, ec_chip->indev->evbit);
 
+	for (i = 0; i < 246; i++)
+		set_bit(i, ec_chip->indev->keybit);
+
+	input_set_capability(ec_chip->indev, EV_LED, LED_CAPSL);
+
+	/* Register input device */
 	err = input_register_device(ec_chip->indev);
 	if (err) {
-		pr_err("asusdec: input registration fails\n");
+		dev_err(&client->dev, "input device registration fails\n");
 		goto exit_input_free;
 	}
 
@@ -266,8 +262,6 @@ static int asusdec_chip_init(struct i2c_client *client)
 		return 0;
 
 	wake_lock(&ec_chip->wake_lock);
-	memset(ec_chip->ec_model_name, 0, 32);
-	memset(ec_chip->ec_version, 0, 32);
 	disable_irq_nosync(gpio_to_irq(asusdec_apwake_gpio));
 
 	err = asus_ec_detect(&dock_client, client, ec_chip->i2c_data);
@@ -357,7 +351,8 @@ static int asusdec_irq_dock_in(struct i2c_client *client)
 		goto err_gpio_direction_input_failed;
 	}
 
-	rc = request_irq(irq, asusdec_interrupt_handler, IRQF_SHARED|IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING, label, client);
+	rc = request_irq(irq, asusdec_interrupt_handler, IRQF_SHARED |
+						IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, label, client);
 	if (rc < 0) {
 		pr_err("asusdec: Could not register for %s interrupt, irq = %d, rc = %d\n", label, irq, rc);
 		rc = -EIO;
@@ -805,9 +800,6 @@ static void asusdec_dock_init_work_function(struct work_struct *dat)
 		ec_chip->init_success = 0;
 		ec_chip->tp_enable = 1;
 		ec_chip->tp_model = -1;
-
-		memset(ec_chip->ec_model_name, 0, 32);
-		memset(ec_chip->ec_version, 0, 32);
 
 		if (ec_chip->indev){
 			input_unregister_device(ec_chip->indev);
