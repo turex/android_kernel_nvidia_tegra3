@@ -52,6 +52,11 @@
 #include <mach/latency_allowance.h>
 #include <mach/iomap.h>
 
+#ifdef CONFIG_MACH_TRANSFORMER
+#include <mach/board-transformer-misc.h>
+#include <../gpio-names.h>
+#endif
+
 #include "dc_reg.h"
 #include "dc_config.h"
 #include "dc_priv.h"
@@ -2011,6 +2016,12 @@ static void _tegra_dc_controller_disable(struct tegra_dc *dc)
 	unsigned i;
 
 	tegra_dc_hold_dc_out(dc);
+
+#ifdef CONFIG_MACH_TRANSFORMER
+	if (dc->ndev->id == 0 && gpio_get_value(TEGRA_GPIO_PI6) &&
+			tegra3_get_project_id() == TEGRA3_PROJECT_TF700T) //panel is hydis
+		msleep(200);
+#endif
 
 	if (dc->out && dc->out->prepoweroff)
 		dc->out->prepoweroff();
