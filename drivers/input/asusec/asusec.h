@@ -65,6 +65,10 @@ void asus_ec_clear_buffer(struct i2c_client *client, char *buf);
 #define ASUSEC_SMI_MASK                 0x80
 
 #define ASUSDEC_PS2_ACK                 0xFA
+#define ASUSDEC_TP_ENABLE               0xF4D4
+#define ASUSDEC_TP_DISABLE              0xF5D4
+#define ASUSDEC_KP_ENABLE               0xF400
+#define ASUSDEC_KP_DISABLE              0xF500
 
 /*         - Function keys row -          */
 #define ASUSDEC_KEYPAD_ESC              0x76

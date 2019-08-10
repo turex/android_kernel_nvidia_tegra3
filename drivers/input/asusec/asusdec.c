@@ -110,56 +110,32 @@ module_param_cb(key_autorepeat, &key_autorepeat_ops, &key_autorepeat, 0644);
 /*
  * functions definition
  */
-static int asusdec_keypad_get_response(struct i2c_client *client, int res)
+static int asus_input_switch(struct i2c_client *client, u16 state)
 {
-	int retry = ASUSEC_RETRY_COUNT;
+	int retry, definer;
 
-	while(retry-- > 0){
+	asus_ec_clear_buffer(client, ec_chip->i2c_data);
+	asus_ec_write(client, state);
+
+	for (retry = 0; retry < ASUSEC_RETRY_COUNT; retry++) {
 		asus_ec_read(client, ec_chip->i2c_data);
-		if ((ec_chip->i2c_data[1] & ASUSEC_OBF_MASK) &&
-		    (!(ec_chip->i2c_data[1] & ASUSEC_AUX_MASK))) {
-			if (ec_chip->i2c_data[2] == res)
-				goto get_asusdec_keypad_i2c;
+		
+		if ((state == ASUSDEC_KP_ENABLE) || (state == ASUSDEC_KP_DISABLE))
+			definer = !(ec_chip->i2c_data[1] & ASUSEC_AUX_MASK);
+		else
+			definer = (ec_chip->i2c_data[1] & ASUSEC_AUX_MASK);
+
+		if ((ec_chip->i2c_data[1] & ASUSEC_OBF_MASK) && definer) {
+			if (ec_chip->i2c_data[2] == ASUSDEC_PS2_ACK)
+				goto exit;
 		}
-		msleep(DELAY_TIME_MS/5);
-	}
-	return -1;
-
-get_asusdec_keypad_i2c:
-	return 0;
-}
-
-static int asusdec_keypad_enable(struct i2c_client *client)
-{
-	int retry = ASUSEC_RETRY_COUNT;
-
-	while(retry-- > 0){
-		asus_ec_write(client, 0xF400);
-		if(!asusdec_keypad_get_response(client, ASUSDEC_PS2_ACK))
-			goto keypad_enable_ok;
+		msleep(DELAY_TIME_MS);
 	}
 
-	pr_err("asusdec: fail to enable keypad");
+	dev_err(&client->dev, "failed to write 0x%x into EC\n", state);
 	return -1;
 
-keypad_enable_ok:
-	return 0;
-}
-
-static int asusdec_keypad_disable(struct i2c_client *client)
-{
-	int retry = ASUSEC_RETRY_COUNT;
-
-	while(retry-- > 0){
-		asus_ec_write(client, 0xF500);
-		if(!asusdec_keypad_get_response(client, ASUSDEC_PS2_ACK))
-			goto keypad_disable_ok;
-	}
-
-	pr_err("asusdec: fail to disable keypad");
-	return -1;
-
-keypad_disable_ok:
+exit:
 	return 0;
 }
 
@@ -179,77 +155,19 @@ static void asusdec_keypad_led_off(struct work_struct *dat)
 	asus_ec_write(ec_chip->client, 0xED00);
 }
 
-static int asusdec_touchpad_get_response(struct i2c_client *client, int res)
-{
-	int retry = ASUSEC_RETRY_COUNT;
-
-	msleep(DELAY_TIME_MS);
-
-	while(retry-- > 0){
-		asus_ec_read(client, ec_chip->i2c_data);
-		if ((ec_chip->i2c_data[1] & ASUSEC_OBF_MASK) &&
-		    (ec_chip->i2c_data[1] & ASUSEC_AUX_MASK)) {
-			if (ec_chip->i2c_data[2] == res)
-				goto get_asusdec_touchpad_i2c;
-		}
-		msleep(DELAY_TIME_MS);
-	}
-
-	return -1;
-
-get_asusdec_touchpad_i2c:
-	return 0;
-}
-
-static int asusdec_touchpad_enable(struct i2c_client *client)
-{
-	int retry = ASUSEC_RETRY_COUNT;
-
-	ec_chip->tp_wait_ack = 1;
-
-	while(retry-- > 0){
-		asus_ec_write(client, 0xF4D4);
-		if(!asusdec_touchpad_get_response(client, ASUSDEC_PS2_ACK))
-			goto touchpad_enable_ok;
-	}
-
-	pr_err("asusdec: fail to enable touchpad");
-	return -1;
-
-touchpad_enable_ok:
-	return 0;
-}
-
-static int asusdec_touchpad_disable(struct i2c_client *client)
-{
-	int retry = ASUSEC_RETRY_COUNT;
-
-	while(retry-- > 0){
-		asus_ec_write(client, 0xF5D4);
-		if(!asusdec_touchpad_get_response(client, ASUSDEC_PS2_ACK))
-			goto touchpad_disable_ok;
-	}
-
-	pr_err("asusdec: fail to disable touchpad");
-	return -1;
-
-touchpad_disable_ok:
-	return 0;
-}
-
 static void asusdec_tp_control(void)
 {
 	if (ec_chip->tp_enable) {
 		pr_info("asusdec: switching touchpad off\n");
 		ec_chip->tp_enable = 0;
 		ec_chip->tp_wait_ack = 1;
-		asusdec_touchpad_disable(ec_chip->client);
+		asus_input_switch(ec_chip->client, ASUSDEC_TP_DISABLE);
 		ec_chip->d_index = 0;
 	} else if (!ec_chip->tp_enable) {
 		pr_info("asusdec: switching touchpad on\n");
 		ec_chip->tp_enable = 1;
 		ec_chip->tp_wait_ack = 1;
-		asusdec_touchpad_enable(ec_chip->client);
+		asus_input_switch(ec_chip->client, ASUSDEC_TP_ENABLE);
 		ec_chip->d_index = 0;
 
 		if (ec_chip->tp_model) {
@@ -362,19 +280,16 @@ static int asusdec_chip_init(struct i2c_client *client)
 	if (!ec_chip->init_success)
 		msleep(750);
 
-	asus_ec_clear_buffer(client, ec_chip->i2c_data);
-	asusdec_touchpad_disable(client);
-	asusdec_keypad_disable(client);
+	asus_input_switch(client, ASUSDEC_TP_DISABLE);
+	asus_input_switch(client, ASUSDEC_KP_DISABLE);
 
 #if TOUCHPAD_MODE
-	asus_ec_clear_buffer(client, ec_chip->i2c_data);
 	ec_chip->tp_model = elantech_init(ec_chip);
 #endif
 
 	ec_chip->d_index = 0;
 
-	asusdec_keypad_enable(client);
-	asus_ec_clear_buffer(client, ec_chip->i2c_data);
+	asus_input_switch(client, ASUSDEC_KP_ENABLE);
 
 	if(ec_chip->tp_enable){
 		if(ec_chip->tp_model){
@@ -383,7 +298,8 @@ static int asusdec_chip_init(struct i2c_client *client)
 			asus_ec_signal_request(client, asusdec_ecreq_gpio);
 			ec_chip->dock_init = 0;
 		}
-		asusdec_touchpad_enable(client);
+		ec_chip->tp_wait_ack = 1;
+		asus_input_switch(client, ASUSDEC_TP_ENABLE);
 	}
 
 	enable_irq(gpio_to_irq(asusdec_apwake_gpio));
