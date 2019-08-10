@@ -50,7 +50,7 @@ static unsigned int asusdec_ecreq_gpio = TEGRA_GPIO_PQ6;
 static unsigned int asusdec_dock_in_gpio = TEGRA_GPIO_PU4;
 static unsigned int asusdec_hall_sensor_gpio = TEGRA_GPIO_PS6;
 
-static struct i2c_client dockram_client;
+static struct i2c_client dock_client;
 static struct class *asusdec_class;
 static struct device *asusdec_device;
 static struct asusdec_chip *ec_chip;
@@ -110,45 +110,6 @@ module_param_cb(key_autorepeat, &key_autorepeat_ops, &key_autorepeat, 0644);
 /*
  * functions definition
  */
-static void asusdec_dockram_init(struct i2c_client *client)
-{
-	dockram_client.adapter = client->adapter;
-	dockram_client.addr = ASUSDEC_DOCKRAM_ADDR;
-	dockram_client.detected = client->detected;
-	dockram_client.dev = client->dev;
-	dockram_client.driver = client->driver;
-	dockram_client.flags = client->flags;
-	strcpy(dockram_client.name, client->name);
-}
-
-static int asusdec_dockram_write_data(int cmd, int length)
-{
-	int ret = 0;
-
-	if (!ec_chip->dock_in)
-		return -1;
-
-	ret = i2c_smbus_write_i2c_block_data(&dockram_client, cmd, length, ec_chip->i2c_dm_data);
-	if (ret < 0)
-		pr_err("asusdec: fail to write dockram data, status %d\n", ret);
-
-	return ret;
-}
-
-static int asusdec_dockram_read_data(int cmd)
-{
-	int ret = 0;
-
-	if (!ec_chip->dock_in)
-		return -1;
-
-	ret = i2c_smbus_read_i2c_block_data(&dockram_client, cmd, 32, ec_chip->i2c_dm_data);
-	if (ret < 0)
-		pr_err("asusdec: fail to read dockram data, status %d\n", ret);
-
-	return ret;
-}
-
 static int asusdec_keypad_get_response(struct i2c_client *client, int res)
 {
 	int retry = ASUSEC_RETRY_COUNT;
@@ -391,30 +352,9 @@ static int asusdec_chip_init(struct i2c_client *client)
 	memset(ec_chip->ec_version, 0, 32);
 	disable_irq_nosync(gpio_to_irq(asusdec_apwake_gpio));
 
-	err = asus_ec_reset(client);
+	err = asus_ec_detect(&dock_client, client, ec_chip->i2c_data);
 	if (err < 0)
 		goto fail_to_access_ec;
-
-	asus_ec_clear_buffer(client, ec_chip->i2c_data);
-
-	if (asusdec_dockram_read_data(0x01) < 0)
-		goto fail_to_access_ec;
-	strcpy(ec_chip->ec_model_name, &ec_chip->i2c_dm_data[1]);
-	pr_info("DOCK Model Name: %s\n", ec_chip->ec_model_name);
-
-	if (asusdec_dockram_read_data(0x02) < 0)
-		goto fail_to_access_ec;
-	strcpy(ec_chip->ec_version, &ec_chip->i2c_dm_data[1]);
-	pr_info("DOCK EC-FW Version: %s\n", ec_chip->ec_version);
-
-	if (asusdec_dockram_read_data(0x03) < 0)
-		goto fail_to_access_ec;
-	pr_info("DOCK EC-Config Format: %s\n", &ec_chip->i2c_dm_data[1]);
-
-	if (asusdec_dockram_read_data(0x04) < 0)
-		goto fail_to_access_ec;
-	strcpy(ec_chip->dock_pid, &ec_chip->i2c_dm_data[1]);
-	pr_info("DOCK PID Version: %s\n", ec_chip->dock_pid);
 
 	if (asusdec_input_device_create(client))
 		goto fail_to_access_ec;
@@ -458,7 +398,7 @@ static int asusdec_chip_init(struct i2c_client *client)
 	return 0;
 
 fail_to_access_ec:
-	if (asusdec_dockram_read_data(0x00) < 0){
+	if (asus_dockram_read(&dock_client, 0x00, ec_chip->i2c_dm_data) < 0){
 		pr_info("asusdec: No EC detected\n");
 		ec_chip->dock_in = 0;
 	} else
@@ -1193,7 +1133,7 @@ static int asusdec_dock_battery_get_capacity(union power_supply_propval *val)
 	if (ec_chip->ec_in_s3 && ec_chip->status)
 		msleep(200);
 
-	err = asusdec_dockram_read_data(0x14);
+	err = asus_dockram_read(&dock_client, 0x14, ec_chip->i2c_dm_data);
 	if (err < 0)
 		return -1;
 
@@ -1229,7 +1169,7 @@ static int asusdec_dock_battery_get_status(union power_supply_propval *val)
 	if (ec_chip->ec_in_s3 && ec_chip->status)
 		msleep(200);
 
-	err = asusdec_dockram_read_data(0x0A);
+	err = asus_dockram_read(&dock_client, 0x0A, ec_chip->i2c_dm_data);
 	if (err < 0)
 		return -1;
 
@@ -1319,7 +1259,7 @@ static int __devinit asusdec_probe(struct i2c_client *client,
 	ec_chip->indev = NULL;
 	ec_chip->private->abs_dev = NULL;
 
-	asusdec_dockram_init(client);
+	asus_dockram_init(&dock_client, client, ASUSDEC_DOCKRAM_ADDR);
 
 	ec_chip->dock_sdev.name = "dock";
 	ec_chip->dock_sdev.print_state = asusdec_switch_state;
@@ -1379,14 +1319,14 @@ static int asusdec_suspend(struct device *dev)
 		if (err < 0)
 			goto fail_to_access_ec;
 
-		asusdec_dockram_read_data(0x0A);
+		asus_dockram_read(&dock_client, 0x0A, ec_chip->i2c_dm_data);
 
 		ec_chip->i2c_dm_data[0] = 8;
 		ec_chip->i2c_dm_data[5] = ec_chip->i2c_dm_data[5] & 0xDF;
 		ec_chip->i2c_dm_data[5] = ec_chip->i2c_dm_data[5] | 0x22;
 		ec_chip->i2c_dm_data[5] = ec_chip->i2c_dm_data[5] & 0x7F;
 
-		asusdec_dockram_write_data(0x0A,9);
+		asus_dockram_write(&dock_client, 0x0A, ec_chip->i2c_dm_data);
 	}
 
 fail_to_access_ec:
@@ -1425,7 +1365,7 @@ int asusdec_is_ac_over_10v_callback(void)
 	if (err < 0)
 		goto not_ready;
 
-	err = asusdec_dockram_read_data(0x0A);
+	err = asus_dockram_read(&dock_client, 0x0A, ec_chip->i2c_dm_data);
 	if (err < 0)
 		goto not_ready;
 

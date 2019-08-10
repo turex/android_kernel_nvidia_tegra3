@@ -35,11 +35,11 @@ struct i2c_client;
 
 /* dockram comm */
 
-int asus_dockram_init(struct i2c_client *client);
-int asus_dockram_read(struct i2c_client *client, int reg, char *buf);
-int asus_dockram_write(struct i2c_client *client, int reg, const char *buf);
+int asus_dockram_init(struct i2c_client *dockram_client, struct i2c_client *client, unsigned short addr);
+int asus_dockram_read(struct i2c_client *dockram_client, int reg, char *buf);
+int asus_dockram_write(struct i2c_client *dockram_client, int reg, const char *buf);
 
-int asus_ec_detect(struct i2c_client *client, char *buf);
+int asus_ec_detect(struct i2c_client *dockram_client, struct i2c_client *client, char *buf);
 int asus_ec_read(struct i2c_client *client, char *buf);
 int asus_ec_write(struct i2c_client *client, u16 data);
 int asus_ec_reset(struct i2c_client *client);

@@ -83,17 +83,17 @@ void asus_ec_clear_buffer(struct i2c_client *client, char *buf)
 	}
 }
 
-static int asus_ec_log_info(struct i2c_client *client, unsigned reg,
+static int asus_ec_log_info(struct i2c_client *dockram_client, unsigned reg,
 			    const char *name, char **out)
 {
 	char buf[32];
 	int ret;
 
-	ret = asus_dockram_read(client, reg, buf);
+	ret = asus_dockram_read(dockram_client, reg, buf);
 	if (ret < 0)
 		return ret;
 
-	dev_info(&client->dev, "%-14s: %.*s\n", name, buf[0], buf + 1);
+	dev_info(&dockram_client->dev, "%-14s: %.*s\n", name, buf[0], buf + 1);
 
 	if (out)
 		*out = kstrndup(buf + 1, buf[0], GFP_KERNEL);
@@ -128,7 +128,7 @@ static const struct asus_ec_initdata *asus_ec_match(const char *model)
 	return NULL;
 }
 
-int asus_ec_detect(struct i2c_client *client, char *buf)
+int asus_ec_detect(struct i2c_client *dockram_client, struct i2c_client *client, char *buf)
 {
 	const struct asus_ec_initdata *info;
 	char *model = NULL;
@@ -140,19 +140,19 @@ int asus_ec_detect(struct i2c_client *client, char *buf)
 
 	asus_ec_clear_buffer(client, buf);
 
-	ret = asus_ec_log_info(client, 0x01, "Model", &model);
+	ret = asus_ec_log_info(dockram_client, 0x01, "Model", &model);
 	if (ret)
 		goto err_exit;
 
-	ret = asus_ec_log_info(client, 0x02, "FW version", NULL);
+	ret = asus_ec_log_info(dockram_client, 0x02, "FW version", NULL);
 	if (ret)
 		goto err_exit;
 
-	ret = asus_ec_log_info(client, 0x03, "Config format", NULL);
+	ret = asus_ec_log_info(dockram_client, 0x03, "Config format", NULL);
 	if (ret)
 		goto err_exit;
 
-	ret = asus_ec_log_info(client, 0x04, "HW version", NULL);
+	ret = asus_ec_log_info(dockram_client, 0x04, "HW version", NULL);
 	if (ret)
 		goto err_exit;
 

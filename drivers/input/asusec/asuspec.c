@@ -45,6 +45,7 @@
 static unsigned int asuspec_apwake_gpio = TEGRA_GPIO_PS2;
 static unsigned int asuspec_ecreq_gpio = TEGRA_GPIO_PQ1;
 
+static struct i2c_client pad_client;
 static struct class *asuspec_class;
 static struct device *asuspec_device;
 static struct asuspec_chip *ec_chip;
@@ -66,7 +67,7 @@ int asuspec_battery_monitor(char *cmd)
 	if (ec_chip->ec_in_s3)
 		asus_ec_signal_request(ec_chip->client, asuspec_ecreq_gpio);
 
-	ret = asus_dockram_read(ec_chip->client, 0x14, ec_chip->i2c_dm_battery);
+	ret = asus_dockram_read(&pad_client, 0x14, ec_chip->i2c_dm_battery);
 	if (ret < 0){
 		pr_err("asuspec: fail to access battery info\n");
 		return -1;
@@ -99,14 +100,14 @@ static void asuspec_enter_normal_mode(struct i2c_client *client)
 {
 	int err = 0;
 
-	err = asus_dockram_read(client, 0x0A, ec_chip->i2c_dm_data);
+	err = asus_dockram_read(&pad_client, 0x0A, ec_chip->i2c_dm_data);
 	if (err < 0)
 		goto err_exit;
 
 	ec_chip->i2c_dm_data[0] = 8;
 	ec_chip->i2c_dm_data[5] = ec_chip->i2c_dm_data[5] & 0xBF;
 
-	err = asus_dockram_write(client, 0x0A, ec_chip->i2c_dm_data);
+	err = asus_dockram_write(&pad_client, 0x0A, ec_chip->i2c_dm_data);
 	if (err < 0)
 		goto err_exit;
 
@@ -121,7 +122,7 @@ static int asuspec_chip_init(struct i2c_client *client)
 {
 	int err = 0;
 
-	err = asus_ec_detect(client, ec_chip->i2c_data);
+	err = asus_ec_detect(&pad_client, client, ec_chip->i2c_data);
 	if (err < 0)
 		goto fail_to_access_ec;
 
@@ -232,14 +233,14 @@ static void asuspec_enter_s3_work_function(struct work_struct *dat)
 
 	ec_chip->ec_in_s3 = 1;
 
-	err = asus_dockram_read(ec_chip->client, 0x0A, ec_chip->i2c_dm_data);
+	err = asus_dockram_read(&pad_client, 0x0A, ec_chip->i2c_dm_data);
 	if (err < 0)
 		goto err_exit;
 
 	ec_chip->i2c_dm_data[0] = 8;
 	ec_chip->i2c_dm_data[5] = ec_chip->i2c_dm_data[5] | 0x02;
 
-	err = asus_dockram_write(ec_chip->client, 0x0A, ec_chip->i2c_dm_data);
+	err = asus_dockram_write(&pad_client, 0x0A, ec_chip->i2c_dm_data);
 	if (err < 0)
 		goto err_exit;
 
@@ -304,7 +305,7 @@ static int __devinit asuspec_probe(struct i2c_client *client,
 	ec_chip->status = 0;
 	ec_chip->ec_in_s3 = 0;
 
-	asus_dockram_init(client);
+	asus_dockram_init(&pad_client, client, ASUSPEC_DOCKRAM_ADDR);
 
 	asuspec_wq = create_singlethread_workqueue("asuspec_wq");
 
