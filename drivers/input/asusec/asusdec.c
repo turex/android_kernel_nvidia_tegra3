@@ -37,7 +37,7 @@
 #include <mach/board-transformer-misc.h>
 
 #include "asusec.h"
-#include "elan_i2c_asus.h"
+#include "elantech.h"
 
 /*
  * global variable
@@ -276,10 +276,7 @@ static int asusdec_chip_init(struct i2c_client *client)
 	asus_input_switch(client, ASUSDEC_TP_DISABLE);
 	asus_input_switch(client, ASUSDEC_KP_DISABLE);
 
-#if TOUCHPAD_MODE
 	ec_chip->tp_model = elantech_init(ec_chip);
-#endif
-
 	ec_chip->d_index = 0;
 
 	asus_input_switch(client, ASUSDEC_KP_ENABLE);
@@ -585,116 +582,6 @@ static void asusdec_reset_counter(unsigned long data){
 	ec_chip->d_index = 0;
 }
 
-#if TOUCHPAD_MODE
-static void asusdec_tp_abs(void)
-{
-	unsigned char SA1, A1, B1, SB1, C1, D1;
-	static unsigned char SA1_O = 0, A1_O = 0, B1_O = 0, SB1_O = 0, C1_O = 0, D1_O = 0;
-	static int Null_data_times = 0;
-
-	if ((ec_chip->tp_enable) && (!ec_chip->tp_model)){
-		SA1= ec_chip->ec_data[0];
-		A1 = ec_chip->ec_data[1];
-		B1 = ec_chip->ec_data[2];
-		SB1= ec_chip->ec_data[3];
-		C1 = ec_chip->ec_data[4];
-		D1 = ec_chip->ec_data[5];
-
-		if ( (SA1 == 0xC4) && (A1 == 0xFF) && (B1 == 0xFF) &&
-		     (SB1 == 0x02) && (C1 == 0xFF) && (D1 == 0xFF)){
-			Null_data_times ++;
-			goto asusdec_tp_abs_end;
-		}
-
-		if(!(SA1 == SA1_O && A1 == A1_O && B1 == B1_O &&
-		     SB1 == SB1_O && C1 == C1_O && D1 == D1_O)) {
-			elantech_report_absolute_to_related(ec_chip, &Null_data_times);
-		}
-
-asusdec_tp_abs_end:
-		SA1_O = SA1;
-		A1_O = A1;
-		B1_O = B1;
-		SB1_O = SB1;
-		C1_O = C1;
-		D1_O = D1;
-	} else if (ec_chip->tp_model){
-		ec_chip->susb_on = 1;
-		ec_chip->init_success = -1;
-		asus_ec_signal_request(ec_chip->client, asusdec_ecreq_gpio);
-		ec_chip->dock_init = 0;
-	}
-}
-#else
-static void asusdec_tp_rel(void)
-{
-	ec_chip->touchpad_data.x_sign =
-			(ec_chip->ec_data[0] & X_SIGN_MASK) ? 1 : 0;
-	ec_chip->touchpad_data.y_sign =
-			(ec_chip->ec_data[0] & Y_SIGN_MASK) ? 1 : 0;
-	ec_chip->touchpad_data.left_btn =
-			(ec_chip->ec_data[0] & LEFT_BTN_MASK) ? 1 : 0;
-	ec_chip->touchpad_data.right_btn =
-			(ec_chip->ec_data[0] & RIGHT_BTN_MASK) ? 1 : 0;
-	ec_chip->touchpad_data.delta_x =
-			(ec_chip->touchpad_data.x_sign) ? (ec_chip->ec_data[1] - 0xff) : ec_chip->ec_data[1];
-	ec_chip->touchpad_data.delta_y =
-			(ec_chip->touchpad_data.y_sign) ? (ec_chip->ec_data[2] - 0xff) : ec_chip->ec_data[2];
-
-	input_report_rel(ec_chip->indev, REL_X,
-			ec_chip->touchpad_data.delta_x);
-	input_report_rel(ec_chip->indev, REL_Y,
-			(-1) * ec_chip->touchpad_data.delta_y);
-	input_report_key(ec_chip->indev, BTN_LEFT,
-			ec_chip->touchpad_data.left_btn);
-	input_report_key(ec_chip->indev, KEY_BACK,
-			ec_chip->touchpad_data.right_btn);
-
-	input_sync(ec_chip->indev);
-}
-#endif
-
-static void asusdec_touchpad_processing(void)
-{
-	int i;
-	int length = 0;
-	int tp_start = 0;
-
-#if TOUCHPAD_MODE
-	length = ec_chip->i2c_data[0];
-	if (ec_chip->tp_wait_ack){
-		ec_chip->tp_wait_ack = 0;
-		tp_start = 1;
-		ec_chip->d_index = 0;
-	} else {
-		tp_start = 0;
-	}
-
-	for (i = tp_start; i < length - 1 ; i++){
-		ec_chip->ec_data[ec_chip->d_index] = ec_chip->i2c_data[i+2];
-		ec_chip->d_index++;
-		if (ec_chip->d_index == 6){
-			asusdec_tp_abs();
-			ec_chip->d_index = 0;
-		}
-	}
-
-	if (ec_chip->d_index)
-		mod_timer(&ec_chip->asusdec_timer, jiffies + (HZ * 1/20));
-#else
-	length = ec_chip->i2c_data[0];
-
-	for( i = 0; i < length -1; i++){
-		ec_chip->ec_data[ec_chip->d_index] = ec_chip->i2c_data[i+2];
-		ec_chip->d_index++;
-		if (ec_chip->d_index == 3){
-			asusdec_tp_rel();
-			ec_chip->d_index = 0;
-		}
-	}
-#endif
-}
-
 static void asusdec_dock_init_work_function(struct work_struct *dat)
 {
 	wake_lock(&ec_chip->wake_lock_init);
@@ -922,7 +809,7 @@ static void asusdec_work_function(struct work_struct *dat)
 	if (ec_chip->i2c_data[1] & ASUSEC_OBF_MASK){
 		if (ec_chip->i2c_data[1] & ASUSEC_AUX_MASK){
 			if (ec_chip->private->abs_dev)
-				asusdec_touchpad_processing();
+				asusdec_touchpad_processing(ec_chip);
 		} else {
 			asusdec_keypad_processing();
 		}

@@ -26,7 +26,6 @@
  * compiler option
  */
 #define FACTORY_MODE			0
-#define TOUCHPAD_MODE			1	// 0: relative mode, 1: absolute mode
 #define DOCK_USB				1	// 0: not ready, 1: ready
 #define BATTERY_DRIVER			1	// 0: not ready, 1: ready
 
@@ -199,17 +198,6 @@ struct asusdec_keypad {
 	int extend;
 };
 
-struct asusdec_touchpad_relative {
-	int y_overflow;
-	int x_overflow;
-	int y_sign;
-	int x_sign;
-	int left_btn;
-	int right_btn;
-	int delta_x;
-	int delta_y;
-};
-
 struct asusdec_touchpad_absolute {
 	int w_val;
 	int x_pos;
@@ -229,24 +217,24 @@ struct asusdec_chip {
 	struct input_dev	*indev;
 	struct i2c_client	*client;
 	struct switch_dev 	dock_sdev;
+
 	struct mutex		input_lock;
 	struct mutex		dock_init_lock;
+
 	struct wake_lock 	wake_lock;
 	struct wake_lock 	wake_lock_init;
+
 	struct delayed_work asusdec_work;
 	struct delayed_work asusdec_dock_init_work;
 	struct delayed_work asusdec_led_on_work;
 	struct delayed_work asusdec_led_off_work;
 	struct delayed_work asusdec_pad_battery_report_work;
+
 	struct asusdec_keypad keypad_data;
 	struct elantech_data *private;
-	struct timer_list asusdec_timer;
-
-#if TOUCHPAD_MODE
 	struct asusdec_touchpad_absolute t_abs;
-#else
-	struct asusdec_touchpad_relative touchpad_data;
-#endif
+
+	struct timer_list asusdec_timer;
 
 	int bc;			// byte counter
 	int status;

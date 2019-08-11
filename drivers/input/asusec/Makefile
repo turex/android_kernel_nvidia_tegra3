@@ -6,4 +6,4 @@ obj-$(CONFIG_INPUT_ASUSEC)		+= asus-ec.o
 asus-ec-y				= dockram.o controller.o
 
 obj-$(CONFIG_ASUSPEC)			+= asuspec.o
-obj-$(CONFIG_ASUSDEC)			+= asusdec.o elan_i2c_asus.o
+obj-$(CONFIG_ASUSDEC)			+= asusdec.o elantech.o
