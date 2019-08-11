@@ -150,16 +150,22 @@ static void asuspec_enter_s3_timer(unsigned long data)
 
 static void asuspec_smi(void)
 {
-	if (ec_chip->i2c_data[2] == ASUSEC_SMI_HANDSHAKING){
-		pr_info("asuspec: ASUSPEC_SMI_HANDSHAKING\n");
-		if (!ec_chip->status)
-			asuspec_chip_init(ec_chip->client);
-		ec_chip->ec_in_s3 = 0;
-	} else if (ec_chip->i2c_data[2] == ASUSEC_SMI_RESET){
-		pr_info("asuspec: ASUSPEC_SMI_RESET\n");
-		queue_delayed_work(asuspec_wq, &ec_chip->asuspec_init_work, 0);
-	} else if (ec_chip->i2c_data[2] == ASUSEC_SMI_WAKE){
-		pr_info("asuspec: ASUSPEC_SMI_WAKE\n");
+	switch (ec_chip->i2c_data[2]) {
+		case ASUSEC_SMI_HANDSHAKING:
+			dev_info(&ec_chip->client->dev, "ASUSPEC_SMI_HANDSHAKING\n");
+			ec_chip->ec_in_s3 = 0;
+			if (!ec_chip->status)
+				asuspec_chip_init(ec_chip->client);
+			break;
+		case ASUSEC_SMI_RESET:
+			dev_info(&ec_chip->client->dev, "ASUSPEC_SMI_RESET\n");
+			queue_delayed_work(asuspec_wq, &ec_chip->asuspec_init_work, 0);
+			break;
+		case ASUSEC_SMI_WAKE:
+			dev_info(&ec_chip->client->dev, "ASUSPEC_SMI_WAKE\n");
+			/* Fall through since default just brakes switch */
+		default:
+			break;
 	}
 }
 

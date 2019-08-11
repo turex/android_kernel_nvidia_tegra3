@@ -78,7 +78,7 @@ struct finger_pos {
 };
 
 struct elantech_data {
-	struct input_dev *abs_dev;
+	struct input_dev *input_dev;
 
 	unsigned int y_max;
 	unsigned int width;

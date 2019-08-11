@@ -71,8 +71,8 @@ void asus_ec_clear_buffer(struct i2c_client *client, char *buf);
 #define ASUSDEC_PS2_ACK                 0xFA
 #define ASUSDEC_TP_ENABLE               0xF4D4
 #define ASUSDEC_TP_DISABLE              0xF5D4
-#define ASUSDEC_KP_ENABLE               0xF400
-#define ASUSDEC_KP_DISABLE              0xF500
+#define ASUSDEC_KB_ENABLE               0xF400
+#define ASUSDEC_KB_DISABLE              0xF500
 
 /*            - IRQ labels -              */
 #define ASUSPEC_REQUEST                 "asuspec_request"
@@ -198,21 +198,6 @@ struct asusdec_keypad {
 	int extend;
 };
 
-struct asusdec_touchpad_absolute {
-	int w_val;
-	int x_pos;
-	int y_pos;
-	int z_val;
-	int left;
-	int right;
-	int x_prev;
-	int y_prev;
-	int z_prev;
-	int x2_pos;
-	int y2_pos;
-	int z2_val;
-};
-
 struct asusdec_chip {
 	struct input_dev	*indev;
 	struct i2c_client	*client;
@@ -232,7 +217,6 @@ struct asusdec_chip {
 
 	struct asusdec_keypad keypad_data;
 	struct elantech_data *private;
-	struct asusdec_touchpad_absolute t_abs;
 
 	struct timer_list asusdec_timer;
 

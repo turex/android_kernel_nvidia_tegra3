@@ -119,7 +119,7 @@ static int asus_input_switch(struct i2c_client *client, u16 state)
 	for (retry = 0; retry < ASUSEC_RETRY_COUNT; retry++) {
 		asus_ec_read(client, ec_chip->i2c_data);
 		
-		if ((state == ASUSDEC_KP_ENABLE) || (state == ASUSDEC_KP_DISABLE))
+		if ((state == ASUSDEC_KB_ENABLE) || (state == ASUSDEC_KB_DISABLE))
 			definer = !(ec_chip->i2c_data[1] & ASUSEC_AUX_MASK);
 		else
 			definer = (ec_chip->i2c_data[1] & ASUSEC_AUX_MASK);
@@ -274,12 +274,12 @@ static int asusdec_chip_init(struct i2c_client *client)
 		msleep(750);
 
 	asus_input_switch(client, ASUSDEC_TP_DISABLE);
-	asus_input_switch(client, ASUSDEC_KP_DISABLE);
+	asus_input_switch(client, ASUSDEC_KB_DISABLE);
 
 	ec_chip->tp_model = elantech_init(ec_chip);
 	ec_chip->d_index = 0;
 
-	asus_input_switch(client, ASUSDEC_KP_ENABLE);
+	asus_input_switch(client, ASUSDEC_KB_ENABLE);
 
 	if(ec_chip->tp_enable){
 		if(ec_chip->tp_model){
@@ -600,9 +600,9 @@ static void asusdec_dock_init_work_function(struct work_struct *dat)
 			ec_chip->indev = NULL;
 		}
 
-		if (ec_chip->private->abs_dev){
-			input_unregister_device(ec_chip->private->abs_dev);
-			ec_chip->private->abs_dev = NULL;
+		if (ec_chip->private->input_dev){
+			input_unregister_device(ec_chip->private->input_dev);
+			ec_chip->private->input_dev = NULL;
 		}
 
 		asusdec_dock_status_report();
@@ -637,31 +637,39 @@ static void asusdec_kp_wake(void)
 
 static void asusdec_kp_smi(void)
 {
-	if (ec_chip->i2c_data[2] == ASUSEC_SMI_HANDSHAKING){
-		pr_info("asusdec: ASUSEC_SMI_HANDSHAKING\n");
-		ec_chip->ec_in_s3 = 0;
-		if (ec_chip->susb_on)
-			asusdec_chip_init(ec_chip->client);
-	} else if (ec_chip->i2c_data[2] == ASUSEC_SMI_RESET){
-		pr_info("asusdec: ASUSEC_SMI_RESET\n");
-		ec_chip->init_success = 0;
-		asusdec_dock_init_work_function(NULL);
-	} else if (ec_chip->i2c_data[2] == ASUSEC_SMI_WAKE){
-		pr_info("asusdec: ASUSEC_SMI_WAKE\n");
-		asusdec_kp_wake();
-	} else if (ec_chip->i2c_data[2] == ASUSEC_SMI_ADAPTER_EVENT){
-		pr_info("asusdec: ASUSEC_SMI_ADAPTER_EVENT\n");
+	switch (ec_chip->i2c_data[2]) {
+		case ASUSEC_SMI_HANDSHAKING:
+			dev_info(&ec_chip->client->dev, "ASUSDEC_SMI_HANDSHAKING\n");
+			ec_chip->ec_in_s3 = 0;
+			if (ec_chip->susb_on)
+				asusdec_chip_init(ec_chip->client);
+			break;
+		case ASUSEC_SMI_RESET:
+			dev_info(&ec_chip->client->dev, "ASUSDEC_SMI_RESET\n");
+			ec_chip->init_success = 0;
+			asusdec_dock_init_work_function(NULL);
+			break;
+		case ASUSEC_SMI_WAKE:
+			dev_info(&ec_chip->client->dev, "ASUSDEC_SMI_WAKE\n");
+			asusdec_kp_wake();
+			break;
+		case ASUSEC_SMI_ADAPTER_EVENT:
+			dev_info(&ec_chip->client->dev, "ASUSDEC_SMI_ADAPTER_EVENT\n");
 #if DOCK_USB
-		fsl_dock_ec_callback();
+			fsl_dock_ec_callback();
 #endif
-	} else if (ec_chip->i2c_data[2] == ASUSEC_SMI_BACKLIGHT_ON){
-		pr_info("asusdec: ASUSEC_SMI_BACKLIGHT_ON\n");
-		ec_chip->susb_on = 1;
-		asus_ec_signal_request(ec_chip->client, asusdec_ecreq_gpio);
-		ec_chip->dock_init = 0;
+			break;
+		case ASUSEC_SMI_BACKLIGHT_ON:
+			dev_info(&ec_chip->client->dev, "ASUSDEC_SMI_BACKLIGHT_ON\n");
+			ec_chip->susb_on = 1;
+			asus_ec_signal_request(ec_chip->client, asusdec_ecreq_gpio);
+			ec_chip->dock_init = 0;
 #if DOCK_USB
-		tegra_usb3_smi_backlight_on_callback();
+			tegra_usb3_smi_backlight_on_callback();
 #endif
+			/* Fall through since default just brakes switch */
+		default:
+			break;
 	}
 }
 
@@ -781,8 +789,7 @@ static void asusdec_pad_battery_report_function(struct work_struct *dat)
 
 static void asusdec_work_function(struct work_struct *dat)
 {
-	int gpio = asusdec_apwake_gpio;
-	int irq = gpio_to_irq(gpio);
+	int irq = gpio_to_irq(asusdec_apwake_gpio);
 	int err = 0;
 
 	ec_chip->dock_in = gpio_get_value(asusdec_dock_in_gpio) ? 0 : 1;
@@ -808,7 +815,7 @@ static void asusdec_work_function(struct work_struct *dat)
 
 	if (ec_chip->i2c_data[1] & ASUSEC_OBF_MASK){
 		if (ec_chip->i2c_data[1] & ASUSEC_AUX_MASK){
-			if (ec_chip->private->abs_dev)
+			if (ec_chip->private->input_dev)
 				asusdec_touchpad_processing(ec_chip);
 		} else {
 			asusdec_keypad_processing();
@@ -959,7 +966,7 @@ static int __devinit asusdec_probe(struct i2c_client *client,
 	ec_chip->ec_in_s3 = 1;
 	ec_chip->susb_on = 1;
 	ec_chip->indev = NULL;
-	ec_chip->private->abs_dev = NULL;
+	ec_chip->private->input_dev = NULL;
 
 	asus_dockram_init(&dock_client, client, ASUSDEC_DOCKRAM_ADDR);
 

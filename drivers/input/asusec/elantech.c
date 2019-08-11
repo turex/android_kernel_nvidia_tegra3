@@ -49,17 +49,16 @@ static int elantech_ps2_command(struct i2c_client *client, unsigned char *param,
 	u16 asus_ec_cmd;
 	int ret = 0;
 	int retry = ELAN_RETRY_COUNT;
-	int i;
-	int retry_data_count;
+	int i, retry_data_count;
 	u8 i2c_data[16];
 
 	asus_ec_cmd = (((command & 0x00ff) << 8) | 0xD4);
 	ret = asus_ec_write(client, asus_ec_cmd);
-
 	if (ret < 0) {
 		pr_err("elantech: %s: write to device fails status %x\n", __func__, ret);
 		return ret;
 	}
+
 	msleep(DELAY_TIME_MS);
 
 	while(retry-- > 0){
@@ -119,7 +118,7 @@ static void elantech_report_absolute(struct asusdec_chip *ec_chip,
 					int packet_type)
 {
 	struct elantech_data *etd = (struct elantech_data *) ec_chip->private;
-	struct input_dev *dev = etd->abs_dev;
+	struct input_dev *dev = etd->input_dev;
 	unsigned char *packet = ec_chip->ec_data;
 	unsigned int fingers, x1 = 0, y1 = 0, x2 = 0, y2 = 0;
 	unsigned int width = 0, pres = 0;
@@ -255,17 +254,17 @@ void asusdec_touchpad_processing(struct asusdec_chip *ec_chip)
 
 	length = ec_chip->i2c_data[0];
 
-	if (ec_chip->tp_wait_ack){
+	if (ec_chip->tp_wait_ack) {
 		ec_chip->tp_wait_ack = 0;
 		tp_start = 1;
 		ec_chip->d_index = 0;
 	} else
 		tp_start = 0;
 
-	for (i = tp_start; i < length - 1 ; i++){
+	for (i = tp_start; i < length - 1 ; i++) {
 		ec_chip->ec_data[ec_chip->d_index] = ec_chip->i2c_data[i+2];
 		ec_chip->d_index++;
-		if (ec_chip->d_index == 6){
+		if (ec_chip->d_index == 6) {
 			elantech_process_byte(ec_chip);
 			ec_chip->d_index = 0;
 		}
@@ -364,46 +363,46 @@ static int elantech_set_input_params(struct asusdec_chip *ec_chip)
 	if (elantech_set_range(client, &x_min, &y_min, &x_max, &y_max, &width))
 		return -1;
 
-	if (etd->abs_dev)
+	if (etd->input_dev)
 		return 0;
 
-	etd->abs_dev = input_allocate_device();
-	if (!etd->abs_dev) {
+	etd->input_dev = input_allocate_device();
+	if (!etd->input_dev) {
 		dev_err(&client->dev, "Failed to allocate input device\n");
 		return -ENOMEM;
 	}
 
-	etd->abs_dev->name = "elantech_touchscreen";
+	etd->input_dev->name = "elantech_touchscreen";
 
-	__set_bit(INPUT_PROP_POINTER, etd->abs_dev->propbit);
-	__set_bit(EV_KEY, etd->abs_dev->evbit);
-	__set_bit(EV_ABS, etd->abs_dev->evbit);
-	__clear_bit(EV_REL, etd->abs_dev->evbit);
+	__set_bit(INPUT_PROP_POINTER, etd->input_dev->propbit);
+	__set_bit(EV_KEY, etd->input_dev->evbit);
+	__set_bit(EV_ABS, etd->input_dev->evbit);
+	__clear_bit(EV_REL, etd->input_dev->evbit);
 
-	__set_bit(BTN_LEFT, etd->abs_dev->keybit);
-	__set_bit(BTN_RIGHT, etd->abs_dev->keybit);
+	__set_bit(BTN_LEFT, etd->input_dev->keybit);
+	__set_bit(BTN_RIGHT, etd->input_dev->keybit);
 
-	__set_bit(BTN_TOUCH, etd->abs_dev->keybit);
-	__set_bit(BTN_TOOL_FINGER, etd->abs_dev->keybit);
-	__set_bit(BTN_TOOL_DOUBLETAP, etd->abs_dev->keybit);
-	__set_bit(BTN_TOOL_TRIPLETAP, etd->abs_dev->keybit);
+	__set_bit(BTN_TOUCH, etd->input_dev->keybit);
+	__set_bit(BTN_TOOL_FINGER, etd->input_dev->keybit);
+	__set_bit(BTN_TOOL_DOUBLETAP, etd->input_dev->keybit);
+	__set_bit(BTN_TOOL_TRIPLETAP, etd->input_dev->keybit);
 
-	input_set_abs_params(etd->abs_dev, ABS_X, x_min, x_max, 0, 0);
-	input_set_abs_params(etd->abs_dev, ABS_Y, y_min, y_max, 0, 0);
+	input_set_abs_params(etd->input_dev, ABS_X, x_min, x_max, 0, 0);
+	input_set_abs_params(etd->input_dev, ABS_Y, y_min, y_max, 0, 0);
 
-	input_set_abs_params(etd->abs_dev, ABS_PRESSURE, ETP_PMIN_V2, ETP_PMAX_V2, 0, 0);
-	input_set_abs_params(etd->abs_dev, ABS_TOOL_WIDTH, ETP_WMIN_V2, ETP_WMAX_V2, 0, 0);
+	input_set_abs_params(etd->input_dev, ABS_PRESSURE, ETP_PMIN_V2, ETP_PMAX_V2, 0, 0);
+	input_set_abs_params(etd->input_dev, ABS_TOOL_WIDTH, ETP_WMIN_V2, ETP_WMAX_V2, 0, 0);
 
-	input_mt_init_slots(etd->abs_dev, 2);
-	input_set_abs_params(etd->abs_dev, ABS_MT_POSITION_X, x_min, x_max, 0, 0);
-	input_set_abs_params(etd->abs_dev, ABS_MT_POSITION_Y, y_min, y_max, 0, 0);
+	input_mt_init_slots(etd->input_dev, 2);
+	input_set_abs_params(etd->input_dev, ABS_MT_POSITION_X, x_min, x_max, 0, 0);
+	input_set_abs_params(etd->input_dev, ABS_MT_POSITION_Y, y_min, y_max, 0, 0);
 
 	etd->y_max = y_max;
 	etd->width = width;
 
-	ret = input_register_device(etd->abs_dev);
+	ret = input_register_device(etd->input_dev);
 	if (ret)
-		pr_err("elantech: %s: Unable to register %s input device\n", __func__, etd->abs_dev->name);
+		pr_err("elantech: %s: Unable to register %s input device\n", __func__, etd->input_dev->name);
 
 	return 0;
 }
