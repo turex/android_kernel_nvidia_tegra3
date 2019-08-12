@@ -29,14 +29,13 @@
 #include <linux/power_supply.h>
 #include <linux/power/pad_battery.h>
 #include <linux/statfs.h>
+#include <linux/asusec.h>
 
 #include <asm/gpio.h>
 #include <asm/ioctl.h>
 #include <asm/uaccess.h>
 
 #include <../gpio-names.h>
-
-#include "asusec.h"
 
 /*
  * global variable

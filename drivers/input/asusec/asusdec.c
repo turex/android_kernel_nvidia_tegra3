@@ -26,6 +26,7 @@
 #include <linux/gpio_event.h>
 #include <linux/slab.h>
 #include <linux/switch.h>
+#include <linux/asusec.h>
 #include <linux/power_supply.h>
 #include <linux/power/pad_battery.h>
 
@@ -36,7 +37,6 @@
 
 #include <mach/board-transformer-misc.h>
 
-#include "asusec.h"
 #include "elantech.h"
 
 /*

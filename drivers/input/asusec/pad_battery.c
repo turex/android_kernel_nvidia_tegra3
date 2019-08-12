@@ -32,9 +32,8 @@
 #include <linux/timer.h>
 #include <linux/interrupt.h>
 #include <linux/wakelock.h>
+#include <linux/asusec.h>
 #include <linux/power/pad_battery.h>
-
-#include "asusec.h"
 
 #define SMBUS_RETRY                         (3)
 

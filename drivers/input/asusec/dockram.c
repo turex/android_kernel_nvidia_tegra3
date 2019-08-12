@@ -10,10 +10,9 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/asusec.h>
 #include <linux/i2c.h>
 #include <linux/string.h>
-
-#include "asusec.h"
 
 int asus_dockram_init(struct i2c_client *dockram_client, struct i2c_client *client, unsigned short addr)
 {

@@ -21,8 +21,6 @@
 #ifndef _ELAN_I2C_ASUS_H
 #define _ELAN_I2C_ASUS_H
 
-#include "asusec.h"
-
 #define ELAN_RETRY_COUNT		3
 
 #define PSMOUSE_CMD_SETSCALE11	0x00e6
