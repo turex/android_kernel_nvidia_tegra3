@@ -254,7 +254,6 @@ struct asuspec_chip {
 
 	u8 i2c_data[32];
 	u8 i2c_dm_data[32];
-	u8 i2c_dm_battery[32];
 };
 
 #endif

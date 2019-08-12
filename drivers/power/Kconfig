@@ -356,14 +356,6 @@ config CHARGER_MAX8998
 	  Say Y to enable support for the battery charger control sysfs and
 	  platform data of MAX8998/LP3974 PMICs.
 
-config BATTERY_PAD
-	tristate "PAD battery driver"
-	depends on I2C && ASUSPEC
-	help
-	  Say Y here to enable support for battery driver in Asus Transformers.
-	  This driver takes data from Asus EC driver and highly depends from it.
-	  Batteries are based on BQ20Z45 chip. 
-
 config CHARGER_SMB347
 	tristate "Summit Microelectronics SMB347 Battery Charger"
 	depends on I2C

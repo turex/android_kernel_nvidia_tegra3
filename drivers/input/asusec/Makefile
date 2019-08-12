@@ -7,3 +7,4 @@ asus-ec-y				= dockram.o controller.o
 
 obj-$(CONFIG_ASUSPEC)			+= asuspec.o
 obj-$(CONFIG_ASUSDEC)			+= asusdec.o elantech.o
+obj-$(CONFIG_BATTERY_PAD)		+= pad_battery.o

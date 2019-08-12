@@ -27,3 +27,11 @@ config ASUSDEC
 	  Main purpose of this driver is to work with keyboard and touchpad,
 	  additionally it provides information about dock battery state,
 	  charging process and firmware version.
+
+config BATTERY_PAD
+	tristate "PAD battery driver"
+	depends on I2C && ASUSPEC
+	help
+	  Say Y here to enable support for battery driver in Asus Transformers.
+	  This driver takes data from Asus EC driver and highly depends from it.
+	  Batteries are based on BQ20Z45 chip.
