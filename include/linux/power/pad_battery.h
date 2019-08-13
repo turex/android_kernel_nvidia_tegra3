@@ -36,8 +36,4 @@ void battery_callback(unsigned usb_cable_state);
 int docking_callback(int docking_in);
 void register_usb_cable_status_cb(unsigned (*fn) (void));
 
-/* AsusEC export */
-int asusdec_is_ac_over_10v_callback(void);
-int asuspec_battery_monitor(char *cmd);
-
 #endif

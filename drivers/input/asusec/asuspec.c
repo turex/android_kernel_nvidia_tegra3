@@ -58,41 +58,21 @@ static struct workqueue_struct *asuspec_wq;
  * functions definition
  */
 
-int asuspec_battery_monitor(char *cmd)
+int asuspec_battery_monitor(int offs)
 {
 	int ret = 0;
-	u8 i2c_dm_battery[32];
+	u8 batt_data[32];
 
 	if (ec_chip->ec_in_s3)
 		asus_ec_signal_request(ec_chip->client, asuspec_ecreq_gpio);
 
-	ret = asus_dockram_read(&pad_client, 0x14, i2c_dm_battery);
+	ret = asus_dockram_read(&pad_client, 0x14, batt_data);
 	if (ret < 0){
 		pr_err("asuspec: fail to access battery info\n");
 		return -1;
 	}
 
-	if (!strcmp(cmd, "status"))
-		ret = (i2c_dm_battery[2] << 8 ) | i2c_dm_battery[1];
-	else if (!strcmp(cmd, "temperature"))
-		ret = (i2c_dm_battery[8] << 8 ) | i2c_dm_battery[7];
-	else if (!strcmp(cmd, "voltage"))
-		ret = (i2c_dm_battery[10] << 8 ) | i2c_dm_battery[9];
-	else if (!strcmp(cmd, "current"))
-		ret = (i2c_dm_battery[12] << 8 ) | i2c_dm_battery[11];
-	else if (!strcmp(cmd, "capacity"))
-		ret = (i2c_dm_battery[14] << 8 ) | i2c_dm_battery[13];
-	else if (!strcmp(cmd, "remaining_capacity"))
-		ret = (i2c_dm_battery[16] << 8 ) | i2c_dm_battery[15];
-	else if (!strcmp(cmd, "avg_time_to_empty"))
-		ret = (i2c_dm_battery[18] << 8 ) | i2c_dm_battery[17];
-	else if (!strcmp(cmd, "avg_time_to_full"))
-		ret = (i2c_dm_battery[20] << 8 ) | i2c_dm_battery[19];
-	else {
-		pr_err("asuspec: unknown command\n");
-		ret = -1;
-	}
-	return ret;
+	return batt_data[offs + 1] << 8 | batt_data[offs];
 }
 
 static void asuspec_enter_normal_mode(struct i2c_client *client)

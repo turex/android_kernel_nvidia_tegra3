@@ -35,8 +35,6 @@
 #include <linux/asusec.h>
 #include <linux/power/pad_battery.h>
 
-#define SMBUS_RETRY                         (3)
-
 #define BATTERY_DETECT_GPIO                 TEGRA_GPIO_PN4
 #define LOW_BATTERY_GPIO                    TEGRA_GPIO_PS4
 #define DOCK_CHARGING_GPIO                  TEGRA_GPIO_PS5
@@ -45,30 +43,20 @@
 #define BATTERY_POLLING_RATE                (60)
 #define DELAY_FOR_CORRECT_CHARGER_STATUS    (5)
 #define TEMP_KELVIN_TO_CELCIUS              (2731)
-#define MAXIMAL_VALID_BATTERY_TEMP          (120)
-#define BATTERY_PROTECTED_VOLT              (2800)
 
 #define USB_NO_Cable                        0
 #define USB_DETECT_CABLE                    1
 #define USB_SHIFT                           0
 #define AC_SHIFT                            1
+
 #define USB_Cable                           ((1 << (USB_SHIFT)) | (USB_DETECT_CABLE))
 #define USB_AC_Adapter                      ((1 << (AC_SHIFT)) | (USB_DETECT_CABLE))
 #define USB_CALBE_DETECT_MASK               (USB_Cable  | USB_DETECT_CABLE)
-
-#define BATTERY_MANUFACTURER_SIZE           12
-#define BATTERY_NAME_SIZE                   8
-
-/* manufacturer access defines */
-#define MANUFACTURER_ACCESS_STATUS          0x0006
-#define MANUFACTURER_ACCESS_SLEEP           0x0011
 
 /* battery status value bits */
 #define BATTERY_CHARGING                    0x40
 #define BATTERY_FULL_CHARGED                0x20
 #define BATTERY_FULL_DISCHARGED             0x10
-
-#define BATT_TEMP_LIMIT                     45
 
 unsigned battery_cable_status = 0;
 unsigned battery_docking_status = 0;
@@ -84,8 +72,7 @@ struct workqueue_struct *battery_work_queue = NULL;
 unsigned (*get_usb_cable_status_cb) (void);
 
 /* Functions declaration */
-static int pad_get_psp(int reg_offset, enum power_supply_property psp, union power_supply_propval *val);
-static int pad_get_property(struct power_supply *psy,
+static int pad_battery_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val);
 
 module_param(battery_current, uint, 0644);
@@ -112,6 +99,7 @@ enum {
 	REG_SERIAL_NUMBER,
 	REG_MAX
 };
+
 typedef enum {
 	Charger_Type_Battery = 0,
 	Charger_Type_AC,
@@ -121,32 +109,31 @@ typedef enum {
 	Charger_Type_Force32 = 0x7FFFFFFF
 } Charger_Type;
 
-static struct pad_device_data {
-	enum power_supply_property psp;
-	u8 addr;
-	int min_value;
-	int max_value;
-} pad_data[] = {
-	[REG_MANUFACTURER_DATA] = PAD_BAT_DATA(PRESENT, 0, 0, 65535),
-	[REG_STATE_OF_HEALTH]   = PAD_BAT_DATA(HEALTH, 0, 0, 65535),
-	[REG_TEMPERATURE]       = PAD_BAT_DATA(TEMP, 0x08, 0, 65535),
-	[REG_VOLTAGE]           = PAD_BAT_DATA(VOLTAGE_NOW, 0x09, 0, 20000),
-	[REG_CURRENT]           = PAD_BAT_DATA(CURRENT_NOW, 0x0A, -32768, 32767),
-	[REG_TIME_TO_EMPTY]     = PAD_BAT_DATA(TIME_TO_EMPTY_AVG, 0x12, 0, 65535),
-	[REG_TIME_TO_FULL]      = PAD_BAT_DATA(TIME_TO_FULL_AVG, 0x13, 0, 65535),
-	[REG_STATUS]            = PAD_BAT_DATA(STATUS, 0x16, 0, 65535),
-	[REG_CAPACITY]          = PAD_BAT_DATA(CAPACITY, 0x0d, 0, 100),//battery HW request
-	[REG_SERIAL_NUMBER]     = PAD_BAT_DATA(SERIAL_NUMBER, 0x1C, 0, 65535),
+static enum power_supply_property pad_battery_properties[] = {
+	POWER_SUPPLY_PROP_STATUS,
+	POWER_SUPPLY_PROP_TEMP,
+	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+	POWER_SUPPLY_PROP_VOLTAGE_MAX,
+	POWER_SUPPLY_PROP_CURRENT_NOW,
+	POWER_SUPPLY_PROP_CAPACITY,
+	POWER_SUPPLY_PROP_CHARGE_NOW,
+	POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG,
+	POWER_SUPPLY_PROP_TIME_TO_FULL_AVG,
+	POWER_SUPPLY_PROP_TECHNOLOGY,
+	POWER_SUPPLY_PROP_PRESENT,
+	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 };
 
-static enum power_supply_property pad_properties[] = {
-	POWER_SUPPLY_PROP_STATUS,
-	POWER_SUPPLY_PROP_HEALTH,
-	POWER_SUPPLY_PROP_PRESENT,
-	POWER_SUPPLY_PROP_TECHNOLOGY,
-	POWER_SUPPLY_PROP_VOLTAGE_NOW,
-	POWER_SUPPLY_PROP_CAPACITY,
-	POWER_SUPPLY_PROP_TEMP,
+static const unsigned pad_battery_prop_offs[] = {
+	[POWER_SUPPLY_PROP_STATUS] = 1,
+	[POWER_SUPPLY_PROP_VOLTAGE_MAX] = 3,
+	[POWER_SUPPLY_PROP_TEMP] = 7,
+	[POWER_SUPPLY_PROP_VOLTAGE_NOW] = 9,
+	[POWER_SUPPLY_PROP_CURRENT_NOW] = 11,
+	[POWER_SUPPLY_PROP_CAPACITY] = 13,
+	[POWER_SUPPLY_PROP_CHARGE_NOW] = 15,
+	[POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG] = 17,
+	[POWER_SUPPLY_PROP_TIME_TO_FULL_AVG] = 19,
 };
 
 void check_cabe_type(void)
@@ -170,24 +157,23 @@ static enum power_supply_property power_properties[] = {
 static int power_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val)
 {
-	int ret = 0;
 	switch (psp) {
+		case POWER_SUPPLY_PROP_ONLINE:
+			if(psy->type == POWER_SUPPLY_TYPE_MAINS && ac_on)
+				val->intval =  1;
+			else if (psy->type == POWER_SUPPLY_TYPE_USB && usb_on)
+				val->intval =  1;
+			else if (psy->type == POWER_SUPPLY_TYPE_DOCK_AC && battery_docking_status)
+				val->intval =  1;
+			else
+				val->intval = 0;
+			break;
 
-	case POWER_SUPPLY_PROP_ONLINE:
-		if(psy->type == POWER_SUPPLY_TYPE_MAINS && ac_on)
-			val->intval =  1;
-		else if (psy->type == POWER_SUPPLY_TYPE_USB && usb_on)
-			val->intval =  1;
-		else if (psy->type == POWER_SUPPLY_TYPE_DOCK_AC && battery_docking_status)
-			val->intval =  1;
-		else
-			val->intval = 0;
-		break;
-
-	default:
-		return -EINVAL;
+		default:
+			return -EINVAL;
 	}
-	return ret;
+
+	return 0;
 }
 
 static char *supply_list[] = {
@@ -200,9 +186,9 @@ static struct power_supply pad_supply[] = {
 	{
 		.name            = "battery",
 		.type            = POWER_SUPPLY_TYPE_BATTERY,
-		.properties      = pad_properties,
-		.num_properties  = ARRAY_SIZE(pad_properties),
-		.get_property    = pad_get_property,
+		.properties      = pad_battery_properties,
+		.num_properties  = ARRAY_SIZE(pad_battery_properties),
+		.get_property    = pad_battery_get_property,
 	},
 	{
 		.name            = "ac",
@@ -232,24 +218,17 @@ static struct power_supply pad_supply[] = {
 };
 
 static struct pad_device_info {
-	struct i2c_client	*client;
-	struct delayed_work status_poll_work;
-	struct delayed_work low_bat_work;
-	struct wake_lock low_battery_wake_lock;
-	struct wake_lock cable_event_wake_lock;
-	struct timer_list charger_pad_dock_detect_timer ;
+	struct i2c_client     *client;
+	struct delayed_work   status_poll_work;
+	struct delayed_work   low_bat_work;
+	struct wake_lock      low_battery_wake_lock;
+	struct wake_lock      cable_event_wake_lock;
+	struct timer_list     charger_pad_dock_detect_timer;
+	
 	int smbus_status;
-	int bat_status;
-	int bat_temp;
-	int bat_vol;
-	int bat_current;
-	int bat_capacity;
 	unsigned int old_capacity;
-	unsigned int cap_err;
-	unsigned int old_temperature;
-	unsigned int temp_err;
-	unsigned int prj_id;
 	bool dock_charger_pad_interrupt_enabled;
+
 	spinlock_t lock;
 } *pad_device;
 
@@ -276,11 +255,10 @@ static ssize_t show_battery_smbus_status(struct device *dev, struct device_attri
 
 static ssize_t show_battery_charger_status(struct device *dev, struct device_attribute *devattr, char *buf)
 {
-	if(pad_device->smbus_status < 0){
+	if (pad_device->smbus_status < 0)
 		return sprintf(buf, "%d\n", 0);
-	} else {
+	else
 		return sprintf(buf, "%d\n", 1);
-	}
 }
 
 static DEVICE_ATTR(battery_smbus, S_IWUSR | S_IRUGO, show_battery_smbus_status, NULL);
@@ -369,11 +347,10 @@ static void charger_pad_dock_detection(unsigned long unused)
 	int dock_in = !gpio_get_value(TEGRA_GPIO_PU4);
 	int charger_pad_dock = !gpio_get_value(DOCK_CHARGING_GPIO);
 
-	if(docking_status && dock_in && charger_pad_dock){
+	if (docking_status && dock_in && charger_pad_dock)
 		battery_docking_status = true;
-	} else {
+	else
 		battery_docking_status = false;
-	}
 
 	check_cabe_type();
 	power_supply_changed(&pad_supply[Charger_Type_Docking_AC]);
@@ -409,187 +386,134 @@ int docking_callback(int docking_in)
 		power_supply_changed(&pad_supply[Charger_Type_Battery]);
 		mod_timer(&pad_device->charger_pad_dock_detect_timer, jiffies + (5*HZ));
 	}
+
 	return 0;
 }
 
-static int pad_get_health(enum power_supply_property psp,
+static int pad_battery_get_value(enum power_supply_property psp)
+{
+	int offs;
+
+	if (psp >= ARRAY_SIZE(pad_battery_prop_offs))
+		return -EINVAL;
+
+	if (!pad_battery_prop_offs[psp])
+		return -EINVAL;
+
+	offs = pad_battery_prop_offs[psp];
+
+	return asuspec_battery_monitor(offs);
+}
+
+static int pad_battery_get_psp(enum power_supply_property psp,
 	union power_supply_propval *val)
 {
-	if (psp == POWER_SUPPLY_PROP_PRESENT) {
-		val->intval = 1;
-	} else if (psp == POWER_SUPPLY_PROP_HEALTH) {
-		val->intval = POWER_SUPPLY_HEALTH_GOOD;
-	}
-	return 0;
-}
-
-static int pad_get_psp(int reg_offset, enum power_supply_property psp,
-	union power_supply_propval *val)
-{
-	s32 ret;
-	int smb_retry = 0;
-
-	do{
-		if (psp == POWER_SUPPLY_PROP_VOLTAGE_NOW){
-			pad_device->smbus_status = pad_device->bat_vol = asuspec_battery_monitor("voltage");
-			battery_current = asuspec_battery_monitor("current");
-			battery_remaining_capacity = asuspec_battery_monitor("remaining_capacity");
-		} else if (psp == POWER_SUPPLY_PROP_STATUS)
-			pad_device->smbus_status = pad_device->bat_status = asuspec_battery_monitor("status");
-		else  if (psp == POWER_SUPPLY_PROP_TEMP)
-			pad_device->smbus_status = pad_device->bat_temp = asuspec_battery_monitor("temperature");
-	} while((pad_device->smbus_status < 0) && (++smb_retry <= SMBUS_RETRY));
-
-
-	if (pad_device->smbus_status < 0) {
-		dev_err(&pad_device->client->dev,
-			"%s: i2c read for %d failed\n", __func__, reg_offset);
-
-		if(psp == POWER_SUPPLY_PROP_TEMP && (++pad_device->temp_err <= 3) && (pad_device->old_temperature != 0xFF)){
-			val->intval = pad_device->old_temperature;
-			pr_info("pad_battery: read battery's tempurate fail, use old temperature = %u, pad_device->temp_err = %u\n", val->intval, pad_device->temp_err);
-			return 0;
-		} else
-			return -EINVAL;
-	}
-
-	if (psp == POWER_SUPPLY_PROP_VOLTAGE_NOW)
-		val->intval = pad_device->bat_vol;
-
-	if (psp == POWER_SUPPLY_PROP_STATUS) {
-		ret = pad_device->bat_status;
-
-		/* mask the upper byte and then find the actual status */
-		if (!(ret & BATTERY_CHARGING) && (ac_on || battery_docking_status)){/*DSG*/
-			val->intval = POWER_SUPPLY_STATUS_CHARGING;
-			if (pad_device->old_capacity == 100)
-				val->intval = POWER_SUPPLY_STATUS_FULL;
-		} else if (ret & BATTERY_FULL_CHARGED)//fc
-			val->intval = POWER_SUPPLY_STATUS_FULL;
-		else if (ret & BATTERY_FULL_DISCHARGED)//fd
-			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
-		else
-			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
-	} else if (psp == POWER_SUPPLY_PROP_TEMP) {
-		ret = pad_device->bat_temp;
-		ret -= TEMP_KELVIN_TO_CELCIUS;
-
-		if ((ret/10) >= MAXIMAL_VALID_BATTERY_TEMP && (pad_device->temp_err == 0)){
-			ret = 300;
-			pr_info("pad_battery: [Warning] pad_get_psp battery temp = %u, set to 30.0\n", ret);
-			WARN_ON(1);
-			pad_device->temp_err++;
-		} else
-			pad_device->temp_err = 0;
-
-		pad_device->old_temperature = val->intval = ret;
-	}
-	return 0;
-}
-
-static int pad_get_capacity(union power_supply_propval *val)
-{
-	s32 ret;
+	int ret;
 	s32 temp_capacity;
-	int smb_retry = 0;
 
-	do{
-		pad_device->smbus_status = pad_device->bat_capacity = asuspec_battery_monitor("capacity");
-	}while((pad_device->smbus_status < 0) && (++smb_retry <= SMBUS_RETRY));
+	ret = pad_battery_get_value(psp);
+	if (ret < 0)
+		return ret;
 
-	if (pad_device->smbus_status < 0) {
-		dev_err(&pad_device->client->dev, "%s: i2c read for %d "
-			"failed pad_device->cap_err = %u\n", __func__, REG_CAPACITY, pad_device->cap_err);
+	val->intval = (s16)ret;
 
-		if((pad_device->cap_err > 5) || (pad_device->old_capacity == 0xFF)) {
-			return -EINVAL;
-		} else {
-			val->intval = pad_device->old_capacity;
-			pad_device->cap_err++;
-			pr_info("pad_battery: read capacity fail, use old capacity = %u pad_device->cap_err = %u\n", val->intval, pad_device->cap_err);
-			return 0;
-		}
+	switch (psp) {
+		case POWER_SUPPLY_PROP_STATUS:
+			pad_device->smbus_status = ret;
+
+			/* mask the upper byte and then find the actual status */
+			if (!(ret & BATTERY_CHARGING) && (ac_on || battery_docking_status)) {	/*DSG*/
+				val->intval = POWER_SUPPLY_STATUS_CHARGING;
+				if (pad_device->old_capacity == 100)
+					val->intval = POWER_SUPPLY_STATUS_FULL;
+			} else if (ret & BATTERY_FULL_CHARGED)
+				val->intval = POWER_SUPPLY_STATUS_FULL;
+			else if (ret & BATTERY_FULL_DISCHARGED)
+				val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+			else
+				val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+
+			break;
+
+		case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+			pad_device->smbus_status = ret;
+			break;
+
+		case POWER_SUPPLY_PROP_TEMP:
+			pad_device->smbus_status = ret;
+			val->intval -= TEMP_KELVIN_TO_CELCIUS;
+			break;
+
+		case POWER_SUPPLY_PROP_CURRENT_NOW:
+			battery_current = ret;
+			break;
+
+		case POWER_SUPPLY_PROP_CAPACITY:
+			pad_device->smbus_status = ret;
+			
+			/*
+			 * Pad spec says that this can be >100 %
+			 * even if max value is 100 %
+			 */
+			temp_capacity = ((ret >= 100) ? 100 : ret);
+
+			/* start: for mapping %99 to 100%. Lose 84%*/
+			if(temp_capacity == 99)
+				temp_capacity = 100;
+			if(temp_capacity >=84 && temp_capacity <=98)
+				temp_capacity++;
+			/* for mapping %99 to 100% */
+
+			 /* lose 26% 47% 58%,69%,79% */
+			if(temp_capacity >70 && temp_capacity <80)
+				temp_capacity -= 1;
+			else if(temp_capacity >60 && temp_capacity <=70)
+				temp_capacity -= 2;
+			else if(temp_capacity >50 && temp_capacity <=60)
+				temp_capacity -= 3;
+			else if(temp_capacity >30 && temp_capacity <=50)
+				temp_capacity -= 4;
+			else if(temp_capacity >=0 && temp_capacity <=30)
+				temp_capacity -= 5;
+
+			/*Re-check capacity to avoid  that temp_capacity <0*/
+			temp_capacity = ((temp_capacity <0) ? 0 : temp_capacity);
+
+			val->intval = temp_capacity;
+			pad_device->old_capacity = val->intval;
+
+			break;
+
+		case POWER_SUPPLY_PROP_CHARGE_NOW:
+			battery_remaining_capacity = ret;
+			break;
+
+		default:
+			break;	
 	}
-
-	ret = pad_device->bat_capacity;
-	/*
-	 * Pad spec says that this can be >100 %
-	 * even if max value is 100 %
-	 */
-	temp_capacity = ((ret >= 100) ? 100 : ret);
-
-	/* start: for mapping %99 to 100%. Lose 84%*/
-	if(temp_capacity == 99)
-		temp_capacity = 100;
-	if(temp_capacity >=84 && temp_capacity <=98)
-		temp_capacity++;
-	/* for mapping %99 to 100% */
-
-	 /* lose 26% 47% 58%,69%,79% */
-	if(temp_capacity >70 && temp_capacity <80)
-		temp_capacity -= 1;
-	else if(temp_capacity >60 && temp_capacity <=70)
-		temp_capacity -= 2;
-	else if(temp_capacity >50 && temp_capacity <=60)
-		temp_capacity -= 3;
-	else if(temp_capacity >30 && temp_capacity <=50)
-		temp_capacity -= 4;
-	else if(temp_capacity >=0 && temp_capacity <=30)
-		temp_capacity -= 5;
-
-	/*Re-check capacity to avoid  that temp_capacity <0*/
-	temp_capacity = ((temp_capacity <0) ? 0 : temp_capacity);
-
-	val->intval = temp_capacity;
-
-	pad_device->old_capacity = val->intval;
-	pad_device->cap_err = 0;
 
 	return 0;
 }
 
-static int pad_get_property(struct power_supply *psy,
+static int pad_battery_get_property(struct power_supply *psy,
 	enum power_supply_property psp,
 	union power_supply_propval *val)
 {
-	u8 count;
 	switch (psp) {
 		case POWER_SUPPLY_PROP_PRESENT:
-		case POWER_SUPPLY_PROP_HEALTH:
-			if (pad_get_health(psp, val))
-				return -EINVAL;
+			val->intval = 1;
 			break;
 
 		case POWER_SUPPLY_PROP_TECHNOLOGY:
 			val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
 			break;
 
-		case POWER_SUPPLY_PROP_CAPACITY:
-			if (pad_get_capacity(val))
-				return -EINVAL;
-			break;
-
-		case POWER_SUPPLY_PROP_STATUS:
-		case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-		case POWER_SUPPLY_PROP_CURRENT_NOW:
-		case POWER_SUPPLY_PROP_TEMP:
-		case POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG:
-		case POWER_SUPPLY_PROP_TIME_TO_FULL_AVG:
-		case POWER_SUPPLY_PROP_SERIAL_NUMBER:
-			for (count = 0; count < REG_MAX; count++) {
-				if (psp == pad_data[count].psp)
-					break;
-			}
-
-			if (pad_get_psp(count, psp, val))
-				return -EINVAL;
-			break;
-
 		default:
-			dev_err(&pad_device->client->dev,
-				"%s: INVALID property psp = %u\n", __func__,psp);
-			return -EINVAL;
+			if (pad_battery_get_psp(psp, val))
+				return -EINVAL;
+			break;
 	}
+
 	return 0;
 }
 
@@ -609,10 +533,7 @@ static int pad_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, pad_device);
 
 	pad_device->smbus_status = 0;
-	pad_device->cap_err = 0;
-	pad_device->temp_err = 0;
 	pad_device->old_capacity = 0xFF;
-	pad_device->old_temperature = 0xFF;
 
 	for (i = 0; i < ARRAY_SIZE(pad_supply); i++) {
 		rc = power_supply_register(&client->dev, &pad_supply[i]);

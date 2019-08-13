@@ -69,6 +69,10 @@ void cable_status_reset(void);
 int __init transformer_udc_init(void);
 void __exit transformer_udc_exit(void);
 
+/* Battery monitor */
+int asusdec_is_ac_over_10v_callback(void);
+int asuspec_battery_monitor(int offs);
+
 #define DOCKRAM_ENTRIES                 0x100
 #define DOCKRAM_ENTRY_SIZE              32
 #define DOCKRAM_ENTRY_BUFSIZE           (DOCKRAM_ENTRY_SIZE + 1)
