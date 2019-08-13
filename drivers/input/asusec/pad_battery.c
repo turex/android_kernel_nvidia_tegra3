@@ -29,11 +29,15 @@
 #include <linux/i2c.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
+#include <linux/gpio.h>
 #include <linux/timer.h>
 #include <linux/interrupt.h>
 #include <linux/wakelock.h>
 #include <linux/asusec.h>
-#include <linux/power/pad_battery.h>
+
+#include <../gpio-names.h>
+
+#include <mach/board-transformer-misc.h>
 
 #define BATTERY_DETECT_GPIO                 TEGRA_GPIO_PN4
 #define LOW_BATTERY_GPIO                    TEGRA_GPIO_PS4
@@ -73,6 +77,8 @@ unsigned (*get_usb_cable_status_cb) (void);
 
 /* Functions declaration */
 static int pad_battery_get_property(struct power_supply *psy,
+	enum power_supply_property psp, union power_supply_propval *val);
+static int dock_battery_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val);
 
 module_param(battery_current, uint, 0644);
@@ -120,8 +126,8 @@ static enum power_supply_property pad_battery_properties[] = {
 	POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG,
 	POWER_SUPPLY_PROP_TIME_TO_FULL_AVG,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
+	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_PRESENT,
-	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 };
 
 static const unsigned pad_battery_prop_offs[] = {
@@ -189,6 +195,13 @@ static struct power_supply pad_supply[] = {
 		.properties      = pad_battery_properties,
 		.num_properties  = ARRAY_SIZE(pad_battery_properties),
 		.get_property    = pad_battery_get_property,
+	},
+	{
+		.name            = "dock_battery",
+		.type            = POWER_SUPPLY_TYPE_DOCK_BATTERY,
+		.properties      = pad_battery_properties,
+		.num_properties  = ARRAY_SIZE(pad_battery_properties),
+		.get_property    = dock_battery_get_property,
 	},
 	{
 		.name            = "ac",
@@ -390,9 +403,9 @@ int docking_callback(int docking_in)
 	return 0;
 }
 
-static int pad_battery_get_value(enum power_supply_property psp)
+static int battery_get_value(enum power_supply_property psp, bool pad)
 {
-	int offs;
+	int rc, offs;
 
 	if (psp >= ARRAY_SIZE(pad_battery_prop_offs))
 		return -EINVAL;
@@ -402,16 +415,21 @@ static int pad_battery_get_value(enum power_supply_property psp)
 
 	offs = pad_battery_prop_offs[psp];
 
-	return asuspec_battery_monitor(offs);
+	if (pad)
+		rc = pad_battery_monitor(offs);
+	else
+		rc = dock_battery_monitor(offs);
+
+	return rc;
 }
 
-static int pad_battery_get_psp(enum power_supply_property psp,
-	union power_supply_propval *val)
+static int battery_get_psp(enum power_supply_property psp,
+	union power_supply_propval *val, bool pad)
 {
 	int ret;
 	s32 temp_capacity;
 
-	ret = pad_battery_get_value(psp);
+	ret = battery_get_value(psp, pad);
 	if (ret < 0)
 		return ret;
 
@@ -419,20 +437,25 @@ static int pad_battery_get_psp(enum power_supply_property psp,
 
 	switch (psp) {
 		case POWER_SUPPLY_PROP_STATUS:
-			pad_device->smbus_status = ret;
-
-			/* mask the upper byte and then find the actual status */
-			if (!(ret & BATTERY_CHARGING) && (ac_on || battery_docking_status)) {	/*DSG*/
-				val->intval = POWER_SUPPLY_STATUS_CHARGING;
-				if (pad_device->old_capacity == 100)
+			if (pad) {
+				pad_device->smbus_status = ret;
+				/* mask the upper byte and then find the actual status */
+				if (!(ret & BATTERY_CHARGING) && (ac_on || battery_docking_status)) {	/*DSG*/
+					val->intval = POWER_SUPPLY_STATUS_CHARGING;
+					if (pad_device->old_capacity == 100)
+						val->intval = POWER_SUPPLY_STATUS_FULL;
+				} else if (ret & BATTERY_FULL_CHARGED)
 					val->intval = POWER_SUPPLY_STATUS_FULL;
-			} else if (ret & BATTERY_FULL_CHARGED)
-				val->intval = POWER_SUPPLY_STATUS_FULL;
-			else if (ret & BATTERY_FULL_DISCHARGED)
-				val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
-			else
-				val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
-
+				else if (ret & BATTERY_FULL_DISCHARGED)
+					val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+				else
+					val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+			} else {
+				if (ret & 0x4)
+					val->intval = POWER_SUPPLY_STATUS_CHARGING;
+				else
+					val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+			}
 			break;
 
 		case POWER_SUPPLY_PROP_VOLTAGE_NOW:
@@ -495,13 +518,20 @@ static int pad_battery_get_psp(enum power_supply_property psp,
 	return 0;
 }
 
-static int pad_battery_get_property(struct power_supply *psy,
+static int battery_get_property(struct power_supply *psy,
 	enum power_supply_property psp,
-	union power_supply_propval *val)
+	union power_supply_propval *val, bool pad)
 {
 	switch (psp) {
 		case POWER_SUPPLY_PROP_PRESENT:
-			val->intval = 1;
+			if (pad)
+				val->intval = 1;
+			else
+				val->intval = dock_battery_monitor(0);
+			break;
+
+		case POWER_SUPPLY_PROP_HEALTH:
+			val->intval = POWER_SUPPLY_HEALTH_GOOD;
 			break;
 
 		case POWER_SUPPLY_PROP_TECHNOLOGY:
@@ -509,12 +539,28 @@ static int pad_battery_get_property(struct power_supply *psy,
 			break;
 
 		default:
-			if (pad_battery_get_psp(psp, val))
+			if (battery_get_psp(psp, val, pad))
 				return -EINVAL;
 			break;
 	}
 
 	return 0;
+}
+
+static int pad_battery_get_property(struct power_supply *psy,
+	enum power_supply_property psp,
+	union power_supply_propval *val)
+{
+	int ret = battery_get_property(psy, psp, val, true);
+	return ret;
+}
+
+static int dock_battery_get_property(struct power_supply *psy,
+	enum power_supply_property psp,
+	union power_supply_propval *val)
+{
+	int ret = battery_get_property(psy, psp, val, false);
+	return ret;
 }
 
 static int pad_probe(struct i2c_client *client,

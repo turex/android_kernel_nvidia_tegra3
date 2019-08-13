@@ -26,8 +26,6 @@
 #include <linux/wakelock.h>
 #include <linux/gpio_event.h>
 #include <linux/slab.h>
-#include <linux/power_supply.h>
-#include <linux/power/pad_battery.h>
 #include <linux/statfs.h>
 #include <linux/asusec.h>
 
@@ -57,8 +55,7 @@ static struct workqueue_struct *asuspec_wq;
 /*
  * functions definition
  */
-
-int asuspec_battery_monitor(int offs)
+int pad_battery_monitor(int offs)
 {
 	int ret = 0;
 	u8 batt_data[32];

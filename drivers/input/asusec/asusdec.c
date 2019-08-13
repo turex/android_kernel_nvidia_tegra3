@@ -27,8 +27,6 @@
 #include <linux/slab.h>
 #include <linux/switch.h>
 #include <linux/asusec.h>
-#include <linux/power_supply.h>
-#include <linux/power/pad_battery.h>
 
 #include <asm/gpio.h>
 #include <asm/uaccess.h>
@@ -109,6 +107,43 @@ module_param_cb(key_autorepeat, &key_autorepeat_ops, &key_autorepeat, 0644);
 /*
  * functions definition
  */
+int dock_battery_monitor(int offs)
+{
+	int ret = 0;
+	u8 batt_data[32];
+
+	if (!offs) {
+		if (!ec_chip->dock_in)
+			return 0;
+		else
+			return 1;
+	}
+
+	if (!ec_chip->dock_in)
+		return -1;
+
+	if (ec_chip->ec_in_s3 && ec_chip->status)
+		msleep(200);
+
+	if (offs == 1) {
+		ret = asus_dockram_read(&dock_client, 0x0A, batt_data);
+		if (ret < 0){
+			pr_err("asusdec: fail to access battery info\n");
+			return -1;
+		}
+
+		return batt_data[1];
+	}
+
+	ret = asus_dockram_read(&dock_client, 0x14, batt_data);
+	if (ret < 0){
+		pr_err("asusdec: fail to access battery info\n");
+		return -1;
+	}
+
+	return batt_data[offs + 1] << 8 | batt_data[offs];
+}
+
 static int asus_input_switch(struct i2c_client *client, u16 state)
 {
 	int retry, definer;
@@ -829,102 +864,6 @@ static ssize_t asusdec_switch_state(struct switch_dev *sdev, char *buf)
 	return sprintf(buf, "%d\n", switch_value[ec_chip->dock_in]);
 }
 
-static int asusdec_dock_battery_get_capacity(union power_supply_propval *val)
-{
-	int bat_percentage = 0;
-	int err = 0;
-
-	val->intval = -1;
-
-	if (!ec_chip->dock_in)
-		return -1;
-
-	if (ec_chip->ec_in_s3 && ec_chip->status)
-		msleep(200);
-
-	err = asus_dockram_read(&dock_client, 0x14, ec_chip->i2c_dm_data);
-	if (err < 0)
-		return -1;
-
-	bat_percentage = (ec_chip->i2c_dm_data[14] << 8 ) | ec_chip->i2c_dm_data[13];
-	bat_percentage = ((bat_percentage >= 100) ? 100 : bat_percentage);
-
-	if (bat_percentage >70 && bat_percentage <80)
-		bat_percentage -= 1;
-	else if (bat_percentage >60 && bat_percentage <=70)
-		bat_percentage -= 2;
-	else if (bat_percentage >50 && bat_percentage <=60)
-		bat_percentage -= 3;
-	else if (bat_percentage >30 && bat_percentage <=50)
-		bat_percentage -= 4;
-	else if (bat_percentage >=0 && bat_percentage <=30)
-		bat_percentage -= 5;
-
-	bat_percentage = ((bat_percentage <= 0) ? 0 : bat_percentage);
-	val->intval = bat_percentage;
-
-	return 0;
-}
-
-static int asusdec_dock_battery_get_status(union power_supply_propval *val)
-{
-	int err = 0;
-
-	val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
-
-	if (!ec_chip->dock_in)
-		return -1;
-
-	if (ec_chip->ec_in_s3 && ec_chip->status)
-		msleep(200);
-
-	err = asus_dockram_read(&dock_client, 0x0A, ec_chip->i2c_dm_data);
-	if (err < 0)
-		return -1;
-
-	if (ec_chip->i2c_dm_data[1] & 0x4)
-		val->intval = POWER_SUPPLY_STATUS_CHARGING;
-
-	return 0;
-}
-
-static int asusdec_dock_battery_get_property(struct power_supply *psy,
-	enum power_supply_property psp,
-	union power_supply_propval *val)
-{
-	switch (psp) {
-		case POWER_SUPPLY_PROP_CAPACITY:
-			if(asusdec_dock_battery_get_capacity(val) < 0)
-				goto error;
-			break;
-		case POWER_SUPPLY_PROP_STATUS:
-			if(asusdec_dock_battery_get_status(val) < 0)
-				goto error;
-			break;
-		default:
-			return -EINVAL;
-	}
-	return 0;
-
-error:
-	return -EINVAL;
-}
-
-static enum power_supply_property asusdec_dock_properties[] = {
-	POWER_SUPPLY_PROP_STATUS,
-	POWER_SUPPLY_PROP_CAPACITY,
-};
-
-static struct power_supply asusdec_power_supply[] = {
-	{
-		.name		= "dock_battery",
-		.type		= POWER_SUPPLY_TYPE_DOCK_BATTERY,
-		.properties	= asusdec_dock_properties,
-		.num_properties	= ARRAY_SIZE(asusdec_dock_properties),
-		.get_property	= asusdec_dock_battery_get_property,
-	},
-};
-
 static int __devinit asusdec_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
@@ -977,12 +916,6 @@ static int __devinit asusdec_probe(struct i2c_client *client,
 		goto exit;
 	}
 	switch_set_state(&ec_chip->dock_sdev, 0);
-
-	err = power_supply_register(&client->dev, &asusdec_power_supply[0]);
-	if (err){
-		pr_err("asusdec: fail to register power supply for dock\n");
-		goto exit;
-	}
 
 	asusdec_wq = create_singlethread_workqueue("asusdec_wq");
 
@@ -1065,9 +998,10 @@ static int asusdec_resume(struct device *dev)
 	return 0;
 }
 
-int asusdec_is_ac_over_10v_callback(void)
+int dock_ac_callback(void)
 {
 	int err;
+	u8 ac_data[32];
 
 	if (!ec_chip || !ec_chip->dock_in || !ec_chip->client)
 		goto not_ready;
@@ -1076,11 +1010,11 @@ int asusdec_is_ac_over_10v_callback(void)
 	if (err < 0)
 		goto not_ready;
 
-	err = asus_dockram_read(&dock_client, 0x0A, ec_chip->i2c_dm_data);
+	err = asus_dockram_read(&dock_client, 0x0A, ac_data);
 	if (err < 0)
 		goto not_ready;
 
-	return ec_chip->i2c_dm_data[1] & 0x20;
+	return ac_data[1] & 0x20;
 
 not_ready:
 	pr_info("asusdec: dock isn't ready\n");

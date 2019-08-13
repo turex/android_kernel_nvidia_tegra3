@@ -11,14 +11,16 @@
 
 #include <linux/asusec.h>
 #include <linux/delay.h>
+#include <linux/gpio.h>
 #include <linux/usb.h>
 #include <linux/usb/hcd.h>
 #include <linux/usb/gadget.h>
-#include <linux/power/pad_battery.h>
 
 #include <mach/board-transformer-misc.h>
 
-#include "../drivers/usb/gadget/tegra_udc.h"
+#include <../gpio-names.h>
+#include <../tegra_usb_phy.h>
+#include <../drivers/usb/gadget/tegra_udc.h>
 
 #define LIMIT_SET0_GPIO     TEGRA_GPIO_PR1
 #define DOCK_IN_GPIO        TEGRA_GPIO_PU4
@@ -58,10 +60,6 @@ struct cable_info {
 };
 
 static struct cable_info s_cable_info;
-
-#if DOCK_EC_ENABLED
-extern int asusdec_is_ac_over_10v_callback(void);
-#endif
 
 #if GET_USB_CABLE_STATUS_ENABLED
 unsigned int tegra_get_usb_cable_status(void)
@@ -146,7 +144,7 @@ void transformer_cable_detect(struct tegra_udc *udc)
 				while (ask_ec_num < 3) {
 					ask_ec_num ++;
 #if DOCK_EC_ENABLED
-					dock_ac = asusdec_is_ac_over_10v_callback();
+					dock_ac = dock_ac_callback();
 #endif
 					pr_info("tf_charger: limt_set1 = %d dock_ac = %#X\n", adapter_in, dock_ac);
 					s_cable_info.cable_status = 0x1; //0001
