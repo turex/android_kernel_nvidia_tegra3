@@ -116,7 +116,7 @@ int asus_ec_reset(struct i2c_client *client)
 	return ret;
 }
 
-int asus_ec_irq_request(struct i2c_client *client, int gpio, irq_handler_t handler,
+int asus_ec_irq_request(void *dev, int gpio, irq_handler_t handler,
 			unsigned long flags, const char *label)
 {
 	int rc = 0;
@@ -124,14 +124,14 @@ int asus_ec_irq_request(struct i2c_client *client, int gpio, irq_handler_t handl
 
 	rc = gpio_request(gpio, label);
 	if (rc) {
-		dev_err(&client->dev, "gpio_request failed for input %d\n", gpio);
+		pr_err("%s: gpio_request failed for input %d\n", __func__, gpio);
 		goto err_request_input_gpio_failed;
 	}
 
 	if (!handler) {
 		rc = gpio_direction_output(gpio, 1);
 		if (rc) {
-			dev_err(&client->dev, "gpio_direction_output failed for input %d\n", gpio);
+			pr_err("%s: gpio_direction_output failed for input %d\n", __func__, gpio);
 			goto err_gpio_direction_output_failed;
 		}
 		return 0;
@@ -139,13 +139,13 @@ int asus_ec_irq_request(struct i2c_client *client, int gpio, irq_handler_t handl
 
 	rc = gpio_direction_input(gpio);
 	if (rc) {
-		dev_err(&client->dev, "gpio_direction_input failed for input %d\n", gpio);
+		pr_err("%s: gpio_direction_input failed for input %d\n", __func__, gpio);
 		goto err_gpio_direction_input_failed;
 	}
 
-	rc = request_irq(irq, handler, flags, label, client);
+	rc = request_irq(irq, handler, flags, label, dev);
 	if (rc < 0) {
-		dev_err(&client->dev, "could not register for %s interrupt, irq = %d, rc = %d\n", label, irq, rc);
+		pr_err("%s: could not register for %s interrupt, irq = %d, rc = %d\n", __func__, label, irq, rc);
 		rc = -EIO;
 		goto err_gpio_request_irq_fail;
 	}
