@@ -37,10 +37,8 @@
 #include <linux/gpio.h>
 
 #ifdef CONFIG_MACH_TRANSFORMER
-#include <linux/power/pad_battery.h>
-
+#include <linux/asusec.h>
 static unsigned int usb_vbus_val = 0x0;
-int usb_suspend_tag;
 #endif
 
 #define USB_PHY_WAKEUP		0x408
@@ -338,12 +336,9 @@ static void tegra_change_otg_state(struct tegra_otg_data *tegra,
 		 *  usb_vbus_val = 0, VBUS disable.
 		 *  usb_vbus_val = 1024, VBUS enable.
 		 */
-	} else if ((from == OTG_STATE_A_SUSPEND) && (to == OTG_STATE_A_SUSPEND) && (usb_vbus_val == 1024)) {
+	} else if (from == OTG_STATE_A_SUSPEND && to == OTG_STATE_A_SUSPEND && usb_vbus_val == 1024) {
 		usb_vbus_val = otg_readl(tegra, USB_PHY_WAKEUP) & USB_VBUS_STATUS;
-#if BATTERY_CALLBACK_ENABLED
-		battery_callback(0x0);
-		previous_cable_status = 0;
-#endif
+		cable_status_reset();
 #endif
 	}
 }

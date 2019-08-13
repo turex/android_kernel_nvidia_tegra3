@@ -24,6 +24,9 @@
 #include <linux/of.h>
 #include <linux/delay.h>
 #include <linux/of_gpio.h>
+#ifdef CONFIG_MACH_TRANSFORMER
+#include <linux/asusec.h>
+#endif
 
 #include <mach/usb_phy.h>
 #include <mach/iomap.h>
@@ -42,19 +45,6 @@ static const char driver_name[] = "tegra-ehci";
 #ifdef CONFIG_MACH_GROUPER
 extern void baseband_xmm_ap_resume_work(void);
 #endif
-
-#ifdef CONFIG_MACH_TRANSFORMER
-#include <linux/power/pad_battery.h>
-
-static int usb3_init = 0;
-static struct usb_hcd *usb3_ehci_handle;
-static struct delayed_work usb3_ehci_dock_in_work;
-unsigned int gpio_dock_in_irq = 0;
-
-static struct tegra_ehci_hcd *modem_ehci_tegra;
-static struct platform_device *dock_port_device;
-static struct platform_device *modem_port_device;
-#endif /* CONFIG_MACH_TRANSFORMER */
 
 #define TEGRA_USB_DMA_ALIGN 32
 
@@ -89,52 +79,6 @@ struct dma_align_buffer {
 	void *old_xfer_buffer;
 	u8 data[0];
 };
-
-#ifdef CONFIG_MACH_TRANSFORMER
-void tegra_usb3_smi_backlight_on_callback(void)
-{
-	if(usb3_init == 1) {
-		if(!gpio_get_value(TEGRA_GPIO_PU4))
-			schedule_delayed_work(&usb3_ehci_dock_in_work, 0.5*HZ);
-	}
-}
-
-static void usb3_ehci_dock_in_work_handler(struct work_struct *w)
-{
-	usb_hcd_resume_root_hub(usb3_ehci_handle);
-	msleep(100);
-}
-
-static irqreturn_t gpio_dock_in_irq_handler(int irq, void *dev_id)
-{
-    int dock_in = !gpio_get_value(TEGRA_GPIO_PU4);
-
-	if (usb3_ehci_handle != NULL && dock_in == 1)
-		schedule_delayed_work(&usb3_ehci_dock_in_work, 0.5*HZ);
-
-	return IRQ_HANDLED;
-}
-
-static void gpio_dock_in_irq_init(struct usb_hcd *hcd)
-{
-	int ret = 0;
-
-	gpio_dock_in_irq = gpio_to_irq(TEGRA_GPIO_PU4);
-
-	/* Requesting gpio in case it wasn't requested before */
-	ret = gpio_request(TEGRA_GPIO_PU4, "DOCK_IN");
-
-	ret = gpio_direction_input(TEGRA_GPIO_PU4);
-	if (ret)
-		pr_err("%s: gpio_direction_input failed for input TEGRA_GPIO_PU4 = %d\n", __func__, TEGRA_GPIO_PU4);
-
-	ret = request_irq(gpio_dock_in_irq, gpio_dock_in_irq_handler, IRQF_SHARED|IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING, "usb3_dock_in_irq_handler", hcd);
-	if (ret < 0)
-		pr_err("%s: could not request IRQ for the GPIO dock in, irq = %d, ret = %d\n", __func__, gpio_dock_in_irq, ret);
-
-	INIT_DELAYED_WORK(&usb3_ehci_dock_in_work, usb3_ehci_dock_in_work_handler);
-}
-#endif /* CONFIG_MACH_TRANSFORMER */
 
 static struct usb_phy *get_usb_phy(struct tegra_usb_phy *x)
 {
@@ -647,12 +591,7 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_MACH_TRANSFORMER
-	if (tegra->phy->inst == 2) {
-		usb3_ehci_handle = hcd;
-		usb3_init = 1;
-		gpio_dock_in_irq_init(hcd);
-		dock_port_device = pdev;
-	}
+	transformer_usb_definer(hcd, tegra->phy);
 #endif
 
 	err = tegra_usb_phy_power_on(tegra->phy);
@@ -699,14 +638,6 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 					PM_QOS_DEFAULT_VALUE);
 	schedule_delayed_work(&tegra->boost_cpu_freq_work, 4000);
 	tegra->cpu_boost_in_work = true;
-#endif
-
-#ifdef CONFIG_MACH_TRANSFORMER
-	if (tegra->phy->inst == 1 && tegra3_get_project_id() == TEGRA3_PROJECT_TF300TG) {
-		modem_ehci_tegra = tegra;
-	} else if (tegra->phy->inst == 1 && tegra3_get_project_id() == TEGRA3_PROJECT_TF300TL) {
-		modem_port_device = pdev;
-	}
 #endif
 
 	return err;
@@ -790,12 +721,7 @@ static int tegra_ehci_remove(struct platform_device *pdev)
 #endif
 
 #ifdef CONFIG_MACH_TRANSFORMER
-	if (tegra->phy->inst == 2 && usb3_init == 1) {
-		free_irq(gpio_dock_in_irq, hcd);
-		usb3_ehci_handle = NULL;
-		usb3_init = 0;
-		dock_port_device = NULL;
-	}
+	transformer_usb_definer(hcd, tegra->phy);
 #endif
 
 	if (tegra->irq)
@@ -833,12 +759,7 @@ static void tegra_ehci_hcd_shutdown(struct platform_device *pdev)
 	struct usb_hcd *hcd = ehci_to_hcd(tegra->ehci);
 
 #ifdef CONFIG_MACH_TRANSFORMER
-	if (tegra->phy->inst == 2 && usb3_init == 1) {
-		free_irq(gpio_dock_in_irq, hcd);
-		usb3_ehci_handle = NULL;
-		usb3_init = 0;
-		dock_port_device = NULL;
-	}
+	transformer_usb_definer(hcd, tegra->phy);
 #endif
 
 	if (hcd->driver->shutdown)

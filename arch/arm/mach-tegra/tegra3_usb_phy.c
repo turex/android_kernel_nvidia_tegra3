@@ -36,7 +36,7 @@
 #include "clock.h"
 
 #ifdef CONFIG_MACH_TRANSFORMER
-#include <mach/board-transformer-misc.h>
+#include <linux/asusec.h>
 #endif
 
 #define USB_USBCMD		0x130
@@ -1134,20 +1134,7 @@ static int utmi_phy_open(struct tegra_usb_phy *phy)
 	phy->utmi_xcvr_setup = utmi_phy_xcvr_setup_value(phy);
 
 #ifdef CONFIG_MACH_TRANSFORMER
-	if (phy->inst == 0 || phy->inst == 2) {
-		if (tegra3_get_project_id() == TEGRA3_PROJECT_TF201) {
-			if (phy->utmi_xcvr_setup >= 48) {
-				phy->utmi_xcvr_setup = phy->utmi_xcvr_setup - 48;
-			} else {
-				phy->utmi_xcvr_setup = 0;
-			}
-		} else {
-			phy->utmi_xcvr_setup = phy->utmi_xcvr_setup + 8;
-			if (phy->utmi_xcvr_setup > 63)
-				phy->utmi_xcvr_setup = 63;
-		}
-		pr_info("phy->inst = %d, phy->utmi_xcvr_setup = %d\n", phy->inst, phy->utmi_xcvr_setup);
-	}
+	utmi_xcvr_setup_corrector(phy);
 #endif
 
 	parent_rate = clk_get_rate(clk_get_parent(phy->pllu_clk));

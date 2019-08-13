@@ -30,10 +30,6 @@
 #define GET_USB_CABLE_STATUS_ENABLED 1
 
 extern int usb_suspend_tag; /* defined in tegra-otg */
-extern unsigned int previous_cable_status; /* defined in tegra_udc */
-
-void fsl_dock_ec_callback(void); /* Tegra UDC charger export */
-void tegra_usb3_smi_backlight_on_callback(void); /* EHCI Tegra USB export */
 
 /* Battery export */
 void battery_callback(unsigned usb_cable_state);

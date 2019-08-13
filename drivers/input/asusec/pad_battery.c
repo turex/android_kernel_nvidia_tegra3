@@ -268,21 +268,6 @@ unsigned get_usb_cable_status(void)
 	return get_usb_cable_status_cb();
 }
 
-int pad_smbus_read_data(int reg_offset,int byte)
-{
-	s32 ret = -EINVAL;
-	int count = 0;
-
-	do{
-		if(byte)
-			ret = i2c_smbus_read_byte_data(pad_device->client, pad_data[reg_offset].addr);
-		else
-			ret = i2c_smbus_read_word_data(pad_device->client, pad_data[reg_offset].addr);
-	}while((ret < 0) && (++count <= SMBUS_RETRY));
-
-	return ret;
-}
-
 static ssize_t show_battery_smbus_status(struct device *dev, struct device_attribute *devattr, char *buf)
 {
 	int status =! pad_device->smbus_status;

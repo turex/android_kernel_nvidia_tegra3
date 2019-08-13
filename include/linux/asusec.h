@@ -32,6 +32,9 @@
 //-----------------------------------------
 
 struct i2c_client;
+struct tegra_udc;
+struct tegra_usb_phy;
+struct usb_hcd;
 
 /* dockram comm */
 
@@ -49,6 +52,22 @@ int asus_ec_signal_request(struct i2c_client *client, int ecreq_gpio);
 int asus_ec_irq_request(void *dev, int gpio, irq_handler_t handler,
 			unsigned long flags, const char *label);
 void asus_ec_clear_buffer(struct i2c_client *client, char *buf);
+
+/* USB lines */
+void transformer_link_udc(struct tegra_udc *udc);
+void transformer_cable_detect(struct tegra_udc *udc);
+void transformer_usb_definer(struct usb_hcd *hcd, struct tegra_usb_phy *phy);
+
+void fsl_dock_ec_callback(void);
+void utmi_xcvr_setup_corrector(struct tegra_usb_phy *phy);
+void tegra_usb3_smi_backlight_on_callback(void);
+void tegra_detect_charging_type_is_cdp_or_dcp(struct tegra_udc *udc); /* export from tegra_udc */
+
+void cable_status_setup(struct tegra_udc *udc);
+void cable_status_reset(void);
+
+int __init transformer_udc_init(void);
+void __exit transformer_udc_exit(void);
 
 #define DOCKRAM_ENTRIES                 0x100
 #define DOCKRAM_ENTRY_SIZE              32
