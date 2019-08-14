@@ -21,7 +21,6 @@
 #include <linux/mutex.h>
 #include <linux/delay.h>
 #include <linux/init.h>
-#include <linux/input.h>
 #include <linux/workqueue.h>
 #include <linux/gpio_event.h>
 #include <linux/slab.h>
@@ -57,26 +56,6 @@ static int asusdec_major = 0;
 static int asusdec_minor = 0;
 
 static struct workqueue_struct *asusdec_wq;
-
-static int asusdec_kp_sci_table[]={0, KEY_SLEEP, KEY_WLAN, KEY_BLUETOOTH,
-		ASUSDEC_KEY_TOUCHPAD, KEY_BRIGHTNESSDOWN, KEY_BRIGHTNESSUP, ASUSDEC_KEY_AUTOBRIGHT,
-		KEY_CAMERA, -9, -10, -11,
-		-12, -13, -14, -15,
-		KEY_WWW, ASUSDEC_KEY_SETTING, KEY_PREVIOUSSONG, KEY_PLAYPAUSE,
-		KEY_NEXTSONG, KEY_MUTE, KEY_VOLUMEDOWN, KEY_VOLUMEUP};
-
-/* Function keys */
-static int asusdec_kp_sci_table_fn[]={0, KEY_DELETE, KEY_F1, KEY_F2,
-		KEY_F3, KEY_F4, KEY_F5, KEY_F6,
-		KEY_F7, -9, -10, -11,
-		-12, -13, -14, -15,
-		KEY_F8, KEY_F9, KEY_F10, KEY_F11,
-		KEY_F12, KEY_INSERT, KEY_VOLUMEDOWN, KEY_VOLUMEUP};
-
-#define KEY_FLAGS_FN_LOCK 1		/* Fn keys without modifier */
-#define KEY_FLAGS_BACK_AS_ESC 2
-#define KEY_FLAGS_SEARCH_AS_LEFTALT 4
-#define KEY_FLAGS_HOME_AS_LEFTMETA 8	/* aka Super_L or "Windows key" */
 
 int key_flags = 0;
 module_param(key_flags, int, 0644);
@@ -366,253 +345,6 @@ static irqreturn_t asusdec_interrupt_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static int asusdec_kp_key_mapping(int x)
-{
-	switch (x){
-		case ASUSDEC_KEYPAD_ESC:
-			if (key_flags & KEY_FLAGS_BACK_AS_ESC)
-				return KEY_ESC;
-			else
-				return KEY_BACK;
-
-		case ASUSDEC_KEYPAD_KEY_WAVE:
-			return KEY_GRAVE;
-
-		case ASUSDEC_KEYPAD_KEY_1:
-			return KEY_1;
-
-		case ASUSDEC_KEYPAD_KEY_2:
-			return KEY_2;
-
-		case ASUSDEC_KEYPAD_KEY_3:
-			return KEY_3;
-
-		case ASUSDEC_KEYPAD_KEY_4:
-			return KEY_4;
-
-		case ASUSDEC_KEYPAD_KEY_5:
-			return KEY_5;
-
-		case ASUSDEC_KEYPAD_KEY_6:
-			return KEY_6;
-
-		case ASUSDEC_KEYPAD_KEY_7:
-			return KEY_7;
-
-		case ASUSDEC_KEYPAD_KEY_8:
-			return KEY_8;
-
-		case ASUSDEC_KEYPAD_KEY_9:
-			return KEY_9;
-
-		case ASUSDEC_KEYPAD_KEY_0:
-			return KEY_0;
-
-		case ASUSDEC_KEYPAD_KEY_MINUS:
-			return KEY_MINUS;
-
-		case ASUSDEC_KEYPAD_KEY_EQUAL:
-			return KEY_EQUAL;
-
-		case ASUSDEC_KEYPAD_KEY_BACKSPACE:
-			return KEY_BACKSPACE;
-
-		case ASUSDEC_KEYPAD_KEY_TAB:
-			return KEY_TAB;
-
-		case ASUSDEC_KEYPAD_KEY_Q:
-			return KEY_Q;
-
-		case ASUSDEC_KEYPAD_KEY_W:
-			return KEY_W;
-
-		case ASUSDEC_KEYPAD_KEY_E:
-			return KEY_E;
-
-		case ASUSDEC_KEYPAD_KEY_R:
-			return KEY_R;
-
-		case ASUSDEC_KEYPAD_KEY_T:
-			return KEY_T;
-
-		case ASUSDEC_KEYPAD_KEY_Y:
-			return KEY_Y;
-
-		case ASUSDEC_KEYPAD_KEY_U:
-			return KEY_U;
-
-		case ASUSDEC_KEYPAD_KEY_I:
-			return KEY_I;
-
-		case ASUSDEC_KEYPAD_KEY_O:
-			return KEY_O;
-
-		case ASUSDEC_KEYPAD_KEY_P:
-			return KEY_P;
-
-		case ASUSDEC_KEYPAD_KEY_LEFTBRACE:
-			return KEY_LEFTBRACE;
-
-		case ASUSDEC_KEYPAD_KEY_RIGHTBRACE:
-			return KEY_RIGHTBRACE;
-
-		case ASUSDEC_KEYPAD_KEY_BACKSLASH:
-			return KEY_BACKSLASH;
-
-		case ASUSDEC_KEYPAD_KEY_CAPSLOCK:
-			return KEY_CAPSLOCK;
-
-		case ASUSDEC_KEYPAD_KEY_A:
-			return KEY_A;
-
-		case ASUSDEC_KEYPAD_KEY_S:
-			return KEY_S;
-
-		case ASUSDEC_KEYPAD_KEY_D:
-			return KEY_D;
-
-		case ASUSDEC_KEYPAD_KEY_F:
-			return KEY_F;
-
-		case ASUSDEC_KEYPAD_KEY_G:
-			return KEY_G;
-
-		case ASUSDEC_KEYPAD_KEY_H:
-			return KEY_H;
-
-		case ASUSDEC_KEYPAD_KEY_J:
-			return KEY_J;
-
-		case ASUSDEC_KEYPAD_KEY_K:
-			return KEY_K;
-
-		case ASUSDEC_KEYPAD_KEY_L:
-			return KEY_L;
-
-		case ASUSDEC_KEYPAD_KEY_SEMICOLON:
-			return KEY_SEMICOLON;
-
-		case ASUSDEC_KEYPAD_KEY_APOSTROPHE:
-			return KEY_APOSTROPHE;
-
-		case ASUSDEC_KEYPAD_KEY_ENTER:
-			return KEY_ENTER;
-
-		case ASUSDEC_KEYPAD_KEY_LEFTSHIFT:
-			return KEY_LEFTSHIFT;
-
-		case ASUSDEC_KEYPAD_KEY_Z:
-			return KEY_Z;
-
-		case ASUSDEC_KEYPAD_KEY_X:
-			return KEY_X;
-
-		case ASUSDEC_KEYPAD_KEY_C:
-			return KEY_C;
-
-		case ASUSDEC_KEYPAD_KEY_V:
-			return KEY_V;
-
-		case ASUSDEC_KEYPAD_KEY_B:
-			return KEY_B;
-
-		case ASUSDEC_KEYPAD_KEY_N:
-			return KEY_N;
-
-		case ASUSDEC_KEYPAD_KEY_M:
-			return KEY_M;
-
-		case ASUSDEC_KEYPAD_KEY_COMMA:
-			return KEY_COMMA;
-
-		case ASUSDEC_KEYPAD_KEY_DOT:
-			return KEY_DOT;
-
-		case ASUSDEC_KEYPAD_KEY_SLASH:
-			return KEY_SLASH;
-
-		case ASUSDEC_KEYPAD_KEY_RIGHTSHIFT:
-			return KEY_RIGHTSHIFT;
-
-		case ASUSDEC_KEYPAD_KEY_LEFT:
-			return KEY_LEFT;
-
-		case ASUSDEC_KEYPAD_KEY_RIGHT:
-			return KEY_RIGHT;
-
-		case ASUSDEC_KEYPAD_KEY_UP:
-			return KEY_UP;
-
-		case ASUSDEC_KEYPAD_KEY_DOWN:
-			return KEY_DOWN;
-
-		case ASUSDEC_KEYPAD_RIGHTWIN:
-			if (key_flags & KEY_FLAGS_SEARCH_AS_LEFTALT)
-				return KEY_LEFTALT;
-			else
-				return KEY_SEARCH;
-
-		case ASUSDEC_KEYPAD_LEFTCTRL:
-			return KEY_LEFTCTRL;
-
-		case ASUSDEC_KEYPAD_LEFTWIN:
-			if (key_flags & KEY_FLAGS_HOME_AS_LEFTMETA)
-				return KEY_LEFTMETA;
-			else
-				return KEY_HOMEPAGE;
-
-		case ASUSDEC_KEYPAD_LEFTALT:
-			return KEY_LEFTALT;
-
-		case ASUSDEC_KEYPAD_KEY_SPACE:
-			return KEY_SPACE;
-
-		case ASUSDEC_KEYPAD_RIGHTALT:
-			return KEY_RIGHTALT;
-
-		case ASUSDEC_KEYPAD_WINAPP:
-			return KEY_MENU;
-
-		case ASUSDEC_KEYPAD_RIGHTCTRL:
-			return KEY_RIGHTCTRL;
-
-		case ASUSDEC_KEYPAD_HOME:
-			return KEY_HOME;
-
-		case ASUSDEC_KEYPAD_PAGEUP:
-			return KEY_PAGEUP;
-
-		case ASUSDEC_KEYPAD_PAGEDOWN:
-			return KEY_PAGEDOWN;
-
-		case ASUSDEC_KEYPAD_END:
-			return KEY_END;
-
-		//--- JP keys
-		case ASUSDEC_YEN:
-			return KEY_YEN;
-
-		case ASUSDEC_RO:
-			return KEY_RO;
-
-		case ASUSDEC_MUHENKAN:
-			return KEY_MUHENKAN;
-
-		case ASUSDEC_HENKAN:
-			return KEY_HENKAN;
-
-		case ASUSDEC_HIRAGANA_KATAKANA:
-			return KEY_KATAKANAHIRAGANA;
-
-		//--- UK keys
-		case ASUSDEC_EUROPE_2:
-			return KEY_102ND;
-
-		default:
-			return -1;
-	}
-}
-
 static void asusdec_reset_counter(unsigned long data){
 	ec_chip->d_index = 0;
 }
@@ -731,15 +463,16 @@ static void asusdec_kp_sci(void)
 	int ec_signal = ec_chip->i2c_data[2];
 
 	if (fn_keys_active(ec_chip->indev))
-		ec_chip->keypad_data.input_keycode = asusdec_kp_sci_table_fn[ec_signal];
+		ec_chip->keypad_data.input_keycode = fn_dock_ext_keys[ec_signal];
 	else
-		ec_chip->keypad_data.input_keycode = asusdec_kp_sci_table[ec_signal];
+		ec_chip->keypad_data.input_keycode = asus_dock_ext_keys[ec_signal];
 
-	if (ec_chip->keypad_data.input_keycode == ASUSDEC_KEY_TP_SWITCH)
+	if (ec_signal == 0x04)
 		asusdec_tp_control();
 
 	if (ec_chip->keypad_data.input_keycode > 0) {
-//		pr_info("asusdec: input_keycode = 0x%x\n", ec_chip->keypad_data.input_keycode);
+//		pr_info("asusdec: ext_input_keycode = 0x%x, ec_signal = 0x%x\n",
+//					ec_chip->keypad_data.input_keycode, ec_signal);
 
 		input_report_key(ec_chip->indev, ec_chip->keypad_data.input_keycode, 1);
 		input_sync(ec_chip->indev);
@@ -789,15 +522,19 @@ static void asusdec_kp_key(void)
 		}
 	}
 
-	ec_chip->keypad_data.input_keycode = asusdec_kp_key_mapping(scancode);
+	if (scancode == 0x76 || scancode == 0xE01F) {
+		if ((key_flags & KEY_FLAGS_BACK_AS_ESC) ||
+		    (key_flags & KEY_FLAGS_HOME_AS_LEFTMETA))
+				ec_chip->keypad_data.input_keycode = linux_dock_keys[scancode];
+	} else
+		ec_chip->keypad_data.input_keycode = asus_dock_keys[scancode];
 
-	if(ec_chip->keypad_data.input_keycode > 0){
+	if (ec_chip->keypad_data.input_keycode > 0) {
 		input_report_key(ec_chip->indev,
 			ec_chip->keypad_data.input_keycode, ec_chip->keypad_data.value);
 		input_sync(ec_chip->indev);
-	} else {
+	} else
 		pr_info("asusdec: unknown scancode = 0x%x\n", scancode);
-	}
 }
 
 static void asusdec_keypad_processing(void)
