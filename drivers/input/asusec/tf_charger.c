@@ -123,12 +123,12 @@ void transformer_cable_detect(struct tegra_udc *udc)
 
 		case CONNECT_TYPE_DCP:
 			pr_info("tf_charger: detected DCP port (wall charger)\n");
-			if (!dock_in) { //no dock in
+			if (dock_in == 0) { //no dock in
 				if (adapter_in == 1) {
 					pr_info("tf_charger: AC adapter 15V connected (1A)\n");
 					s_cable_info.cable_status = 0x3; //0011
 					s_cable_info.ac_15v_connected = true;
-				} else if (!adapter_in) {
+				} else if (adapter_in == 0) {
 					pr_info("tf_charger: AC adapter 5V connected (1A)\n");
 					s_cable_info.cable_status = 0x1; //0001
 					s_cable_info.ac_15v_connected = false;
@@ -156,7 +156,7 @@ void transformer_cable_detect(struct tegra_udc *udc)
 						s_cable_info.ac_15v_connected = true;
 						ask_ec_num = 0;
 						break;
-					} else if (!dock_ac) {
+					} else if (dock_ac == 0) {
 						pr_info("tf_charger: AC adapter + Docking 5V connected (1A)\n");
 						s_cable_info.cable_status = 0x1; //0001
 						s_cable_info.ac_15v_connected = false;
@@ -194,8 +194,8 @@ void transformer_cable_detect(struct tegra_udc *udc)
 
 static void usb_cable_detection(struct work_struct *w)
 {
-	tegra_detect_charging_type_is_cdp_or_dcp(the_udc);	// this is not good
-	transformer_cable_detect(the_udc);					// same as this
+	tegra_detect_charging_type_is_cdp_or_dcp(the_udc);
+	transformer_cable_detect(the_udc);
 #if BATTERY_CALLBACK_ENABLED
 	battery_callback(s_cable_info.cable_status);
 #endif
