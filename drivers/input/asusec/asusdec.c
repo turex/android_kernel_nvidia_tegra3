@@ -30,8 +30,6 @@
 #include <asm/gpio.h>
 #include <asm/uaccess.h>
 
-#include <../gpio-names.h>
-
 #include <mach/board-transformer-misc.h>
 
 #include "elantech.h"
@@ -40,11 +38,6 @@
  * global variable
  */
 int switch_value[] = {0, 10}; /* 0: no dock, 1: mobile dock */
-
-static unsigned int asusdec_apwake_gpio = TEGRA_GPIO_PS7;
-static unsigned int asusdec_ecreq_gpio = TEGRA_GPIO_PQ6;
-static unsigned int asusdec_dock_in_gpio = TEGRA_GPIO_PU4;
-static unsigned int asusdec_hall_sensor_gpio = TEGRA_GPIO_PS6;
 
 static struct i2c_client dock_client;
 static struct class *asusdec_class;
@@ -186,7 +179,7 @@ static void asusdec_tp_control(void)
 		if (ec_chip->tp_model) {
 			ec_chip->susb_on = 1;
 			ec_chip->init_success = -1;
-			asus_ec_signal_request(ec_chip->client, asusdec_ecreq_gpio);
+			asus_ec_signal_request(ec_chip->client, DOCK_ECREQ_GPIO);
 			ec_chip->dock_init = 0;
 		}
 	}
@@ -275,7 +268,7 @@ static int asusdec_chip_init(struct i2c_client *client)
 		return 0;
 
 	wake_lock(&ec_chip->wake_lock);
-	disable_irq_nosync(gpio_to_irq(asusdec_apwake_gpio));
+	disable_irq_nosync(gpio_to_irq(DOCK_APWAKE_GPIO));
 
 	err = asus_ec_detect(&dock_client, client, ec_chip->i2c_data);
 	if (err < 0)
@@ -299,14 +292,14 @@ static int asusdec_chip_init(struct i2c_client *client)
 		if(ec_chip->tp_model){
 			ec_chip->susb_on = 1;
 			ec_chip->init_success = -1;
-			asus_ec_signal_request(client, asusdec_ecreq_gpio);
+			asus_ec_signal_request(client, DOCK_ECREQ_GPIO);
 			ec_chip->dock_init = 0;
 		}
 		ec_chip->tp_wait_ack = 1;
 		asus_input_switch(client, ASUSDEC_TP_ENABLE);
 	}
 
-	enable_irq(gpio_to_irq(asusdec_apwake_gpio));
+	enable_irq(gpio_to_irq(DOCK_APWAKE_GPIO));
 
 	pr_info("asusdec: touchpad and keyboard init\n");
 
@@ -324,7 +317,7 @@ fail_to_access_ec:
 	} else
 		pr_info("asusdec: need DOCK FW update\n");
 
-	enable_irq(gpio_to_irq(asusdec_apwake_gpio));
+	enable_irq(gpio_to_irq(DOCK_APWAKE_GPIO));
 	wake_unlock(&ec_chip->wake_lock);
 
 	return -1;
@@ -332,12 +325,12 @@ fail_to_access_ec:
 
 static irqreturn_t asusdec_interrupt_handler(int irq, void *dev_id)
 {
-	if (irq == gpio_to_irq(asusdec_apwake_gpio)){
+	if (irq == gpio_to_irq(DOCK_APWAKE_GPIO)){
 		disable_irq_nosync(irq);
 		queue_delayed_work(asusdec_wq, &ec_chip->asusdec_work, 0);
 	}
 
-	if (irq == gpio_to_irq(asusdec_dock_in_gpio)){
+	if (irq == gpio_to_irq(DOCK_IN_GPIO)){
 		ec_chip->dock_in = 0;
 		queue_delayed_work(asusdec_wq, &ec_chip->asusdec_dock_init_work, 0);
 	}
@@ -354,7 +347,7 @@ static void asusdec_dock_init_work_function(struct work_struct *dat)
 	wake_lock(&ec_chip->wake_lock_init);
 	mutex_lock(&ec_chip->input_lock);
 
-	if (gpio_get_value(asusdec_dock_in_gpio)){
+	if (gpio_get_value(DOCK_IN_GPIO)){
 		pr_info("asusdec: No dock detected\n");
 
 		ec_chip->dock_in = 0;
@@ -376,11 +369,11 @@ static void asusdec_dock_init_work_function(struct work_struct *dat)
 	} else {
 		pr_info("asusdec: Dock-in detected\n");
 
-		if (gpio_get_value(asusdec_hall_sensor_gpio) || (!ec_chip->status)){
+		if (gpio_get_value(HALL_SENSOR_GPIO) || (!ec_chip->status)){
 			if (!ec_chip->init_success){
 				ec_chip->susb_on = 1;
 				msleep(200);
-				asus_ec_signal_request(ec_chip->client, asusdec_ecreq_gpio);
+				asus_ec_signal_request(ec_chip->client, DOCK_ECREQ_GPIO);
 				ec_chip->dock_init = 0;
 			}
 		} else {
@@ -429,7 +422,7 @@ static void asusdec_kp_smi(void)
 		case ASUSEC_SMI_BACKLIGHT_ON:
 			dev_info(&ec_chip->client->dev, "ASUSDEC_SMI_BACKLIGHT_ON\n");
 			ec_chip->susb_on = 1;
-			asus_ec_signal_request(ec_chip->client, asusdec_ecreq_gpio);
+			asus_ec_signal_request(ec_chip->client, DOCK_ECREQ_GPIO);
 			ec_chip->dock_init = 0;
 #if DOCK_USB
 			tegra_usb3_smi_backlight_on_callback();
@@ -561,10 +554,10 @@ static void asusdec_pad_battery_report_function(struct work_struct *dat)
 
 static void asusdec_work_function(struct work_struct *dat)
 {
-	int irq = gpio_to_irq(asusdec_apwake_gpio);
+	int irq = gpio_to_irq(DOCK_APWAKE_GPIO);
 	int err = 0;
 
-	ec_chip->dock_in = gpio_get_value(asusdec_dock_in_gpio) ? 0 : 1;
+	ec_chip->dock_in = gpio_get_value(DOCK_IN_GPIO) ? 0 : 1;
 
 	err = asus_ec_read(ec_chip->client, ec_chip->i2c_data);
 	enable_irq(irq);
@@ -664,11 +657,11 @@ static int __devinit asusdec_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_led_on_work, asusdec_keypad_led_on);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_led_off_work, asusdec_keypad_led_off);
 
-	asus_ec_irq_request(client, asusdec_dock_in_gpio, asusdec_interrupt_handler,
-			IRQF_SHARED | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, ASUSDEC_DOCKIN);
-	asus_ec_irq_request(client, asusdec_ecreq_gpio, NULL, 0, ASUSDEC_REQUEST);
-	asus_ec_irq_request(client, asusdec_apwake_gpio, asusdec_interrupt_handler,
-			IRQF_TRIGGER_LOW, ASUSDEC_INPUT);
+	asus_ec_irq_request(client, DOCK_IN_GPIO, asusdec_interrupt_handler,
+			IRQF_SHARED | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, DOCK_IN);
+	asus_ec_irq_request(client, DOCK_ECREQ_GPIO, NULL, 0, DOCK_REQUEST);
+	asus_ec_irq_request(client, DOCK_APWAKE_GPIO, asusdec_interrupt_handler,
+			IRQF_TRIGGER_LOW, DOCK_INPUT);
 
 	queue_delayed_work(asusdec_wq, &ec_chip->asusdec_dock_init_work, 0);
 
@@ -721,9 +714,9 @@ fail_to_access_ec:
 
 static int asusdec_resume(struct device *dev)
 {
-	if (!gpio_get_value(asusdec_dock_in_gpio) &&
-	     gpio_get_value(asusdec_apwake_gpio)) {
-		asus_ec_signal_request(ec_chip->client, asusdec_ecreq_gpio);
+	if (!gpio_get_value(DOCK_IN_GPIO) &&
+	     gpio_get_value(DOCK_APWAKE_GPIO)) {
+		asus_ec_signal_request(ec_chip->client, DOCK_ECREQ_GPIO);
 		ec_chip->dock_init = 0;
 	}
 

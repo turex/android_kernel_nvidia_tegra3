@@ -33,14 +33,9 @@
 #include <asm/ioctl.h>
 #include <asm/uaccess.h>
 
-#include <../gpio-names.h>
-
 /*
  * global variable
  */
-static unsigned int asuspec_apwake_gpio = TEGRA_GPIO_PS2;
-static unsigned int asuspec_ecreq_gpio = TEGRA_GPIO_PQ1;
-
 static struct i2c_client pad_client;
 static struct class *asuspec_class;
 static struct device *asuspec_device;
@@ -61,7 +56,7 @@ int pad_battery_monitor(int offs)
 	u8 batt_data[32];
 
 	if (ec_chip->ec_in_s3)
-		asus_ec_signal_request(ec_chip->client, asuspec_ecreq_gpio);
+		asus_ec_signal_request(ec_chip->client, PAD_ECREQ_GPIO);
 
 	ret = asus_dockram_read(&pad_client, 0x14, batt_data);
 	if (ret < 0){
@@ -112,7 +107,7 @@ fail_to_access_ec:
 
 static irqreturn_t asuspec_interrupt_handler(int irq, void *dev_id)
 {
-	if (irq == gpio_to_irq(asuspec_apwake_gpio)){
+	if (irq == gpio_to_irq(PAD_APWAKE_GPIO)){
 		disable_irq_nosync(irq);
 		queue_delayed_work(asuspec_wq, &ec_chip->asuspec_work, 0);
 	}
@@ -175,13 +170,13 @@ err_exit:
 
 static void asuspec_init_work_function(struct work_struct *dat)
 {
-	asus_ec_signal_request(ec_chip->client, asuspec_ecreq_gpio);
+	asus_ec_signal_request(ec_chip->client, PAD_ECREQ_GPIO);
 	asuspec_chip_init(ec_chip->client);
 }
 
 static void asuspec_work_function(struct work_struct *dat)
 {
-	int irq = gpio_to_irq(asuspec_apwake_gpio);
+	int irq = gpio_to_irq(PAD_APWAKE_GPIO);
 	int err = 0;
 
 	err = asus_ec_read(ec_chip->client, ec_chip->i2c_data);
@@ -234,9 +229,9 @@ static int __devinit asuspec_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asuspec_init_work, asuspec_init_work_function);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asuspec_enter_s3_work, asuspec_enter_s3_work_function);
 
-	asus_ec_irq_request(client, asuspec_ecreq_gpio, NULL, 0, ASUSPEC_REQUEST);
-	asus_ec_irq_request(client, asuspec_apwake_gpio, asuspec_interrupt_handler,
-			IRQF_TRIGGER_LOW, ASUSPEC_APWAKE);
+	asus_ec_irq_request(client, PAD_ECREQ_GPIO, NULL, 0, PAD_REQUEST);
+	asus_ec_irq_request(client, PAD_APWAKE_GPIO, asuspec_interrupt_handler,
+			IRQF_TRIGGER_LOW, PAD_APWAKE);
 
 	queue_delayed_work(asuspec_wq, &ec_chip->asuspec_init_work, 0);
 

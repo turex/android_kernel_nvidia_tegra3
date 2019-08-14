@@ -23,6 +23,8 @@
 #include <linux/switch.h>
 #include <linux/wakelock.h>
 
+#include <../gpio-names.h>
+
 /*
  * compiler option
  */
@@ -109,12 +111,38 @@ extern int usb_suspend_tag;
 #define ASUSDEC_KB_ENABLE               0xF400
 #define ASUSDEC_KB_DISABLE              0xF500
 
-/*            - IRQ labels -              */
-#define ASUSPEC_REQUEST                 "pad_request"
-#define ASUSPEC_APWAKE                  "pad_apwake"
-#define ASUSDEC_REQUEST                 "dock_request"
-#define ASUSDEC_INPUT                   "dock_input"
-#define ASUSDEC_DOCKIN                  "dock_in"
+/* GPIO labels */
+#define PAD_APWAKE_GPIO                 TEGRA_GPIO_PS2
+#define PAD_ECREQ_GPIO                  TEGRA_GPIO_PQ1
+#define DOCK_APWAKE_GPIO                TEGRA_GPIO_PS7
+#define DOCK_ECREQ_GPIO                 TEGRA_GPIO_PQ6
+#define DOCK_IN_GPIO                    TEGRA_GPIO_PU4
+#define HALL_SENSOR_GPIO                TEGRA_GPIO_PS6
+#define BATTERY_DETECT_GPIO             TEGRA_GPIO_PN4
+#define LOW_BATTERY_GPIO                TEGRA_GPIO_PS4
+#define DOCK_CHARGING_GPIO              TEGRA_GPIO_PS5
+#define THERMAL_POWER_GPIO              TEGRA_GPIO_PU3
+#define LIMIT_SET0_GPIO                 TEGRA_GPIO_PR1
+#define ADAPTER_IN_GPIO                 TEGRA_GPIO_PH5
+
+/* IRQ labels */
+#define PAD_REQUEST                     "pad_request"
+#define PAD_APWAKE                      "pad_apwake"
+#define DOCK_REQUEST                    "dock_request"
+#define DOCK_INPUT                      "dock_input"
+#define DOCK_IN                         "dock_in"
+#define LOW_BATTERY                     "low_battery_detect"
+#define DOCK_CHARGING                   "dock_charging"
+#define THERMAL_POWER                   "thermal_power"
+#define LIMIT_SET0                      "limit_set0"
+#define ADAPTER_IN                      "adapter_in"
+
+/* SMI event */
+#define ASUSEC_SMI_HANDSHAKING          0x50
+#define ASUSEC_SMI_WAKE                 0x53
+#define ASUSEC_SMI_RESET                0x5F
+#define ASUSEC_SMI_ADAPTER_EVENT        0x60
+#define ASUSEC_SMI_BACKLIGHT_ON         0x63
 
 #define KEY_FLAGS_FN_LOCK               1	/* Fn keys without modifier */
 #define KEY_FLAGS_BACK_AS_ESC           2
@@ -259,13 +287,6 @@ static const unsigned short linux_dock_keys[] = {
 	[0x76] = KEY_ESC,               /* ASUSDEC_KEYPAD_ESC */
 	[0xE01F] = KEY_LEFTMETA,        /* ASUSDEC_KEYPAD_LEFTWIN */
 };
-
-/*               SMI event                */
-#define ASUSEC_SMI_HANDSHAKING          0x50
-#define ASUSEC_SMI_WAKE                 0x53
-#define ASUSEC_SMI_RESET                0x5F
-#define ASUSEC_SMI_ADAPTER_EVENT        0x60
-#define ASUSEC_SMI_BACKLIGHT_ON         0x63
 
 /*
  * data struct

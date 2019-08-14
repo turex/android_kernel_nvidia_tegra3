@@ -35,14 +35,7 @@
 #include <linux/wakelock.h>
 #include <linux/asusec.h>
 
-#include <../gpio-names.h>
-
 #include <mach/board-transformer-misc.h>
-
-#define BATTERY_DETECT_GPIO                 TEGRA_GPIO_PN4
-#define LOW_BATTERY_GPIO                    TEGRA_GPIO_PS4
-#define DOCK_CHARGING_GPIO                  TEGRA_GPIO_PS5
-#define THERMAL_POWER_GPIO                  TEGRA_GPIO_PU3
 
 #define BATTERY_POLLING_RATE                (60)
 #define DELAY_FOR_CORRECT_CHARGER_STATUS    (5)
@@ -606,10 +599,10 @@ static int pad_probe(struct i2c_client *client,
 		dev_err(&client->dev, "Not able to create the sysfs\n");
 
 	asus_ec_irq_request(NULL, DOCK_CHARGING_GPIO, battery_interrupt_handler,
-			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING, "dock_charging");
+			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING, DOCK_CHARGING);
 
 	asus_ec_irq_request(NULL, LOW_BATTERY_GPIO, battery_interrupt_handler,
-			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "low_battery_detect");
+			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, LOW_BATTERY);
 
 	pad_device->dock_charger_pad_interrupt_enabled = true;
 
@@ -623,7 +616,7 @@ static int pad_probe(struct i2c_client *client,
 	queue_delayed_work(battery_work_queue, &pad_device->status_poll_work, 15*HZ);
 
 	if(tegra3_get_project_id() == TEGRA3_PROJECT_TF201)
-		asus_ec_irq_request(client, THERMAL_POWER_GPIO, NULL, 0, "thermal_power");
+		asus_ec_irq_request(client, THERMAL_POWER_GPIO, NULL, 0, THERMAL_POWER);
 
 	pr_info("pad_battery: probed\n");
 

@@ -18,13 +18,8 @@
 
 #include <mach/board-transformer-misc.h>
 
-#include <../gpio-names.h>
 #include <../tegra_usb_phy.h>
 #include <../drivers/usb/gadget/tegra_udc.h>
-
-#define LIMIT_SET0_GPIO     TEGRA_GPIO_PR1
-#define DOCK_IN_GPIO        TEGRA_GPIO_PU4
-#define ADAPTER_IN_GPIO     TEGRA_GPIO_PH5
 
 /*
  * previous_cable_status :
@@ -272,7 +267,7 @@ static irqreturn_t dockin_interrupt_handler(int irq, void *dev_id)
 static void usb3_dockin_irq(struct usb_hcd *hcd)
 {
 	asus_ec_irq_request(hcd, DOCK_IN_GPIO, dockin_interrupt_handler,
-			IRQF_SHARED | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "dock_in");
+			IRQF_SHARED | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, DOCK_IN);
 
 	INIT_DELAYED_WORK(&usb3_ehci_dock_in_work, usb3_ehci_dock_in_work_handler);
 }
@@ -325,13 +320,13 @@ int __init transformer_udc_init(void)
 	INIT_DELAYED_WORK(&s_cable_info.usb_cable_detect, usb_cable_detection);
 
 	/* Charging gpios init */
-	ret = gpio_request(LIMIT_SET0_GPIO, "limit_set0");
+	ret = gpio_request(LIMIT_SET0_GPIO, LIMIT_SET0);
 	if (ret < 0)
 		pr_err("tf_charger: failed to request the LIMIT_SET0_GPIO: %d\n", ret);
 
 	gpio_limit_set0_set(false);
 
-	ret = gpio_request(DOCK_IN_GPIO, "dock_in");
+	ret = gpio_request(DOCK_IN_GPIO, DOCK_IN);
 	if (ret < 0)
 		pr_err("tf_charger: failed to request the DOCK_IN_GPIO: %d\n", ret);
 
@@ -340,7 +335,7 @@ int __init transformer_udc_init(void)
 		pr_err("tf_charger: gpio_direction_input failed for input DOCK_IN_GPIO\n");
 
 	asus_ec_irq_request(NULL, ADAPTER_IN_GPIO, adapter_interrupt_handler,
-			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "adapter_in");
+			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, ADAPTER_IN);
 
 	return 0;
 }

@@ -25,11 +25,7 @@
 #include <linux/input.h>
 #include <linux/input/mt.h>
 
-#include <../gpio-names.h>
-
 #include "elantech.h"
-
-static unsigned int asusdec_ecreq_gpio = TEGRA_GPIO_PQ6;
 
 /*
  * This driver is simplified version of elantech touchpad driver.
@@ -242,7 +238,7 @@ static void elantech_process_byte(struct asusdec_chip *ec_chip)
 	} else if (ec_chip->tp_model){
 		ec_chip->susb_on = 1;
 		ec_chip->init_success = -1;
-		asus_ec_signal_request(ec_chip->client, asusdec_ecreq_gpio);
+		asus_ec_signal_request(ec_chip->client, DOCK_ECREQ_GPIO);
 		ec_chip->dock_init = 0;
 	}
 }
