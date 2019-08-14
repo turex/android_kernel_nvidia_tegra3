@@ -116,35 +116,6 @@ int dock_battery_monitor(int offs)
 	return batt_data[offs + 1] << 8 | batt_data[offs];
 }
 
-static int asus_input_switch(struct i2c_client *client, u16 state)
-{
-	int retry, definer;
-
-	asus_ec_clear_buffer(client, ec_chip->i2c_data);
-	asus_ec_write(client, state);
-
-	for (retry = 0; retry < ASUSEC_RETRY_COUNT; retry++) {
-		asus_ec_read(client, ec_chip->i2c_data);
-		
-		if ((state == ASUSDEC_KB_ENABLE) || (state == ASUSDEC_KB_DISABLE))
-			definer = !(ec_chip->i2c_data[1] & ASUSEC_AUX_MASK);
-		else
-			definer = (ec_chip->i2c_data[1] & ASUSEC_AUX_MASK);
-
-		if ((ec_chip->i2c_data[1] & ASUSEC_OBF_MASK) && definer) {
-			if (ec_chip->i2c_data[2] == ASUSDEC_PS2_ACK)
-				goto exit;
-		}
-		msleep(DELAY_TIME_MS);
-	}
-
-	dev_err(&client->dev, "failed to write 0x%x into EC\n", state);
-	return -1;
-
-exit:
-	return 0;
-}
-
 static void asusdec_keypad_led_on(struct work_struct *dat)
 {
 	ec_chip->kbc_value = 1;
@@ -167,13 +138,13 @@ static void asusdec_tp_control(void)
 		pr_info("asusdec: switching touchpad off\n");
 		ec_chip->tp_enable = 0;
 		ec_chip->tp_wait_ack = 1;
-		asus_input_switch(ec_chip->client, ASUSDEC_TP_DISABLE);
+		asus_ec_input_switch(ec_chip->client, ASUSDEC_TP_DISABLE);
 		ec_chip->d_index = 0;
 	} else if (!ec_chip->tp_enable) {
 		pr_info("asusdec: switching touchpad on\n");
 		ec_chip->tp_enable = 1;
 		ec_chip->tp_wait_ack = 1;
-		asus_input_switch(ec_chip->client, ASUSDEC_TP_ENABLE);
+		asus_ec_input_switch(ec_chip->client, ASUSDEC_TP_ENABLE);
 		ec_chip->d_index = 0;
 
 		if (ec_chip->tp_model) {
@@ -280,24 +251,11 @@ static int asusdec_chip_init(struct i2c_client *client)
 	if (!ec_chip->init_success)
 		msleep(750);
 
-	asus_input_switch(client, ASUSDEC_TP_DISABLE);
-	asus_input_switch(client, ASUSDEC_KB_DISABLE);
+	asus_ec_input_switch(client, ASUSDEC_KB_DISABLE);
 
 	ec_chip->tp_model = elantech_init(ec_chip);
-	ec_chip->d_index = 0;
 
-	asus_input_switch(client, ASUSDEC_KB_ENABLE);
-
-	if(ec_chip->tp_enable){
-		if(ec_chip->tp_model){
-			ec_chip->susb_on = 1;
-			ec_chip->init_success = -1;
-			asus_ec_signal_request(client, DOCK_ECREQ_GPIO);
-			ec_chip->dock_init = 0;
-		}
-		ec_chip->tp_wait_ack = 1;
-		asus_input_switch(client, ASUSDEC_TP_ENABLE);
-	}
+	asus_ec_input_switch(client, ASUSDEC_KB_ENABLE);
 
 	enable_irq(gpio_to_irq(DOCK_APWAKE_GPIO));
 

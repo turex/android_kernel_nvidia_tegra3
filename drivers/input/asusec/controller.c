@@ -217,3 +217,33 @@ out_free:
 	kfree(model);
 	return ret;
 }
+
+int asus_ec_input_switch(struct i2c_client *client, u16 state)
+{
+	int retry, definer;
+	u8 i2c_data[32];
+
+	asus_ec_clear_buffer(client, i2c_data);
+	asus_ec_write(client, state);
+
+	for (retry = 0; retry < ASUSEC_RETRY_COUNT; retry++) {
+		asus_ec_read(client, i2c_data);
+
+		if ((state == ASUSDEC_KB_ENABLE) || (state == ASUSDEC_KB_DISABLE))
+			definer = !(i2c_data[1] & ASUSEC_AUX_MASK);
+		else
+			definer = (i2c_data[1] & ASUSEC_AUX_MASK);
+
+		if ((i2c_data[1] & ASUSEC_OBF_MASK) && definer) {
+			if (i2c_data[2] == ASUSDEC_PS2_ACK)
+				goto exit;
+		}
+		msleep(DELAY_TIME_MS);
+	}
+
+	dev_err(&client->dev, "failed to write 0x%x into EC\n", state);
+	return -1;
+
+exit:
+	return 0;
+}

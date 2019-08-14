@@ -320,7 +320,7 @@ static int elantech_set_absolute_mode(struct i2c_client *client)
 	int rc = 0;
 
 	/* Since hw_version = 3 set proper reg and val */
-	unsigned char reg = 0x0010; // orig
+	unsigned char reg = 0x10;   // orig
 	unsigned char val = 0x03;   // orig
 
 	rc = elantech_write_reg(client, reg, val);
@@ -349,57 +349,41 @@ static int elantech_set_range(struct i2c_client *client,
 /*
  * Set the appropriate event bits for the input subsystem
  */
-static int elantech_set_input_params(struct asusdec_chip *ec_chip)
+static int elantech_set_input_params(struct elantech_data *etd, struct i2c_client *client)
 {
-	struct elantech_data *etd = ec_chip->private;
-	struct i2c_client *client = ec_chip->client;
-
+	struct input_dev *dev = etd->input_dev;
 	unsigned int x_min = 0, y_min = 0, x_max = 0, y_max = 0, width = 0;
-	int ret;
 
 	if (elantech_set_range(client, &x_min, &y_min, &x_max, &y_max, &width))
 		return -1;
 
-	if (etd->input_dev)
-		return 0;
+	dev->name = "elantech_touchscreen";
 
-	etd->input_dev = input_allocate_device();
-	if (!etd->input_dev) {
-		dev_err(&client->dev, "Failed to allocate input device\n");
-		return -ENOMEM;
-	}
+	__set_bit(INPUT_PROP_POINTER, dev->propbit);
+	__set_bit(EV_KEY, dev->evbit);
+	__set_bit(EV_ABS, dev->evbit);
+	__clear_bit(EV_REL, dev->evbit);
 
-	etd->input_dev->name = "elantech_touchscreen";
+	__set_bit(BTN_LEFT, dev->keybit);
+	__set_bit(BTN_RIGHT, dev->keybit);
 
-	__set_bit(INPUT_PROP_POINTER, etd->input_dev->propbit);
-	__set_bit(EV_KEY, etd->input_dev->evbit);
-	__set_bit(EV_ABS, etd->input_dev->evbit);
-	__clear_bit(EV_REL, etd->input_dev->evbit);
+	__set_bit(BTN_TOUCH, dev->keybit);
+	__set_bit(BTN_TOOL_FINGER, dev->keybit);
+	__set_bit(BTN_TOOL_DOUBLETAP, dev->keybit);
+	__set_bit(BTN_TOOL_TRIPLETAP, dev->keybit);
 
-	__set_bit(BTN_LEFT, etd->input_dev->keybit);
-	__set_bit(BTN_RIGHT, etd->input_dev->keybit);
+	input_set_abs_params(dev, ABS_X, x_min, x_max, 0, 0);
+	input_set_abs_params(dev, ABS_Y, y_min, y_max, 0, 0);
 
-	__set_bit(BTN_TOUCH, etd->input_dev->keybit);
-	__set_bit(BTN_TOOL_FINGER, etd->input_dev->keybit);
-	__set_bit(BTN_TOOL_DOUBLETAP, etd->input_dev->keybit);
-	__set_bit(BTN_TOOL_TRIPLETAP, etd->input_dev->keybit);
+	input_set_abs_params(dev, ABS_PRESSURE, ETP_PMIN_V2, ETP_PMAX_V2, 0, 0);
+	input_set_abs_params(dev, ABS_TOOL_WIDTH, ETP_WMIN_V2, ETP_WMAX_V2, 0, 0);
 
-	input_set_abs_params(etd->input_dev, ABS_X, x_min, x_max, 0, 0);
-	input_set_abs_params(etd->input_dev, ABS_Y, y_min, y_max, 0, 0);
-
-	input_set_abs_params(etd->input_dev, ABS_PRESSURE, ETP_PMIN_V2, ETP_PMAX_V2, 0, 0);
-	input_set_abs_params(etd->input_dev, ABS_TOOL_WIDTH, ETP_WMIN_V2, ETP_WMAX_V2, 0, 0);
-
-	input_mt_init_slots(etd->input_dev, 2);
-	input_set_abs_params(etd->input_dev, ABS_MT_POSITION_X, x_min, x_max, 0, 0);
-	input_set_abs_params(etd->input_dev, ABS_MT_POSITION_Y, y_min, y_max, 0, 0);
+	input_mt_init_slots(dev, 2);
+	input_set_abs_params(dev, ABS_MT_POSITION_X, x_min, x_max, 0, 0);
+	input_set_abs_params(dev, ABS_MT_POSITION_Y, y_min, y_max, 0, 0);
 
 	etd->y_max = y_max;
 	etd->width = width;
-
-	ret = input_register_device(etd->input_dev);
-	if (ret)
-		pr_err("elantech: %s: Unable to register %s input device\n", __func__, etd->input_dev->name);
 
 	return 0;
 }
@@ -409,25 +393,59 @@ static int elantech_set_input_params(struct asusdec_chip *ec_chip)
  */
 int elantech_init(struct asusdec_chip *ec_chip)
 {
+	struct elantech_data *etd = ec_chip->private;
 	struct i2c_client *client = ec_chip->client;
 	int rc = 0;
 
+	asus_ec_input_switch(client, ASUSDEC_TP_DISABLE);
+
 	rc = elantech_set_absolute_mode(client);
-	if (rc){
+	if (rc) {
 		pr_err("elantech: %s: failed to put touchpad into absolute mode.\n", __func__);
-		return rc;
+		goto err_exit;
 	}
 
-	rc = elantech_set_input_params(ec_chip);
-	if (rc){
+	if (etd->input_dev)
+		goto skip_input_device_reg;
+
+	etd->input_dev = input_allocate_device();
+	if (!etd->input_dev) {
+		dev_err(&client->dev, "Failed to allocate input device\n");
+		return -ENOMEM;
+	}
+
+	rc = elantech_set_input_params(etd, client);
+	if (rc) {
 		pr_err("elantech: %s: failed to set input rel params.\n", __func__);
-		return rc;
+		goto err_exit;
 	}
 
+	rc = input_register_device(etd->input_dev);
+	if (rc) {
+		pr_err("elantech: %s: unable to register %s input device\n",
+					__func__, etd->input_dev->name);
+		goto err_exit;
+	}
+
+skip_input_device_reg:
 	pr_info("elantech: 2.6.2X-Elan-touchpad-2010-11-27\n");
 	pr_info("elantech: Elan et1059 elantech_init\n");
 
+	ec_chip->d_index = 0;
+
+	if (ec_chip->tp_enable) {
+		ec_chip->tp_wait_ack = 1;
+		asus_ec_input_switch(client, ASUSDEC_TP_ENABLE);
+	}
+
 	return 0;
+
+err_exit:
+	ec_chip->susb_on = 1;
+	ec_chip->init_success = -1;
+	asus_ec_signal_request(client, DOCK_ECREQ_GPIO);
+	ec_chip->dock_init = 0;
+	return rc;
 }
 
 MODULE_DESCRIPTION("Elan Touchpad Driver");
