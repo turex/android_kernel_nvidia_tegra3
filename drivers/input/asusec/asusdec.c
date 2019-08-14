@@ -50,32 +50,6 @@ static int asusdec_minor = 0;
 
 static struct workqueue_struct *asusdec_wq;
 
-int key_flags = 0;
-module_param(key_flags, int, 0644);
-
-int key_autorepeat = 0;
-static int key_autorepeat_set(const char *arg, const struct kernel_param *kp)
-{
-	int ret = param_set_int(arg, kp);
-
-	if (!ret) {
-		if (ec_chip && ec_chip->indev) {
-			if (key_autorepeat)
-				set_bit(EV_REP, ec_chip->indev->evbit);
-			else
-				clear_bit(EV_REP, ec_chip->indev->evbit);
-		}
-	}
-
-	return ret;
-}
-
-static struct kernel_param_ops key_autorepeat_ops = {
-	.set = key_autorepeat_set,
-	.get = param_get_int,
-};
-module_param_cb(key_autorepeat, &key_autorepeat_ops, &key_autorepeat, 0644);
-
 /*
  * functions definition
  */
@@ -404,19 +378,11 @@ static void asusdec_kp_kbc(void)
 	}
 }
 
-static int fn_keys_active(struct input_dev *dev)
-{
-	return test_bit(KEY_RIGHTALT, dev->key) ^ !!(key_flags & KEY_FLAGS_FN_LOCK);
-}
-
 static void asusdec_kp_sci(void)
 {
 	int ec_signal = ec_chip->i2c_data[2];
 
-	if (fn_keys_active(ec_chip->indev))
-		ec_chip->keypad_data.input_keycode = fn_dock_ext_keys[ec_signal];
-	else
-		ec_chip->keypad_data.input_keycode = asus_dock_ext_keys[ec_signal];
+	ec_chip->keypad_data.input_keycode = asus_dock_ext_keys[ec_signal];
 
 	if (ec_signal == 0x04)
 		asusdec_tp_control();
@@ -473,12 +439,7 @@ static void asusdec_kp_key(void)
 		}
 	}
 
-	if (scancode == 0x76 || scancode == 0xE01F) {
-		if ((key_flags & KEY_FLAGS_BACK_AS_ESC) ||
-		    (key_flags & KEY_FLAGS_HOME_AS_LEFTMETA))
-				ec_chip->keypad_data.input_keycode = linux_dock_keys[scancode];
-	} else
-		ec_chip->keypad_data.input_keycode = asus_dock_keys[scancode];
+	ec_chip->keypad_data.input_keycode = asus_dock_keys[scancode];
 
 	if (ec_chip->keypad_data.input_keycode > 0) {
 		input_report_key(ec_chip->indev,

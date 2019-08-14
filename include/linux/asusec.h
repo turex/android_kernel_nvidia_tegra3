@@ -145,10 +145,6 @@ extern int usb_suspend_tag;
 #define ASUSEC_SMI_ADAPTER_EVENT        0x60
 #define ASUSEC_SMI_BACKLIGHT_ON         0x63
 
-#define KEY_FLAGS_FN_LOCK               1	/* Fn keys without modifier */
-#define KEY_FLAGS_BACK_AS_ESC           2
-#define KEY_FLAGS_HOME_AS_LEFTMETA      8	/* aka Super_L or "Windows key" */
-
 #define ASUSDEC_KEYPAD_KEY_BREAK        0xF0
 #define ASUSDEC_KEYPAD_KEY_EXTEND       0xE0
 
@@ -162,30 +158,11 @@ static const unsigned short asus_dock_ext_keys[] = {
 	[0x07] = KEY_BRIGHTNESS_AUTO,
 	[0x08] = KEY_CAMERA,
 	[0x10] = KEY_WWW,
-	[0x11] = KEY_CONFIG,
+	[0x11] = KEY_SETUP,
 	[0x12] = KEY_PREVIOUSSONG,
 	[0x13] = KEY_PLAYPAUSE,
 	[0x14] = KEY_NEXTSONG,
 	[0x15] = KEY_MUTE,
-	[0x16] = KEY_VOLUMEDOWN,
-	[0x17] = KEY_VOLUMEUP,
-};
-
-static const unsigned short fn_dock_ext_keys[] = {
-	[0x01] = KEY_DELETE,
-	[0x02] = KEY_F1,
-	[0x03] = KEY_F2,
-	[0x04] = KEY_F3,
-	[0x05] = KEY_F4,
-	[0x06] = KEY_F5,
-	[0x07] = KEY_F6,
-	[0x08] = KEY_F7,
-	[0x10] = KEY_F8,
-	[0x11] = KEY_F9,
-	[0x12] = KEY_F10,
-	[0x13] = KEY_F11,
-	[0x14] = KEY_F12,
-	[0x15] = KEY_INSERT,
 	[0x16] = KEY_VOLUMEDOWN,
 	[0x17] = KEY_VOLUMEUP,
 };
@@ -282,11 +259,6 @@ static const unsigned short asus_dock_keys[] = {
 
 	/* UK keys */
 	[0x61] = KEY_102ND,             /* ASUSDEC_EUROPE_2 */
-};
-
-static const unsigned short linux_dock_keys[] = {
-	[0x76] = KEY_ESC,               /* ASUSDEC_KEYPAD_ESC */
-	[0xE01F] = KEY_LEFTMETA,        /* ASUSDEC_KEYPAD_LEFTWIN */
 };
 
 /*
