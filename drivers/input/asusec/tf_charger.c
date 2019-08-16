@@ -37,6 +37,12 @@ static struct usb_hcd *usb3_ehci_handle;
 static struct delayed_work usb3_ehci_dock_in_work;
 static struct tegra_udc *the_udc;
 
+static struct gpio tf_charger_gpios[] = {
+	{ DOCK_IN_GPIO,    GPIOF_IN,           DOCK_IN    },
+	{ ADAPTER_IN_GPIO, GPIOF_IN,           ADAPTER_IN },
+	{ LIMIT_SET0_GPIO, GPIOF_OUT_INIT_LOW, LIMIT_SET0 },
+};
+
 struct cable_info {
 
 	/*
@@ -208,16 +214,21 @@ void fsl_dock_ec_callback(void)
 }
 
 /* For the issue of USB AC adaptor inserted half on PAD */
-static irqreturn_t adapter_interrupt_handler(int irq, void *dev_id)
+static irqreturn_t charger_interrupt_handler(int irq, void *dev_id)
 {
 	int adapter_in = gpio_get_value(ADAPTER_IN_GPIO);
 	int dock_in = !gpio_get_value(DOCK_IN_GPIO);
 
-	pr_info("tf_charger: gpio_limit_set1=%d, ac_15v_connected=%d\n", adapter_in, s_cable_info.ac_15v_connected);
+	if (irq == gpio_to_irq(ADAPTER_IN_GPIO)) {
+		if(dock_in == 0 && (adapter_in != s_cable_info.ac_15v_connected) &&
+		  (the_udc->connect_type == CONNECT_TYPE_NON_STANDARD_CHARGER))      //no dock in
+			schedule_delayed_work(&s_cable_info.usb_cable_detect, 0.2*HZ);
+	}
 
-	if(dock_in == 0 && (adapter_in != s_cable_info.ac_15v_connected) &&
-	  (the_udc->connect_type == CONNECT_TYPE_NON_STANDARD_CHARGER))      //no dock in
-		schedule_delayed_work(&s_cable_info.usb_cable_detect, 0.2*HZ);
+	if (irq == gpio_to_irq(DOCK_IN_GPIO)) {
+		if (usb3_ehci_handle && dock_in)
+			schedule_delayed_work(&usb3_ehci_dock_in_work, 0.5*HZ);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -253,19 +264,9 @@ static void usb3_ehci_dock_in_work_handler(struct work_struct *w)
 	msleep(100);
 }
 
-static irqreturn_t dockin_interrupt_handler(int irq, void *dev_id)
-{
-    int dock_in = !gpio_get_value(DOCK_IN_GPIO);
-
-	if (usb3_ehci_handle && dock_in)
-		schedule_delayed_work(&usb3_ehci_dock_in_work, 0.5*HZ);
-
-	return IRQ_HANDLED;
-}
-
 static void usb3_dockin_irq(struct usb_hcd *hcd)
 {
-	asus_ec_irq_request(hcd, DOCK_IN_GPIO, dockin_interrupt_handler,
+	asus_ec_irq_request(hcd, DOCK_IN_GPIO, charger_interrupt_handler,
 			IRQF_SHARED | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, DOCK_IN);
 
 	INIT_DELAYED_WORK(&usb3_ehci_dock_in_work, usb3_ehci_dock_in_work_handler);
@@ -319,34 +320,25 @@ int __init transformer_udc_init(void)
 	INIT_DELAYED_WORK(&s_cable_info.usb_cable_detect, usb_cable_detection);
 
 	/* Charging gpios init */
-	ret = gpio_request(LIMIT_SET0_GPIO, LIMIT_SET0);
+	ret = gpio_request_array(tf_charger_gpios, ARRAY_SIZE(tf_charger_gpios));
 	if (ret < 0)
-		pr_err("tf_charger: failed to request the LIMIT_SET0_GPIO: %d\n", ret);
+		pr_err("tf_charger: failed to request tf_charger_gpios array: %d\n", ret);
 
-	gpio_limit_set0_set(false);
+	ret = request_irq(gpio_to_irq(ADAPTER_IN_GPIO), charger_interrupt_handler,
+			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, ADAPTER_IN, NULL);
+	if (ret < 0) {
+		pr_err("tf_charger: could not register for %s interrupt, irq = %d, rc = %d\n",
+				ADAPTER_IN, gpio_to_irq(ADAPTER_IN_GPIO), ret);
+		ret = -EIO;
+	}
 
-	ret = gpio_request(DOCK_IN_GPIO, DOCK_IN);
-	if (ret < 0)
-		pr_err("tf_charger: failed to request the DOCK_IN_GPIO: %d\n", ret);
-
-	ret = gpio_direction_input(DOCK_IN_GPIO);
-	if (ret)
-		pr_err("tf_charger: gpio_direction_input failed for input DOCK_IN_GPIO\n");
-
-	asus_ec_irq_request(NULL, ADAPTER_IN_GPIO, adapter_interrupt_handler,
-			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, ADAPTER_IN);
-
-	return 0;
+	return ret;
 }
 
 void __exit transformer_udc_exit(void)
 {
 	/* Charging gpios free */
-	gpio_free(ADAPTER_IN_GPIO);
-	gpio_free(LIMIT_SET0_GPIO);
-	gpio_free(DOCK_IN_GPIO);
-
+	gpio_free_array(tf_charger_gpios, ARRAY_SIZE(tf_charger_gpios));
 	free_irq(gpio_to_irq(ADAPTER_IN_GPIO), NULL);
-
 	mutex_destroy(&s_cable_info.cable_info_mutex);
 }
