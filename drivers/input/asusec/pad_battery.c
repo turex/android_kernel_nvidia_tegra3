@@ -54,9 +54,9 @@
 #define BATTERY_FULL_CHARGED                0x20
 #define BATTERY_FULL_DISCHARGED             0x10
 
-unsigned battery_cable_status = 0;
-unsigned battery_docking_status = 0;
-unsigned battery_driver_ready = 0;
+static unsigned int battery_cable_status = 0;
+static unsigned int battery_docking_status = 0;
+static unsigned int battery_driver_ready = 0;
 
 static int ac_on;
 static int usb_on;
@@ -64,8 +64,6 @@ static int docking_status = 0;
 static unsigned int battery_current;
 static unsigned int battery_remaining_capacity;
 struct workqueue_struct *battery_work_queue = NULL;
-
-unsigned (*get_usb_cable_status_cb) (void);
 
 /* Functions declaration */
 static int pad_battery_get_property(struct power_supply *psy,
@@ -237,19 +235,10 @@ static struct pad_device_info {
 	spinlock_t lock;
 } *pad_device;
 
-void register_usb_cable_status_cb(unsigned (*fn) (void))
+void register_usb_cable_status(unsigned int cable_status)
 {
-	if (!get_usb_cable_status_cb)
-		get_usb_cable_status_cb = fn;
-}
-
-unsigned get_usb_cable_status(void)
-{
-	if (!get_usb_cable_status_cb) {
-		pr_err("pad_battery: get_usb_cable_status_cb is NULL\n");
-		return 0;
-	}
-	return get_usb_cable_status_cb();
+	if (!battery_cable_status)
+		battery_cable_status = cable_status;
 }
 
 static ssize_t show_battery_smbus_status(struct device *dev, struct device_attribute *devattr, char *buf)
@@ -606,7 +595,9 @@ static int pad_probe(struct i2c_client *client,
 
 	enable_irq_wake(gpio_to_irq(LOW_BATTERY_GPIO));
 
-	battery_cable_status = get_usb_cable_status();
+	if (!battery_cable_status)
+		pr_err("pad_battery: usb_cable_status is NULL\n");
+
 	battery_driver_ready = 1;
 
 	setup_timer(&pad_device->charger_pad_dock_detect_timer, charger_pad_dock_detection, 0);

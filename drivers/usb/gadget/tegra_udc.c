@@ -2869,7 +2869,6 @@ static int __init tegra_udc_probe(struct platform_device *pdev)
 	udc->support_pmu_vbus = pdata->support_pmu_vbus;
 	platform_set_drvdata(pdev, udc);
 #ifdef CONFIG_MACH_TRANSFORMER
-	register_usb_cable_status_cb(tegra_get_usb_cable_status);
 	transformer_link_udc(the_udc);
 #endif
 

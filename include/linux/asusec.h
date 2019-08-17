@@ -34,7 +34,6 @@
 #define BATTERY_DRIVER                 1	// 0: not ready, 1: ready
 #define BATTERY_CALLBACK_ENABLED       1
 #define DOCK_EC_ENABLED                1
-#define GET_USB_CABLE_STATUS_ENABLED   1
 
 //-----------------------------------------
 
@@ -69,7 +68,6 @@ void transformer_usb_definer(struct usb_hcd *hcd, struct tegra_usb_phy *phy);
 void fsl_dock_ec_callback(void);
 void utmi_xcvr_setup_corrector(struct tegra_usb_phy *phy);
 void tegra_usb3_smi_backlight_on_callback(void);
-unsigned int tegra_get_usb_cable_status(void);
 void tegra_detect_charging_type_is_cdp_or_dcp(struct tegra_udc *udc); /* export from tegra_udc */
 
 void cable_status_setup(struct tegra_udc *udc);
@@ -85,7 +83,7 @@ int dock_ac_callback(void);
 
 void battery_callback(unsigned usb_cable_state);
 int docking_callback(int docking_in);
-void register_usb_cable_status_cb(unsigned (*fn) (void));
+void register_usb_cable_status(unsigned int cable_status);
 
 extern int usb_suspend_tag;
 

@@ -61,17 +61,15 @@ struct cable_info {
 
 static struct cable_info s_cable_info;
 
-#if GET_USB_CABLE_STATUS_ENABLED
-unsigned int tegra_get_usb_cable_status(void)
-{
-	pr_info("tf_charger: USB cable status = %x\n", s_cable_info.cable_status);
-	return s_cable_info.cable_status;
-}
-#endif
-
 void transformer_link_udc(struct tegra_udc *udc)
 {
-	the_udc = udc;
+	register_usb_cable_status(s_cable_info.cable_status);
+
+	the_udc->support_pmu_vbus = udc->support_pmu_vbus;
+	the_udc->regs = udc->regs;
+	the_udc->prev_connect_type = udc->prev_connect_type;
+	the_udc->connect_type = udc->connect_type;
+	spin_lock_init(&the_udc->lock);
 }
 
 /*
