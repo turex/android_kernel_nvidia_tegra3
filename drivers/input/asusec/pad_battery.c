@@ -29,7 +29,6 @@
 #include <linux/i2c.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
-#include <linux/gpio.h>
 #include <linux/timer.h>
 #include <linux/interrupt.h>
 #include <linux/wakelock.h>
@@ -600,7 +599,6 @@ static int pad_probe(struct i2c_client *client,
 
 	asus_ec_irq_request(NULL, DOCK_CHARGING_GPIO, battery_interrupt_handler,
 			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING, DOCK_CHARGING);
-
 	asus_ec_irq_request(NULL, LOW_BATTERY_GPIO, battery_interrupt_handler,
 			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, LOW_BATTERY);
 
@@ -615,8 +613,8 @@ static int pad_probe(struct i2c_client *client,
 
 	queue_delayed_work(battery_work_queue, &pad_device->status_poll_work, 15*HZ);
 
-	if(tegra3_get_project_id() == TEGRA3_PROJECT_TF201)
-		asus_ec_irq_request(client, THERMAL_POWER_GPIO, NULL, 0, THERMAL_POWER);
+	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF201)
+		gpio_request_one(THERMAL_POWER_GPIO, GPIOF_INIT_HIGH, THERMAL_POWER);
 
 	pr_info("pad_battery: probed\n");
 

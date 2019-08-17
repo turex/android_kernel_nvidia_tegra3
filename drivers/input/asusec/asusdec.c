@@ -27,7 +27,6 @@
 #include <linux/switch.h>
 #include <linux/asusec.h>
 
-#include <asm/gpio.h>
 #include <asm/uaccess.h>
 
 #include <mach/board-transformer-misc.h>
@@ -58,15 +57,11 @@ int dock_battery_monitor(int offs)
 	int ret = 0;
 	u8 batt_data[32];
 
-	if (!offs) {
-		if (!ec_chip->dock_in)
-			return 0;
-		else
-			return 1;
-	}
-
 	if (!ec_chip->dock_in)
-		return -1;
+		return 0;
+
+	if (!offs)
+		return 1;
 
 	if (ec_chip->ec_in_s3 && ec_chip->status)
 		msleep(200);
@@ -226,10 +221,9 @@ static int asusdec_chip_init(struct i2c_client *client)
 		msleep(750);
 
 	asus_ec_input_switch(client, ASUSDEC_KB_DISABLE);
+	asus_ec_input_switch(client, ASUSDEC_KB_ENABLE);
 
 	ec_chip->tp_model = elantech_init(ec_chip);
-
-	asus_ec_input_switch(client, ASUSDEC_KB_ENABLE);
 
 	enable_irq(gpio_to_irq(DOCK_APWAKE_GPIO));
 
@@ -499,8 +493,7 @@ static void asusdec_work_function(struct work_struct *dat)
 
 	if (ec_chip->i2c_data[1] & ASUSEC_OBF_MASK){
 		if (ec_chip->i2c_data[1] & ASUSEC_AUX_MASK){
-			if (ec_chip->private->input_dev)
-				asusdec_touchpad_processing(ec_chip);
+			asusdec_touchpad_processing(ec_chip);
 		} else {
 			asusdec_keypad_processing();
 		}
@@ -576,9 +569,10 @@ static int __devinit asusdec_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_led_on_work, asusdec_keypad_led_on);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asusdec_led_off_work, asusdec_keypad_led_off);
 
+	gpio_request_one(DOCK_ECREQ_GPIO, GPIOF_INIT_HIGH, DOCK_REQUEST);
+
 	asus_ec_irq_request(client, DOCK_IN_GPIO, asusdec_interrupt_handler,
 			IRQF_SHARED | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, DOCK_IN);
-	asus_ec_irq_request(client, DOCK_ECREQ_GPIO, NULL, 0, DOCK_REQUEST);
 	asus_ec_irq_request(client, DOCK_APWAKE_GPIO, asusdec_interrupt_handler,
 			IRQF_TRIGGER_LOW, DOCK_INPUT);
 

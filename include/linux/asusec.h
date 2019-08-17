@@ -18,6 +18,7 @@
 #ifndef _ASUSEC_H
 #define _ASUSEC_H
 
+#include <linux/gpio.h>
 #include <linux/input.h>
 #include <linux/interrupt.h>
 #include <linux/switch.h>

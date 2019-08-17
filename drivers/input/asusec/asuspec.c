@@ -29,7 +29,6 @@
 #include <linux/statfs.h>
 #include <linux/asusec.h>
 
-#include <asm/gpio.h>
 #include <asm/ioctl.h>
 #include <asm/uaccess.h>
 
@@ -229,7 +228,8 @@ static int __devinit asuspec_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asuspec_init_work, asuspec_init_work_function);
 	INIT_DELAYED_WORK_DEFERRABLE(&ec_chip->asuspec_enter_s3_work, asuspec_enter_s3_work_function);
 
-	asus_ec_irq_request(client, PAD_ECREQ_GPIO, NULL, 0, PAD_REQUEST);
+	gpio_request_one(PAD_ECREQ_GPIO, GPIOF_INIT_HIGH, PAD_REQUEST);
+
 	asus_ec_irq_request(client, PAD_APWAKE_GPIO, asuspec_interrupt_handler,
 			IRQF_TRIGGER_LOW, PAD_APWAKE);
 

@@ -11,7 +11,6 @@
 
 #include <linux/asusec.h>
 #include <linux/delay.h>
-#include <linux/gpio.h>
 #include <linux/usb.h>
 #include <linux/usb/hcd.h>
 #include <linux/usb/gadget.h>

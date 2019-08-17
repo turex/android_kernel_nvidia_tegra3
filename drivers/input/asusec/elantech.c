@@ -249,6 +249,9 @@ void asusdec_touchpad_processing(struct asusdec_chip *ec_chip)
 	int length = 0;
 	int tp_start = 0;
 
+	if (!ec_chip->private->input_dev)
+		return;
+
 	length = ec_chip->i2c_data[0];
 
 	if (ec_chip->tp_wait_ack) {
