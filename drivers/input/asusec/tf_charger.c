@@ -63,13 +63,7 @@ static struct cable_info s_cable_info;
 
 void transformer_link_udc(struct tegra_udc *udc)
 {
-	register_usb_cable_status(s_cable_info.cable_status);
-
-	the_udc->support_pmu_vbus = udc->support_pmu_vbus;
-	the_udc->regs = udc->regs;
-	the_udc->prev_connect_type = udc->prev_connect_type;
-	the_udc->connect_type = udc->connect_type;
-	spin_lock_init(&the_udc->lock);
+	the_udc = udc;
 }
 
 /*
@@ -121,12 +115,12 @@ void transformer_cable_detect(struct tegra_udc *udc)
 
 		case CONNECT_TYPE_DCP:
 			pr_info("tf_charger: detected DCP port (wall charger)\n");
-			if (dock_in == 0) { //no dock in
-				if (adapter_in == 1) {
+			if (!dock_in) {
+				if (adapter_in) {
 					pr_info("tf_charger: AC adapter 15V connected (1A)\n");
 					s_cable_info.cable_status = 0x3; //0011
 					s_cable_info.ac_15v_connected = true;
-				} else if (adapter_in == 0) {
+				} else if (!adapter_in) {
 					pr_info("tf_charger: AC adapter 5V connected (1A)\n");
 					s_cable_info.cable_status = 0x1; //0001
 					s_cable_info.ac_15v_connected = false;
@@ -134,7 +128,7 @@ void transformer_cable_detect(struct tegra_udc *udc)
 					pr_err("tf_charger: undefined adapter status\n");
 					s_cable_info.cable_status = 0x1; //0001
 				}
-			} else if (dock_in == 1) {// dock in
+			} else if (dock_in) {
 				if(usb_suspend_tag) {
 					mutex_unlock(&s_cable_info.cable_info_mutex);
 					return;
@@ -206,8 +200,8 @@ void fsl_dock_ec_callback(void)
 
 	pr_info("tf_charger: cable status %d\n", s_cable_info.cable_status);
 
-	if(dock_in == 1 && (s_cable_info.cable_status != 0) &&
-	  (the_udc->connect_type == CONNECT_TYPE_NON_STANDARD_CHARGER))      //dock in
+	if(dock_in && (s_cable_info.cable_status != 0) &&
+	  (the_udc->connect_type == CONNECT_TYPE_NON_STANDARD_CHARGER))
 	    schedule_delayed_work(&s_cable_info.usb_cable_detect, 0*HZ);
 }
 
@@ -218,8 +212,8 @@ static irqreturn_t charger_interrupt_handler(int irq, void *dev_id)
 	int dock_in = !gpio_get_value(DOCK_IN_GPIO);
 
 	if (irq == gpio_to_irq(ADAPTER_IN_GPIO)) {
-		if(dock_in == 0 && (adapter_in != s_cable_info.ac_15v_connected) &&
-		  (the_udc->connect_type == CONNECT_TYPE_NON_STANDARD_CHARGER))      //no dock in
+		if(!dock_in && (adapter_in != s_cable_info.ac_15v_connected) &&
+		  (the_udc->connect_type == CONNECT_TYPE_NON_STANDARD_CHARGER))
 			schedule_delayed_work(&s_cable_info.usb_cable_detect, 0.2*HZ);
 	}
 

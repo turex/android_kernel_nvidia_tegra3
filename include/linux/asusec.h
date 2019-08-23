@@ -83,7 +83,6 @@ int dock_ac_callback(void);
 
 void battery_callback(unsigned usb_cable_state);
 int docking_callback(int docking_in);
-void register_usb_cable_status(unsigned int cable_status);
 
 extern int usb_suspend_tag;
 

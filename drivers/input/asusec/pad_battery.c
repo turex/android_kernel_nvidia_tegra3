@@ -36,9 +36,8 @@
 
 #include <mach/board-transformer-misc.h>
 
-#define BATTERY_POLLING_RATE                (60)
-#define DELAY_FOR_CORRECT_CHARGER_STATUS    (5)
-#define TEMP_KELVIN_TO_CELCIUS              (2731)
+#define BATTERY_POLLING_RATE                60
+#define TEMP_KELVIN_TO_CELCIUS              2731
 
 #define USB_NO_Cable                        0
 #define USB_DETECT_CABLE                    1
@@ -74,32 +73,11 @@ static int dock_battery_get_property(struct power_supply *psy,
 module_param(battery_current, uint, 0644);
 module_param(battery_remaining_capacity, uint, 0644);
 
-#define PAD_BAT_DATA(_psp, _addr, _min_value, _max_value)	\
-	{							\
-		.psp = POWER_SUPPLY_PROP_##_psp,		\
-		.addr = _addr,					\
-		.min_value = _min_value,			\
-		.max_value = _max_value,			\
-	}
-
-enum {
-	REG_MANUFACTURER_DATA,
-	REG_STATE_OF_HEALTH,
-	REG_TEMPERATURE,
-	REG_VOLTAGE,
-	REG_CURRENT,
-	REG_TIME_TO_EMPTY,
-	REG_TIME_TO_FULL,
-	REG_STATUS,
-	REG_CAPACITY,
-	REG_SERIAL_NUMBER,
-	REG_MAX
-};
-
 typedef enum {
 	Charger_Type_Battery = 0,
 	Charger_Type_AC,
 	Charger_Type_USB,
+	Charger_Type_Dock_Battery,
 	Charger_Type_Docking_AC,
 	Charger_Type_Num,
 	Charger_Type_Force32 = 0x7FFFFFFF
@@ -134,10 +112,10 @@ static const unsigned pad_battery_prop_offs[] = {
 
 void check_cabe_type(void)
 {
-	if(battery_cable_status == USB_AC_Adapter){
+	if (battery_cable_status == USB_AC_Adapter) {
 		ac_on = 1;
 		usb_on = 0;
-	} else if (battery_cable_status == USB_Cable){
+	} else if (battery_cable_status == USB_Cable) {
 		ac_on = 0;
 		usb_on = 1;
 	} else {
@@ -187,13 +165,6 @@ static struct power_supply pad_supply[] = {
 		.get_property    = pad_battery_get_property,
 	},
 	{
-		.name            = "dock_battery",
-		.type            = POWER_SUPPLY_TYPE_DOCK_BATTERY,
-		.properties      = pad_battery_properties,
-		.num_properties  = ARRAY_SIZE(pad_battery_properties),
-		.get_property    = dock_battery_get_property,
-	},
-	{
 		.name            = "ac",
 		.type            = POWER_SUPPLY_TYPE_MAINS,
 		.supplied_to     = supply_list,
@@ -210,6 +181,13 @@ static struct power_supply pad_supply[] = {
 		.properties      = power_properties,
 		.num_properties  = ARRAY_SIZE(power_properties),
 		.get_property    = power_get_property,
+	},
+	{
+		.name            = "dock_battery",
+		.type            = POWER_SUPPLY_TYPE_DOCK_BATTERY,
+		.properties      = pad_battery_properties,
+		.num_properties  = ARRAY_SIZE(pad_battery_properties),
+		.get_property    = dock_battery_get_property,
 	},
 	{
 		.name            = "docking_ac",
@@ -234,12 +212,6 @@ static struct pad_device_info {
 
 	spinlock_t lock;
 } *pad_device;
-
-void register_usb_cable_status(unsigned int cable_status)
-{
-	if (!battery_cable_status)
-		battery_cable_status = cable_status;
-}
 
 static ssize_t show_battery_smbus_status(struct device *dev, struct device_attribute *devattr, char *buf)
 {
@@ -303,7 +275,7 @@ void battery_callback(unsigned usb_cable_state)
 
 	if (old_cable_status != battery_cable_status) {
 		pr_info("pad_battery: %s: cable event wake lock 5 sec...\n", __func__);
-		wake_lock_timeout(&pad_device->cable_event_wake_lock, DELAY_FOR_CORRECT_CHARGER_STATUS*HZ);
+		wake_lock_timeout(&pad_device->cable_event_wake_lock, 5*HZ);
 	}
 	check_cabe_type();
 
@@ -421,7 +393,7 @@ static int battery_get_psp(enum power_supply_property psp,
 			if (pad) {
 				pad_device->smbus_status = ret;
 				/* mask the upper byte and then find the actual status */
-				if (!(ret & BATTERY_CHARGING) && (ac_on || battery_docking_status)) {	/*DSG*/
+				if (!(ret & BATTERY_CHARGING) && (ac_on || battery_docking_status)) {
 					val->intval = POWER_SUPPLY_STATUS_CHARGING;
 					if (pad_device->old_capacity == 100)
 						val->intval = POWER_SUPPLY_STATUS_FULL;
@@ -594,9 +566,6 @@ static int pad_probe(struct i2c_client *client,
 	pad_device->dock_charger_pad_interrupt_enabled = true;
 
 	enable_irq_wake(gpio_to_irq(LOW_BATTERY_GPIO));
-
-	if (!battery_cable_status)
-		pr_err("pad_battery: usb_cable_status is NULL\n");
 
 	battery_driver_ready = 1;
 
