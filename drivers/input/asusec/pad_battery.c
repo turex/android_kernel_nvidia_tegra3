@@ -60,8 +60,6 @@ static unsigned int battery_driver_ready = 0;
 static int ac_on;
 static int usb_on;
 static int docking_status = 0;
-static unsigned int battery_current;
-static unsigned int battery_remaining_capacity;
 struct workqueue_struct *battery_work_queue = NULL;
 
 /* Functions declaration */
@@ -69,9 +67,6 @@ static int pad_battery_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val);
 static int dock_battery_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val);
-
-module_param(battery_current, uint, 0644);
-module_param(battery_remaining_capacity, uint, 0644);
 
 typedef enum {
 	Charger_Type_Battery = 0,
@@ -205,40 +200,12 @@ static struct pad_device_info {
 	struct wake_lock      low_battery_wake_lock;
 	struct wake_lock      cable_event_wake_lock;
 	struct timer_list     charger_pad_dock_detect_timer;
-	
-	int smbus_status;
+
 	unsigned int old_capacity;
 	bool dock_charger_pad_interrupt_enabled;
 
 	spinlock_t lock;
 } *pad_device;
-
-static ssize_t show_battery_smbus_status(struct device *dev, struct device_attribute *devattr, char *buf)
-{
-	int status =! pad_device->smbus_status;
-	return sprintf(buf, "%d\n", status);
-}
-
-static ssize_t show_battery_charger_status(struct device *dev, struct device_attribute *devattr, char *buf)
-{
-	if (pad_device->smbus_status < 0)
-		return sprintf(buf, "%d\n", 0);
-	else
-		return sprintf(buf, "%d\n", 1);
-}
-
-static DEVICE_ATTR(battery_smbus, S_IWUSR | S_IRUGO, show_battery_smbus_status, NULL);
-static DEVICE_ATTR(battery_charger, S_IWUSR | S_IRUGO, show_battery_charger_status, NULL);
-
-static struct attribute *battery_attributes[] = {
-	&dev_attr_battery_smbus.attr,
-	&dev_attr_battery_charger.attr,
-	NULL
-};
-
-static const struct attribute_group battery_group = {
-	.attrs = battery_attributes,
-};
 
 static void battery_status_poll(struct work_struct *work)
 {
@@ -391,7 +358,6 @@ static int battery_get_psp(enum power_supply_property psp,
 	switch (psp) {
 		case POWER_SUPPLY_PROP_STATUS:
 			if (pad) {
-				pad_device->smbus_status = ret;
 				/* mask the upper byte and then find the actual status */
 				if (!(ret & BATTERY_CHARGING) && (ac_on || battery_docking_status)) {
 					val->intval = POWER_SUPPLY_STATUS_CHARGING;
@@ -411,24 +377,13 @@ static int battery_get_psp(enum power_supply_property psp,
 			}
 			break;
 
-		case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-			pad_device->smbus_status = ret;
-			break;
-
 		case POWER_SUPPLY_PROP_TEMP:
-			pad_device->smbus_status = ret;
 			val->intval -= TEMP_KELVIN_TO_CELCIUS;
 			break;
 
-		case POWER_SUPPLY_PROP_CURRENT_NOW:
-			battery_current = ret;
-			break;
-
 		case POWER_SUPPLY_PROP_CAPACITY:
-			pad_device->smbus_status = ret;
-			
 			/*
-			 * Pad spec says that this can be >100 %
+			 * Spec says that this can be >100 %
 			 * even if max value is 100 %
 			 */
 			temp_capacity = ((ret >= 100) ? 100 : ret);
@@ -457,12 +412,6 @@ static int battery_get_psp(enum power_supply_property psp,
 
 			val->intval = temp_capacity;
 			pad_device->old_capacity = val->intval;
-
-			break;
-
-		case POWER_SUPPLY_PROP_CHARGE_NOW:
-			battery_remaining_capacity = ret;
-			break;
 
 		default:
 			break;	
@@ -522,16 +471,14 @@ static int pad_probe(struct i2c_client *client,
 	int rc, i = 0;
 
 	pad_device = kzalloc(sizeof(*pad_device), GFP_KERNEL);
-	if (!pad_device) {
+	if (!pad_device)
 		return -ENOMEM;
-	}
 
 	memset(pad_device, 0, sizeof(*pad_device));
 
 	pad_device->client = client;
 	i2c_set_clientdata(client, pad_device);
 
-	pad_device->smbus_status = 0;
 	pad_device->old_capacity = 0xFF;
 
 	for (i = 0; i < ARRAY_SIZE(pad_supply); i++) {
@@ -553,10 +500,6 @@ static int pad_probe(struct i2c_client *client,
 	spin_lock_init(&pad_device->lock);
 	wake_lock_init(&pad_device->low_battery_wake_lock, WAKE_LOCK_SUSPEND, "low_battery_detection");
 	wake_lock_init(&pad_device->cable_event_wake_lock, WAKE_LOCK_SUSPEND, "battery_cable_event");
-
-	/* Register sysfs hooks */
-	if (sysfs_create_group(&client->dev.kobj, &battery_group))
-		dev_err(&client->dev, "Not able to create the sysfs\n");
 
 	asus_ec_irq_request(NULL, DOCK_CHARGING_GPIO, battery_interrupt_handler,
 			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING, DOCK_CHARGING);
@@ -607,7 +550,7 @@ static int pad_suspend(struct device *dev)
 	del_timer_sync(&pad_device->charger_pad_dock_detect_timer);
 	flush_workqueue(battery_work_queue);
 
-	if(tegra3_get_project_id() == TEGRA3_PROJECT_TF201)
+	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF201)
 		gpio_direction_output(THERMAL_POWER_GPIO, 0);
 
 	return 0;
@@ -619,8 +562,9 @@ static int pad_resume(struct device *dev)
 	cancel_delayed_work(&pad_device->status_poll_work);
 	queue_delayed_work(battery_work_queue, &pad_device->status_poll_work, 5*HZ);
 
-	if(tegra3_get_project_id() == TEGRA3_PROJECT_TF201)
+	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF201)
 		gpio_direction_output(THERMAL_POWER_GPIO, 1);
+
 	return 0;
 }
 

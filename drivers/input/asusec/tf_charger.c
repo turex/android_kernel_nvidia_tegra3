@@ -71,21 +71,12 @@ void transformer_link_udc(struct tegra_udc *udc)
  * USB Cable  -> LIMIT_SET0 = 0
  * AC adaptor -> LIMIT_SET0 = 1
  */
-static void gpio_limit_set0_set(bool enable)
-{
-	int ret = 0;
-
-	ret = gpio_direction_output(LIMIT_SET0_GPIO, enable);
-	if (ret < 0)
-		pr_err("Failed to set the GPIO LIMIT_SET0_GPIO to the status(%d): %d\n", enable, ret);
-}
-
 void transformer_cable_detect(struct tegra_udc *udc)
 {
-	int	dock_in = !gpio_get_value(DOCK_IN_GPIO);
-	int	adapter_in = gpio_get_value(ADAPTER_IN_GPIO);
-	int	dock_ac = 0;
-	static int ask_ec_num = 0;
+	int dock_in    = !gpio_get_value(DOCK_IN_GPIO);
+	int adapter_in = gpio_get_value(ADAPTER_IN_GPIO);
+	int dock_ac    = 0;
+	int ask_ec_num = 0;
 
 	mutex_lock(&s_cable_info.cable_info_mutex);
 	s_cable_info.cable_status = 0x0; //0000
@@ -95,7 +86,7 @@ void transformer_cable_detect(struct tegra_udc *udc)
 			pr_info("tf_charger: USB/AC cable is disconnected\n");
 			s_cable_info.cable_status = 0x0; //0000
 			s_cable_info.ac_15v_connected = false;
-			gpio_limit_set0_set(false);
+			gpio_direction_output(LIMIT_SET0_GPIO, 0);
 			break;
 
 		case CONNECT_TYPE_SDP:
@@ -104,12 +95,12 @@ void transformer_cable_detect(struct tegra_udc *udc)
 				pr_info("tf_charger: USB cable is connected (0.5A)\n");
 				s_cable_info.cable_status = 0x1; //0001
 				s_cable_info.ac_15v_connected = false;
-				gpio_limit_set0_set(false);
-			} else {
+				gpio_direction_output(LIMIT_SET0_GPIO, 0);
+			} else if (adapter_in) {
 				pr_info("tf_charger: USB cable + AC adapter 15V is connected (1A)\n");
 				s_cable_info.cable_status = 0x3; //0011
 				s_cable_info.ac_15v_connected = true;
-				gpio_limit_set0_set(true);
+				gpio_direction_output(LIMIT_SET0_GPIO, 1);
 			}
 			break;
 
@@ -129,7 +120,7 @@ void transformer_cable_detect(struct tegra_udc *udc)
 					s_cable_info.cable_status = 0x1; //0001
 				}
 			} else if (dock_in) {
-				if(usb_suspend_tag) {
+				if (usb_suspend_tag) {
 					mutex_unlock(&s_cable_info.cable_info_mutex);
 					return;
 				}
@@ -162,14 +153,14 @@ void transformer_cable_detect(struct tegra_udc *udc)
 			} else {
 				pr_err("tf_charger: undefined USB status\n");
 			}
-			gpio_limit_set0_set(true);
+			gpio_direction_output(LIMIT_SET0_GPIO, 1);
 			break;
 
 		case CONNECT_TYPE_CDP:
 			pr_info("tf_charger: detected CDP port (1A USB port)\n");
 			s_cable_info.cable_status = 0x1; //0001
 			s_cable_info.ac_15v_connected = false;
-			gpio_limit_set0_set(true);	//(5V/1.0A)
+			gpio_direction_output(LIMIT_SET0_GPIO, 1);	//(5V/1.0A)
 			break;
 
 		case CONNECT_TYPE_NON_STANDARD_CHARGER:
@@ -177,7 +168,7 @@ void transformer_cable_detect(struct tegra_udc *udc)
 			pr_info("tf_charger: detected non-standard charging port\n");
 			s_cable_info.cable_status = 0x1; //0001
 			s_cable_info.ac_15v_connected = false;
-			gpio_limit_set0_set(false);	//(5V/0.5A)
+			gpio_direction_output(LIMIT_SET0_GPIO, 0);	//(5V/0.5A)
 			break;
 	}
 
@@ -200,8 +191,8 @@ void fsl_dock_ec_callback(void)
 
 	pr_info("tf_charger: cable status %d\n", s_cable_info.cable_status);
 
-	if(dock_in && (s_cable_info.cable_status != 0) &&
-	  (the_udc->connect_type == CONNECT_TYPE_NON_STANDARD_CHARGER))
+	if (dock_in && (s_cable_info.cable_status != 0) &&
+	   (the_udc->connect_type == CONNECT_TYPE_NON_STANDARD_CHARGER))
 	    schedule_delayed_work(&s_cable_info.usb_cable_detect, 0*HZ);
 }
 
@@ -212,8 +203,8 @@ static irqreturn_t charger_interrupt_handler(int irq, void *dev_id)
 	int dock_in = !gpio_get_value(DOCK_IN_GPIO);
 
 	if (irq == gpio_to_irq(ADAPTER_IN_GPIO)) {
-		if(!dock_in && (adapter_in != s_cable_info.ac_15v_connected) &&
-		  (the_udc->connect_type == CONNECT_TYPE_NON_STANDARD_CHARGER))
+		if (!dock_in && (adapter_in != s_cable_info.ac_15v_connected) &&
+		   (the_udc->connect_type == CONNECT_TYPE_NON_STANDARD_CHARGER))
 			schedule_delayed_work(&s_cable_info.usb_cable_detect, 0.2*HZ);
 	}
 
@@ -244,7 +235,7 @@ void utmi_xcvr_setup_corrector(struct tegra_usb_phy *phy)
 
 void tegra_usb3_smi_backlight_on_callback(void)
 {
-	if (usb3_init == 1) {
+	if (usb3_init) {
 		if(!gpio_get_value(DOCK_IN_GPIO))
 			schedule_delayed_work(&usb3_ehci_dock_in_work, 0.5*HZ);
 	}
@@ -267,11 +258,11 @@ static void usb3_dockin_irq(struct usb_hcd *hcd)
 void transformer_usb_definer(struct usb_hcd *hcd, struct tegra_usb_phy *phy)
 {
 	if (phy->inst == 1) {
-		if (usb3_init == 0) {
+		if (!usb3_init) {
 			usb3_ehci_handle = hcd;
 			usb3_init = 1;
 			usb3_dockin_irq(hcd);
-		} else if (usb3_init == 1) {
+		} else if (usb3_init) {
 			free_irq(gpio_to_irq(DOCK_IN_GPIO), hcd);
 			usb3_ehci_handle = NULL;
 			usb3_init = 0;
