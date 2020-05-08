@@ -264,6 +264,10 @@ config SND_SOC_TEGRA_CS42L73
 	  boards using the CS42L73 codec. Currently, only supported board is
 	  Pluto.
 
+config DSP_FM34
+	tristate "DSP FM34 driver"
+	default n
+
 config HEADSET_FUNCTION
 	tristate "Headset detection function"
 	default n
