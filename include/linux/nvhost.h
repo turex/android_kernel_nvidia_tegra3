@@ -177,10 +177,10 @@ struct nvhost_driver {
 	void (*suspend_ndev)(struct nvhost_device *);
 
 	/* Scaling init is run on device registration */
-	void (*scaling_init)(struct platform_device *dev);
+//	void (*scaling_init)(struct platform_device *dev);
 
 	/* Scaling deinit is called on device unregistration */
-	void (*scaling_deinit)(struct platform_device *dev);
+//	void (*scaling_deinit)(struct platform_device *dev);
 
 	/* Device is initialized */
 	void (*init)(struct nvhost_device *dev);
@@ -207,7 +207,7 @@ struct nvhost_driver {
 			u32 *value);
 
 	/* Callback when a clock is changed */
-	void (*update_clk)(struct platform_device *dev);
+//	void (*update_clk)(struct platform_device *dev);
 };
 
 extern int nvhost_driver_register(struct nvhost_driver *);
