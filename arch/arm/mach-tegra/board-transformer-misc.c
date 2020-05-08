@@ -19,7 +19,7 @@
 #include <linux/export.h>
 
 #include <mach/board-transformer-misc.h>
-#include <mach/pinmux.h>
+
 #include <mach/pinmux-tegra30.h>
 #include "gpio-names.h"
 #include "fuse.h"
@@ -33,17 +33,16 @@ static struct kobj_attribute module##_attr = { \
 	.show = module##_show, \
 }
 
-
 /* PCBID is composed of thirteen GPIO pins */
 static unsigned int cardhu_pcbid;
 
 static const struct pins cardhu_pcbid_pins[] = {
-	{TEGRA_GPIO_PR4, TEGRA_PINGROUP_KB_ROW4, "PCB_ID0", false, false},
-	{TEGRA_GPIO_PR5, TEGRA_PINGROUP_KB_ROW5, "PCB_ID1", false, false},
-	{TEGRA_GPIO_PQ4, TEGRA_PINGROUP_KB_COL4, "PCB_ID2", false, false},
-	{TEGRA_GPIO_PQ7, TEGRA_PINGROUP_KB_COL7, "PCB_ID3", false, false},
-	{TEGRA_GPIO_PR2, TEGRA_PINGROUP_KB_ROW2, "PCB_ID4", false, false},
-	{TEGRA_GPIO_PQ5, TEGRA_PINGROUP_KB_COL5, "PCB_ID5", false, false},
+	{TEGRA_GPIO_PR4, TEGRA_PINGROUP_KB_ROW4,   "PCB_ID0", false, false},
+	{TEGRA_GPIO_PR5, TEGRA_PINGROUP_KB_ROW5,   "PCB_ID1", false, false},
+	{TEGRA_GPIO_PQ4, TEGRA_PINGROUP_KB_COL4,   "PCB_ID2", false, false},
+	{TEGRA_GPIO_PQ7, TEGRA_PINGROUP_KB_COL7,   "PCB_ID3", false, false},
+	{TEGRA_GPIO_PR2, TEGRA_PINGROUP_KB_ROW2,   "PCB_ID4", false, false},
+	{TEGRA_GPIO_PQ5, TEGRA_PINGROUP_KB_COL5,   "PCB_ID5", false, false},
 	{TEGRA_GPIO_PJ0, TEGRA_PINGROUP_GMI_CS0_N, "PCB_ID6", false, false},
 	{TEGRA_GPIO_PJ2, TEGRA_PINGROUP_GMI_CS1_N, "PCB_ID7", false, false},
 	{TEGRA_GPIO_PK3, TEGRA_PINGROUP_GMI_CS2_N, "PCB_ID8", false, false},
@@ -52,34 +51,20 @@ static const struct pins cardhu_pcbid_pins[] = {
 static unsigned int cardhu_extended_pcbid;
 
 static const struct pins cardhu_extended_pcbid_pins[] = {
-	{TEGRA_GPIO_PC7, TEGRA_PINGROUP_GMI_WP_N, "PCB_ID9", true, false},
-	{TEGRA_GPIO_PJ7, TEGRA_PINGROUP_GMI_A16, "PCB_ID10", true, false},
-	{TEGRA_GPIO_PB0, TEGRA_PINGROUP_GMI_A17, "PCB_ID11", true, false},
-	{TEGRA_GPIO_PR7, TEGRA_PINGROUP_KB_ROW7, "PCB_ID12", true, true},
+	{TEGRA_GPIO_PC7, TEGRA_PINGROUP_GMI_WP_N, "PCB_ID9",  true, false},
+	{TEGRA_GPIO_PJ7, TEGRA_PINGROUP_GMI_A16,  "PCB_ID10", true, false},
+	{TEGRA_GPIO_PB0, TEGRA_PINGROUP_GMI_A17,  "PCB_ID11", true, false},
+	{TEGRA_GPIO_PR7, TEGRA_PINGROUP_KB_ROW7,  "PCB_ID12", true, true },
 };
 
 /* PROJECTID is composed of four GPIO pins */
 static unsigned int cardhu_extended_projectid;
 
 static const struct pins cardhu_extended_projectid_pins[] = {
-	{TEGRA_GPIO_PK2, TEGRA_PINGROUP_GMI_CS4_N, "PROJECT_ID0", true, true},
+	{TEGRA_GPIO_PK2, TEGRA_PINGROUP_GMI_CS4_N, "PROJECT_ID0", true, true },
 	{TEGRA_GPIO_PI3, TEGRA_PINGROUP_GMI_CS6_N, "PROJECT_ID1", true, false},
-	{TEGRA_GPIO_PI7, TEGRA_PINGROUP_GMI_WAIT, "PROJECT_ID2", true, false},
+	{TEGRA_GPIO_PI7, TEGRA_PINGROUP_GMI_WAIT,  "PROJECT_ID2", true, false},
 	{TEGRA_GPIO_PK4, TEGRA_PINGROUP_GMI_CS3_N, "PROJECT_ID3", true, false},
-};
-
-static const char *tegra3_project_name[TEGRA3_PROJECT_MAX] = {
-	[TEGRA3_PROJECT_TF201] = "TF201",
-	[TEGRA3_PROJECT_P1801] = "P1801",
-	[TEGRA3_PROJECT_TF300T] = "TF300T",
-	[TEGRA3_PROJECT_TF300TG] = "TF300TG",
-	[TEGRA3_PROJECT_TF700T] = "TF700T",
-	[TEGRA3_PROJECT_TF300TL] = "TF300TL",
-	[TEGRA3_PROJECT_EXTENSION] = "Extension",
-	[TEGRA3_PROJECT_TF500T] = "TF500T",
-	[TEGRA3_PROJECT_ME301T] = "ME301T",
-	[TEGRA3_PROJECT_ME301TL] = "ME301TL",
-	[TEGRA3_PROJECT_ME570T] = "ME570T",
 };
 
 static unsigned int tegra3_project_name_index = TEGRA3_PROJECT_INVALID;
@@ -91,7 +76,8 @@ static int __init tegra3_productid_setup(char *id)
 {
 	unsigned int index;
 
-	if (!id) return 1;
+	if (!id)
+		return 1;
 
 	index = (unsigned int) simple_strtoul(id, NULL, 0);
 
@@ -101,37 +87,12 @@ static int __init tegra3_productid_setup(char *id)
 					? index : TEGRA3_PROJECT_INVALID;
 	return 0;
 }
-
 early_param("androidboot.productid", tegra3_productid_setup);
 
-/* Deprecated function */
-const char *tegra3_get_project_name(void)
-{
-	unsigned int project_id = tegra3_project_name_index;
-
-	if (tegra3_misc_enabled) {
-		project_id = HW_DRF_VAL(TEGRA3_DEVKIT, MISC_HW,
-
-						PROJECT, cardhu_pcbid);
-		if (project_id == TEGRA3_PROJECT_EXTENSION)
-			project_id = 8 + HW_DRF_VAL(TEGRA3_DEVKIT, MISC_HW,
-				EXTENDED_PROJECT, cardhu_extended_projectid);
-
-		/* WARN if project id was not matched with PCBID */
-		WARN_ONCE(project_id != tegra3_project_name_index,
-			"[MISC]: project ID in kernel cmdline was not matched"
-			"with PCBID\n");
-	}
-	else {
-		pr_info("[MISC]: adopt kernel cmdline prior to %s ready.\n",
-				__func__);
-	}
-
-	return (project_id < TEGRA3_PROJECT_MAX) ?
-		tegra3_project_name[project_id] : "unknown";
-}
-EXPORT_SYMBOL(tegra3_get_project_name);
-
+/* Acquire project identification in integer format
+ *   @ret cont u32
+ *      Project identification will be returned.
+ */
 unsigned int tegra3_get_project_id(void)
 {
 	unsigned int project_id = tegra3_project_name_index;
@@ -149,131 +110,86 @@ unsigned int tegra3_get_project_id(void)
 			"[MISC]: project ID in kernel cmdline was not matched"
 			"with PCBID\n");
 	}
-	else {
-		pr_info("[MISC]: adopt kernel cmdline prior to %s ready.\n",
-				__func__);
-	}
+
 	return (project_id < TEGRA3_PROJECT_MAX) ?
 		project_id : TEGRA3_PROJECT_INVALID;
-
 }
-EXPORT_SYMBOL(tegra3_get_project_id);
 
-unsigned int tegra3_query_touch_module_pcbid(void)
+/* Query pin status of equipped touch module defined in PCB pins.
+ *   @ret u32
+ *      Return unsigned integer to reflect the PCB pin status of equipped touch module.
+ *      Otherwise -1 (Not supported) will be returned.
+ */
+static inline unsigned int tegra3_query_touch_module_pcbid(void)
 {
 	unsigned int touch_pcbid = 0;
 	unsigned int project = tegra3_get_project_id();
-	unsigned int ret = -1;
 
 	/* Check if running target platform */
 	if ((project == TEGRA3_PROJECT_TF300T) ||
 		(project == TEGRA3_PROJECT_TF300TG) ||
-		(project == TEGRA3_PROJECT_TF300TL)) {
-		pr_err("[MISC]: %s is not supported on %02x.\n", __func__,
-			tegra3_get_project_id());
-		return ret;
-	}
+		(project == TEGRA3_PROJECT_TF300TL))
+		return -ENODEV;
 
 	/* Fetch PCB_ID[2] and PCB_ID[6] and recompose it */
 	touch_pcbid = (HW_DRF_VAL(TEGRA3_DEVKIT, MISC_HW, TOUCHL, cardhu_pcbid)) +
 		(HW_DRF_VAL(TEGRA3_DEVKIT, MISC_HW, TOUCHH, cardhu_pcbid) << 1);
 
-	switch (project) {
-	case TEGRA3_PROJECT_TF201:
-		ret = touch_pcbid;
-		break;
-	case TEGRA3_PROJECT_TF700T:
-		/* Reserve PCB_ID[2] for touch panel identification */
-		ret = touch_pcbid & 0x1;
-		break;
-	default:
-		ret = -1;
-	}
+	/* Reserve PCB_ID[2] for touch panel identification */
+	if (project == TEGRA3_PROJECT_TF700T)
+		touch_pcbid = touch_pcbid & 0x1;
 
-	return ret;
+	return touch_pcbid;
 }
-EXPORT_SYMBOL(tegra3_query_touch_module_pcbid);
 
-unsigned int tegra3_query_audio_codec_pcbid(void)
+/* Query pin status of equipped input audio codec defined in PCB pins.
+ *   @ret bool
+ *      Return unsigned integer to reflect the PCB pin status of equipped audio codec.
+ *      Otherwise -1 (Not supported) will be returned.
+ */
+static inline unsigned int tegra3_query_audio_codec_pcbid(void)
 {
-	unsigned int codec_pcbid = 0;
 	unsigned int project = tegra3_get_project_id();
-	unsigned int ret = -1;
 
 	/* Check if running target platform */
 	if ((project == TEGRA3_PROJECT_TF201) ||
-		(project == TEGRA3_PROJECT_TF700T)) {
-		pr_err("[MISC]: %s is not supported on %02x.\n", __func__,
-			tegra3_get_project_id());
-		return ret;
-	}
+		(project == TEGRA3_PROJECT_TF700T))
+		return -ENODEV;
 
-	codec_pcbid = HW_DRF_VAL(TEGRA3_DEVKIT, MISC_HW, ACODEC, cardhu_pcbid);
-
-	if ((project == TEGRA3_PROJECT_TF300T) ||
-		(project == TEGRA3_PROJECT_TF300TG) ||
-		(project == TEGRA3_PROJECT_TF300TL)) {
-		ret = codec_pcbid;
-	}
-
-	return ret;
+	return HW_DRF_VAL(TEGRA3_DEVKIT, MISC_HW, ACODEC, cardhu_pcbid);
 }
-EXPORT_SYMBOL(tegra3_query_audio_codec_pcbid);
 
+/* Query pin status of equipped hw revision of development PCBA defined in PCB pins.
+ *   @ret bool
+ *      Return unsigned integer to reflect the PCB pin status of equipped PCBA.
+ *      Otherwise -1 (Not supported) will be returned.
+ */
 unsigned int tegra3_query_pcba_revision_pcbid(void)
 {
 	unsigned int project = tegra3_get_project_id();
-	unsigned int ret = -1;
 
 	/* Check if running target platform */
-	if (project != TEGRA3_PROJECT_TF700T) {
-		pr_err("[MISC]: %s is not supported on %02x.\n", __func__,
-			tegra3_get_project_id());
-		return ret;
-	}
+	if (project != TEGRA3_PROJECT_TF700T)
+		return -ENODEV;
 
-	ret = HW_DRF_VAL(TEGRA3_DEVKIT, MISC_HW, REVISION, cardhu_pcbid);
-
-	return ret;
+	return HW_DRF_VAL(TEGRA3_DEVKIT, MISC_HW, REVISION, cardhu_pcbid);
 }
-EXPORT_SYMBOL(tegra3_query_pcba_revision_pcbid);
 
-unsigned int tegra3_query_wifi_module_pcbid(void)
+/* Query pin status of equipped wifi module defined in PCB pins.
+ *   @ret bool
+ *      Return unsigned integer to reflect the PCB pin status of equipped wifi module.
+ *      Otherwise -1 (Not supported) will be returned.
+ */
+static inline unsigned int tegra3_query_wifi_module_pcbid(void)
 {
-	unsigned int wifi_pcbid = 0;
 	unsigned int project = tegra3_get_project_id();
-	unsigned int ret = -1;
 
 	/* Check if running target platform is valid */
-	if (project == TEGRA3_PROJECT_INVALID) {
-		pr_err("[MISC]: %s is not supported on %02x.\n", __func__,
-			tegra3_get_project_id());
-		return ret;
-	}
+	if (project == TEGRA3_PROJECT_INVALID)
+		return -ENODEV;
 
-	wifi_pcbid = HW_DRF_VAL(TEGRA3_DEVKIT, MISC_HW, WIFI, cardhu_pcbid);
-	ret = wifi_pcbid;
-
-	return ret;
+	return HW_DRF_VAL(TEGRA3_DEVKIT, MISC_HW, WIFI, cardhu_pcbid);
 }
-EXPORT_SYMBOL(tegra3_query_wifi_module_pcbid);
-
-unsigned int tegra3_query_nfc_module(void)
-{
-	unsigned int nfc_pcbid = 0;
-	unsigned int project = tegra3_get_project_id();
-	unsigned int ret = TEGRA3_NFC_NONE;
-
-	/* Check if running target platform is valid */
-	if (project == TEGRA3_PROJECT_ME570T) {
-		nfc_pcbid = HW_DRF_VAL(TEGRA3_DEVKIT, MISC_HW, NFC,
-			cardhu_extended_pcbid);
-		ret = nfc_pcbid;
-	}
-
-	return ret;
-}
-EXPORT_SYMBOL(tegra3_query_nfc_module);
 
 static ssize_t cardhu_chipid_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -313,42 +229,20 @@ static ssize_t cardhu_pcbid_show(struct kobject *kobj,
 static ssize_t cardhu_projectid_show(struct kobject *kobj,
         struct kobj_attribute *attr, char *buf)
 {
-        char *s = buf;
+	char *s = buf;
 
-        s += sprintf(s, "%02x\n", tegra3_get_project_id());
-        return (s - buf);
-}
-
-static ssize_t cardhu_projectname_show(struct kobject *kobj,
-        struct kobj_attribute *attr, char *buf)
-{
-        char *s = buf;
-
-        s += sprintf(s, "%s\n", tegra3_get_project_name());
-        return (s - buf);
-}
-
-static ssize_t cardhu_nfc_show(struct kobject *kobj,
-        struct kobj_attribute *attr, char *buf)
-{
-        char *s = buf;
-
-        s += sprintf(s, "%x\n", tegra3_query_nfc_module());
-        return (s - buf);
+	s += sprintf(s, "%02x\n", tegra3_get_project_id());
+	return (s - buf);
 }
 
 CARDHU_MISC_ATTR(cardhu_chipid);
 CARDHU_MISC_ATTR(cardhu_pcbid);
 CARDHU_MISC_ATTR(cardhu_projectid);
-CARDHU_MISC_ATTR(cardhu_projectname);
-CARDHU_MISC_ATTR(cardhu_nfc);
 
 static struct attribute *attr_list[] = {
 	&cardhu_chipid_attr.attr,
 	&cardhu_pcbid_attr.attr,
 	&cardhu_projectid_attr.attr,
-	&cardhu_projectname_attr.attr,
-	&cardhu_nfc_attr.attr,
 	NULL,
 };
 
@@ -356,15 +250,12 @@ static struct attribute_group attr_group = {
 	.attrs = attr_list,
 };
 
-static struct platform_device *cardhu_misc_device;
-
 static int board_pins_init(
 	const struct pins *board_pins,
 	unsigned int pin_size,
 	unsigned int *pin_value)
 {
 	int ret = 0, i = 0;
-
 
 	for (i = 0; i < pin_size; i++) {
 		ret = gpio_request(board_pins[i].gpio, board_pins[i].label);
@@ -427,27 +318,25 @@ static void board_pins_pulldown(
 	}
 }
 
-
 int __init cardhu_misc_init(unsigned long long uid)
 {
+	struct platform_device *cardhu_misc_device;
 	int ret = 0;
-
-	pr_debug("%s: start\n", __func__);
 
 	if (!uid)
 		pr_err("[MISC]: chip unique id is unavailable.\n");
 	else
 		tegra3_chip_uid = uid;
 
-	// create a platform device
+	/* Create a platform device */
 	cardhu_misc_device = platform_device_alloc("cardhu_misc", -1);
 
-        if (!cardhu_misc_device) {
+	if (!cardhu_misc_device) {
 		ret = -ENOMEM;
 		goto fail_platform_device;
-        }
+	}
 
-	// add a platform device to device hierarchy
+	/* Add a platform device to device hierarchy */
 	ret = platform_device_add(cardhu_misc_device);
 	if (ret) {
 		pr_err("[MISC]: cannot add device to platform.\n");
@@ -497,7 +386,7 @@ int __init cardhu_misc_init(unsigned long long uid)
 		goto fail_sysfs;
 	}
 
-	// indicate misc module well-prepared
+	/* indicate misc module well-prepared */
 	tegra3_misc_enabled = true;
 
 	return ret;
