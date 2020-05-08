@@ -3,7 +3,7 @@
  *
  * Tegra Graphics Host Interrupt Management
  *
- * Copyright (c) 2011-2013, NVIDIA Corporation.
+ * Copyright (c) 2011-2012, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -66,6 +66,7 @@ struct nvhost_job {
 	/* Wait checks to be processed at submit time */
 	struct nvhost_waitchk *waitchk;
 	int num_waitchk;
+	u32 waitchk_mask;
 
 	/* Array of handles to be pinned & unpinned */
 	struct nvhost_reloc *relocarray;
@@ -74,7 +75,6 @@ struct nvhost_job {
 	struct nvhost_job_unpin *unpins;
 	int num_unpins;
 
-	u32 *pin_ids;
 	dma_addr_t *addr_phys;
 	dma_addr_t *gather_addr_phys;
 	dma_addr_t *reloc_addr_phys;
@@ -89,9 +89,6 @@ struct nvhost_job {
 
 	/* Maximum time to wait for this job */
 	int timeout;
-
-	/* Do debug dump after timeout */
-	bool timeout_debug_dump;
 
 	/* Null kickoff prevents submit from being sent to hardware */
 	bool null_kickoff;
@@ -110,8 +107,9 @@ struct nvhost_job {
  */
 struct nvhost_job *nvhost_job_alloc(struct nvhost_channel *ch,
 		struct nvhost_hwctx *hwctx,
-		int num_cmdbufs, int num_relocs, int num_waitchks,
-		struct mem_mgr *memmgr);
+		struct nvhost_submit_hdr_ext *hdr,
+		struct mem_mgr *memmgr,
+		int priority, int clientid);
 
 /*
  * Add a gather to a job.

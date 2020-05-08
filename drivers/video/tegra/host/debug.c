@@ -4,7 +4,7 @@
  * Copyright (C) 2010 Google, Inc.
  * Author: Erik Gilling <konkers@android.com>
  *
- * Copyright (C) 2011-2013, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (C) 2011-2012 NVIDIA Corporation
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -35,7 +35,6 @@ unsigned int nvhost_debug_trace_cmdbuf;
 pid_t nvhost_debug_force_timeout_pid;
 u32 nvhost_debug_force_timeout_val;
 u32 nvhost_debug_force_timeout_channel;
-u32 nvhost_debug_force_timeout_dump;
 
 void nvhost_debug_output(struct output *o, const char* fmt, ...)
 {
@@ -62,7 +61,7 @@ static int show_channels(struct platform_device *pdev, void *data)
 	m = nvhost_get_host(pdev);
 	ch = pdata->channel;
 	if (ch) {
-		int locked = mutex_trylock(&ch->reflock);
+		mutex_lock(&ch->reflock);
 		if (ch->refcount) {
 			mutex_lock(&ch->cdma.lock);
 			nvhost_get_chip_ops()->debug.show_channel_fifo(
@@ -71,8 +70,7 @@ static int show_channels(struct platform_device *pdev, void *data)
 				m, ch, o, pdata->index);
 			mutex_unlock(&ch->cdma.lock);
 		}
-		if (locked)
-			mutex_unlock(&ch->reflock);
+		mutex_unlock(&ch->reflock);
 	}
 
 	return 0;
@@ -490,7 +488,6 @@ void nvhost_device_debug_init(struct platform_device *dev)
 	de = debugfs_create_dir(dev->name, de);
 	debugfs_create_file("stallcount", S_IRUGO, de, dev, &stallcount_fops);
 	debugfs_create_file("xfercount", S_IRUGO, de, dev, &xfercount_fops);
-	debugfs_create_file("tickcount", S_IRUGO, de, dev, &tickcount_fops);
 
 	pdata->debugfs = de;
 }
@@ -527,9 +524,6 @@ void nvhost_debug_init(struct nvhost_master *master)
 			&nvhost_debug_force_timeout_val);
 	debugfs_create_u32("force_timeout_channel", S_IRUGO|S_IWUSR, de,
 			&nvhost_debug_force_timeout_channel);
-	debugfs_create_u32("force_timeout_dump", S_IRUGO|S_IWUSR, de,
-			&nvhost_debug_force_timeout_dump);
-	nvhost_debug_force_timeout_dump = 0;
 
 	debugfs_create_file("3d_actmon_k", S_IRUGO, de,
 			master, &actmon_k_fops);
@@ -545,6 +539,8 @@ void nvhost_debug_init(struct nvhost_master *master)
 			master, &actmon_above_wmark_fops);
 	debugfs_create_file("3d_actmon_below_wmark", S_IRUGO, de,
 			master, &actmon_below_wmark_fops);
+	debugfs_create_file("tickcount", S_IRUGO, de,
+			master->dev, &tickcount_fops);
 }
 #else
 void nvhost_debug_init(struct nvhost_master *master)

@@ -3,7 +3,7 @@
  *
  * Tegra Graphics Host 3D clock scaling
  *
- * Copyright (c) 2013, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2012, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -62,11 +62,23 @@
  * prevent spiky scaling behavior, which in turn exacerbates frame rate
  * instability.
  */
+#define GR3D_FRAME_SPAN 6
 
 static int podgov_is_enabled(struct device *dev);
 static void podgov_enable(struct device *dev, int enable);
-static int podgov_user_ctl(struct device *dev);
-static void podgov_set_user_ctl(struct device *dev, int enable);
+
+/*******************************************************************************
+ * score - a structure for holding data over certain period
+ ******************************************************************************/
+
+struct score {
+	int size;		/* number of samples */
+	int pos;		/* position in ring buffer */
+	int count;		/* actual item count */
+	unsigned int sum;	/* running sum */
+	unsigned int prev;	/* previous score after 'reset' operation */
+	unsigned int list[];	/* ring buffer */
+};
 
 /*******************************************************************************
  * podgov_info_rec - gr3d scaling governor specific parameters
@@ -94,20 +106,18 @@ struct podgov_info_rec {
 	struct delayed_work	idle_timer;
 
 	unsigned int		scale;
+	unsigned int		p_busy_cutoff;
 	unsigned int		p_estimation_window;
 	unsigned int		p_use_throughput_hint;
-	unsigned int		p_hint_lo_limit;
-	unsigned int		p_hint_hi_limit;
-	unsigned int		p_scaleup_limit;
-	unsigned int		p_scaledown_limit;
-	unsigned int		p_smooth;
+	unsigned int		p_throughput_lo_limit;
+	unsigned int		p_throughput_lower_limit;
+	unsigned int		p_throughput_hi_limit;
+	unsigned int		p_scale_step;
 	unsigned int		p_idle_min;
 	unsigned int		idle_min;
 	unsigned int		p_idle_max;
 	unsigned int		idle_max;
 	unsigned int		p_adjust;
-	unsigned int		p_user;
-	unsigned int		p_freq_request;
 
 	long			last_total_idle;
 	long			total_idle;
@@ -124,9 +134,8 @@ struct podgov_info_rec {
 	int			*freqlist;
 	int			freq_count;
 
-	unsigned int		idle_avg;
-	unsigned int		hint_avg;
-	int			block;
+	struct score		*busy_history;
+	struct score		*hint_history;
 
 };
 
@@ -223,10 +232,11 @@ void nvhost_scale3d_suspend(struct platform_device *dev)
 		mutex_unlock(&df->lock);
 		return;
 	}
-	cancel_delayed_work(&podgov->idle_timer);
-	mutex_unlock(&df->lock);
 
 	cancel_work_sync(&podgov->work);
+	cancel_delayed_work(&podgov->idle_timer);
+
+	mutex_unlock(&df->lock);
 }
 
 /*******************************************************************************
@@ -268,7 +278,6 @@ static void podgov_enable(struct device *dev, int enable)
 	struct nvhost_device_data *pdata = platform_get_drvdata(d);
 	struct devfreq *df = pdata->power_manager;
 	struct podgov_info_rec *podgov;
-	bool cancel = false;
 
 	if (!df)
 		return;
@@ -281,141 +290,16 @@ static void podgov_enable(struct device *dev, int enable)
 	if (enable && df->min_freq != df->max_freq) {
 		podgov->enable = 1;
 	} else {
-		cancel = true;
+		cancel_work_sync(&podgov->work);
 		cancel_delayed_work(&podgov->idle_timer);
-		podgov->enable = 0;
+
 		podgov->adjustment_frequency = df->max_freq;
 		podgov->adjustment_type = ADJUSTMENT_LOCAL;
 		update_devfreq(df);
+
+		podgov->enable = 0;
+
 	}
-	mutex_unlock(&df->lock);
-
-	if (cancel)
-		cancel_work_sync(&podgov->work);
-}
-
-/*******************************************************************************
- * podgov_user_ctl(dev)
- *
- * Check whether the gpu scaling is set to user space control.
- ******************************************************************************/
-
-static int podgov_user_ctl(struct device *dev)
-{
-	struct platform_device *d = to_platform_device(dev);
-	struct nvhost_device_data *pdata = platform_get_drvdata(d);
-	struct devfreq *df = pdata->power_manager;
-	struct podgov_info_rec *podgov;
-	int user;
-
-	if (!df)
-		return 0;
-
-	mutex_lock(&df->lock);
-	podgov = df->data;
-	user = podgov->p_user;
-	mutex_unlock(&df->lock);
-
-	return user;
-}
-
-/*****************************************************************************
- * podgov_set_user_ctl(dev, user)
- *
- * This function enables or disables user control of the gpu. If user control
- * is enabled, setting the freq_request controls the gpu frequency, and other
- * gpu scaling mechanisms are disabled.
- ******************************************************************************/
-
-static void podgov_set_user_ctl(struct device *dev, int user)
-{
-	struct platform_device *d = to_platform_device(dev);
-	struct nvhost_device_data *pdata = platform_get_drvdata(d);
-	struct devfreq *df = pdata->power_manager;
-	struct podgov_info_rec *podgov;
-	int cancel = 0;
-
-	if (!df)
-		return;
-
-	mutex_lock(&df->lock);
-	podgov = df->data;
-
-	trace_podgov_set_user_ctl(user);
-
-	if (podgov->enable && user && !podgov->p_user) {
-		cancel = 1;
-		cancel_delayed_work(&podgov->idle_timer);
-
-		podgov->adjustment_frequency = podgov->p_freq_request;
-		podgov->adjustment_type = ADJUSTMENT_LOCAL;
-		update_devfreq(df);
-	}
-
-	podgov->p_user = user;
-
-	mutex_unlock(&df->lock);
-
-	if (cancel)
-		cancel_work_sync(&podgov->work);
-}
-
-/*******************************************************************************
- * podgov_get_freq_request(dev)
- *
- * return the latest freq request if anybody asks
- ******************************************************************************/
-
-static int podgov_get_freq_request(struct device *dev)
-{
-	struct platform_device *d = to_platform_device(dev);
-	struct nvhost_device_data *pdata = platform_get_drvdata(d);
-	struct devfreq *df = pdata->power_manager;
-	struct podgov_info_rec *podgov;
-	int freq_request;
-
-	if (!df)
-		return 0;
-
-	mutex_lock(&df->lock);
-	podgov = df->data;
-	freq_request = podgov->p_freq_request;
-	mutex_unlock(&df->lock);
-
-	return freq_request;
-}
-
-/*****************************************************************************
- * podgov_set_freq_request(dev, user)
- *
- * Set the current freq request. If scaling is enabled, and podgov user space
- * control is enabled, this will set the gpu frequency.
- ******************************************************************************/
-
-static void podgov_set_freq_request(struct device *dev, int freq_request)
-{
-	struct platform_device *d = to_platform_device(dev);
-	struct nvhost_device_data *pdata = platform_get_drvdata(d);
-	struct devfreq *df = pdata->power_manager;
-	struct podgov_info_rec *podgov;
-
-	if (!df)
-		return;
-
-	mutex_lock(&df->lock);
-	podgov = df->data;
-
-	trace_podgov_set_freq_request(freq_request);
-
-	podgov->p_freq_request = freq_request;
-
-	if (podgov->enable && podgov->p_user) {
-
-		podgov->adjustment_frequency = freq_request;
-		podgov->adjustment_type = ADJUSTMENT_LOCAL;
-		update_devfreq(df);
-	}
-
 	mutex_unlock(&df->lock);
 }
 
@@ -613,6 +497,73 @@ static void update_load_estimate(struct devfreq *df)
 }
 
 /*******************************************************************************
+ * score_init(capacity)
+ *
+ * This function initialises a score list with given capacity
+ ******************************************************************************/
+
+static struct score *score_init(int capacity)
+{
+	struct score *s;
+
+	s = kzalloc(sizeof(struct score) + capacity * sizeof(int), GFP_KERNEL);
+	if (s == NULL)
+		return NULL;
+
+	s->size = capacity;
+
+	return s;
+}
+
+/*******************************************************************************
+ * score_delete(s)
+ *
+ * This function destructs the given score list
+ ******************************************************************************/
+
+static void score_delete(struct score *s)
+{
+	kfree(s);
+}
+
+#define score_get_average(s) ((s)->count ? (s)->sum / (s)->count : 0)
+
+/*******************************************************************************
+ * score_add(s, reading)
+ *
+ * Add a single reading into the given score list
+ ******************************************************************************/
+
+static void score_add(struct score *s, unsigned int reading)
+{
+	if (s->count < s->size) {
+		s->sum += reading;
+		s->count++;
+	} else
+		s->sum = s->sum - s->list[s->pos] + reading;
+
+	s->list[s->pos] = reading;
+	s->pos = (s->pos + 1) % s->size;
+}
+
+/*******************************************************************************
+ * score_reset(s)
+ *
+ * Reset the score list
+ ******************************************************************************/
+
+static unsigned int score_reset(struct score *s)
+{
+	s->prev = s->sum;
+
+	s->count = 0;
+	s->pos = 0;
+	s->sum = 0;
+
+	return s->prev;
+}
+
+/*******************************************************************************
  * freqlist_up(podgov, target, steps)
  *
  * This function determines the frequency that is "steps" frequency steps
@@ -701,10 +652,11 @@ void nvhost_scale3d_set_throughput_hint(int hint)
 	struct podgov_info_rec *podgov = local_podgov;
 	struct devfreq *df;
 
-	long idle;
+	ktime_t now;
+	long busy;
 	long curr, target;
-	int avg_idle, avg_hint, scale_score;
-	unsigned int smooth;
+	long dt;
+	int avg_busy, avg_hint;
 
 	if (!podgov)
 		return;
@@ -714,52 +666,76 @@ void nvhost_scale3d_set_throughput_hint(int hint)
 
 	mutex_lock(&podgov->power_manager->lock);
 
-	podgov->block--;
-
-	if (!podgov->enable ||
-		!podgov->p_use_throughput_hint ||
-		podgov->block > 0) {
+	if (!podgov->enable) {
+		mutex_unlock(&podgov->power_manager->lock);
+		return;
+	}
+	if (!podgov->p_use_throughput_hint) {
 		mutex_unlock(&podgov->power_manager->lock);
 		return;
 	}
 
 	trace_podgov_hint(podgov->idle_estimate, hint);
-	podgov->last_throughput_hint = ktime_get();
 
-	curr = podgov->power_manager->previous_freq;
-	idle = podgov->idle_estimate;
-	smooth = podgov->p_smooth;
-
-	/* compute averages usings exponential-moving-average */
-	avg_idle = ((smooth*podgov->idle_avg + idle)/(smooth+1));
-	podgov->idle_avg = avg_idle;
-	avg_hint = ((smooth*podgov->hint_avg + hint)/(smooth+1));
-	podgov->hint_avg = avg_hint;
-
-	/* set the target using avg_hint and avg_idle */
-	target = curr;
-	if (avg_hint < podgov->p_hint_lo_limit) {
-		target = freqlist_up(podgov, curr, 1);
-	} else {
-		scale_score = avg_idle + avg_hint;
-		if (scale_score > podgov->p_scaledown_limit)
-			target = freqlist_down(podgov, curr, 1);
-		else if (scale_score < podgov->p_scaleup_limit
-				&& hint < podgov->p_hint_hi_limit)
-			target = freqlist_up(podgov, curr, 1);
+	now = ktime_get();
+	dt = ktime_us_delta(now, podgov->last_throughput_hint);
+	if (dt > GR3D_TIMEFRAME) {
+		score_reset(podgov->busy_history);
+		score_reset(podgov->hint_history);
 	}
 
-	/* clamp and apply target */
+	podgov->last_throughput_hint = now;
+
+	busy = 1000 - podgov->idle_estimate;
+	curr = podgov->power_manager->previous_freq;
+	target = df->min_freq;
+
+	score_add(podgov->busy_history, busy);
+	score_add(podgov->hint_history, hint);
+
+	avg_busy = score_get_average(podgov->busy_history);
+	avg_hint = score_get_average(podgov->hint_history);
+
+	if (busy > 0)
+		target = (curr / 1000) * busy;
+
+	/* In practice, running the gpu at min frequency is typically
+	 * sufficient to keep up performance at loads up to 70% on cases,
+	 * but the average hint value is tested to keep performance up if
+	 * needed.
+	 */
+	if (avg_busy <= podgov->p_busy_cutoff &&
+	    avg_hint >= podgov->p_throughput_lower_limit)
+		target = df->min_freq;
+	else {
+		target = (df->max_freq / 1000) * avg_busy;
+
+		/* Scale up if either the current hint or the running average
+		 * are below the target to prevent performance drop.
+		 */
+		if (hint <= podgov->p_throughput_lo_limit ||
+		    avg_hint <= podgov->p_throughput_lo_limit) {
+			if (target < curr)
+				target = curr;
+			target = freqlist_up(podgov, target,
+				podgov->p_scale_step);
+		} else if (avg_hint >= podgov->p_throughput_hi_limit) {
+			if (target > curr)
+				target = curr;
+			target = freqlist_down(podgov, target,
+				podgov->p_scale_step);
+		}
+	}
+
 	scaling_limit(df, &target);
 	if (target != curr) {
-		podgov->block = podgov->p_smooth;
 		trace_podgov_do_scale(df->previous_freq, target);
 		podgov->adjustment_frequency = target;
 		podgov->adjustment_type = ADJUSTMENT_LOCAL;
 		update_devfreq(df);
 	}
 
-	trace_podgov_print_target(idle, avg_idle, curr / 1000000, target, hint,
+	trace_podgov_print_target(busy, avg_busy, curr / 1000000, target, hint,
 		avg_hint);
 
 	mutex_unlock(&podgov->power_manager->lock);
@@ -803,11 +779,10 @@ static void nvhost_scale3d_debug_init(struct devfreq *df)
 	CREATE_PODGOV_FILE(idle_max);
 	CREATE_PODGOV_FILE(adjust);
 	CREATE_PODGOV_FILE(use_throughput_hint);
-	CREATE_PODGOV_FILE(hint_hi_limit);
-	CREATE_PODGOV_FILE(hint_lo_limit);
-	CREATE_PODGOV_FILE(scaleup_limit);
-	CREATE_PODGOV_FILE(scaledown_limit);
-	CREATE_PODGOV_FILE(smooth);
+	CREATE_PODGOV_FILE(throughput_hi_limit);
+	CREATE_PODGOV_FILE(throughput_lo_limit);
+	CREATE_PODGOV_FILE(throughput_lower_limit);
+	CREATE_PODGOV_FILE(scale_step);
 #undef CREATE_PODGOV_FILE
 }
 
@@ -861,64 +836,6 @@ static DEVICE_ATTR(enable_3d_scaling, S_IRUGO | S_IWUSR,
 	enable_3d_scaling_show, enable_3d_scaling_store);
 
 /*******************************************************************************
- * sysfs interface for user space control
- * user = [0,1] disables / enabled user space control
- * freq_request is the sysfs node user space writes frequency requests to
- ******************************************************************************/
-
-static ssize_t user_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	ssize_t res;
-
-	res = snprintf(buf, PAGE_SIZE, "%d\n", podgov_user_ctl(dev));
-
-	return res;
-}
-
-static ssize_t user_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
-{
-	unsigned long val = 0;
-
-	if (kstrtoul(buf, 10, &val) < 0)
-		return -EINVAL;
-
-	podgov_set_user_ctl(dev, val);
-
-	return count;
-}
-
-static DEVICE_ATTR(user, S_IRUGO | S_IWUSR,
-	user_show, user_store);
-
-static ssize_t freq_request_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	ssize_t res;
-
-	res = snprintf(buf, PAGE_SIZE, "%d\n", podgov_get_freq_request(dev));
-
-	return res;
-}
-
-static ssize_t freq_request_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
-{
-	unsigned long val = 0;
-
-	if (kstrtoul(buf, 10, &val) < 0)
-		return -EINVAL;
-
-	podgov_set_freq_request(dev, val);
-
-	return count;
-}
-
-static DEVICE_ATTR(freq_request, S_IRUGO | S_IWUSR,
-	freq_request_show, freq_request_store);
-
-/*******************************************************************************
  * nvhost_pod_estimate_freq(df, freq)
  *
  * This function is called for re-estimating the frequency. The function is
@@ -939,28 +856,15 @@ static int nvhost_pod_estimate_freq(struct devfreq *df,
 	struct devfreq_dev_status dev_stat;
 	struct nvhost_devfreq_ext_stat *ext_stat;
 	long delay;
-	int current_event;
-	int stat;
-	ktime_t now;
-
-	stat = df->profile->get_dev_status(df->dev.parent, &dev_stat);
-	if (stat < 0)
-		return stat;
+	int current_event = DEVICE_IDLE;
+	int stat = 0;
+	ktime_t now = ktime_get();
 
 	/* Ensure maximal clock when scaling is disabled */
 	if (!podgov->enable) {
 		*freq = df->max_freq;
 		return 0;
 	}
-
-	if (podgov->p_user) {
-		*freq = podgov->p_freq_request;
-		return 0;
-	}
-
-	current_event = DEVICE_IDLE;
-	stat = 0;
-	now = ktime_get();
 
 	/* Local adjustments (i.e. requests from kernel threads) are
 	 * handled here */
@@ -980,6 +884,10 @@ static int nvhost_pod_estimate_freq(struct devfreq *df,
 		*freq = podgov->adjustment_frequency;
 		return 0;
 	}
+
+	stat = df->profile->get_dev_status(df->dev.parent, &dev_stat);
+	if (stat < 0)
+		return stat;
 
 	/* Retrieve extended data */
 	ext_stat = dev_stat.private_data;
@@ -1072,29 +980,17 @@ static int nvhost_pod_init(struct devfreq *df)
 
 	/* Set scaling parameter defaults */
 	podgov->enable = 1;
-	podgov->p_adjust = 0;
-	podgov->block = 0;
+	podgov->idle_min = podgov->p_idle_min = 100;
+	podgov->idle_max = podgov->p_idle_max = 150;
+	podgov->p_adjust = 1;
 	podgov->p_use_throughput_hint = 1;
-	if (tegra_get_chipid() == TEGRA_CHIPID_TEGRA11) {
-		podgov->idle_min = podgov->p_idle_min = 400;
-		podgov->idle_max = podgov->p_idle_max = 500;
-		podgov->p_hint_lo_limit = 500;
-		podgov->p_hint_hi_limit = 997;
-		podgov->p_scaleup_limit = 1100;
-		podgov->p_scaledown_limit = 1300;
-		podgov->p_smooth = 3;
-	} else {
-		podgov->idle_min = podgov->p_idle_min = 100;
-		podgov->idle_max = podgov->p_idle_max = 150;
-		podgov->p_hint_lo_limit = 800;
-		podgov->p_hint_hi_limit = 1015;
-		podgov->p_scaleup_limit = 1275;
-		podgov->p_scaledown_limit = 1475;
-		podgov->p_smooth = 7;
-	}
-	podgov->p_estimation_window = 10000;
+	podgov->p_throughput_lower_limit = 940;
+	podgov->p_throughput_lo_limit = 990;
+	podgov->p_throughput_hi_limit = 1010;
+	podgov->p_scale_step = 1;
+	podgov->p_estimation_window = 8000;
+	podgov->p_busy_cutoff = 750;
 	podgov->adjustment_type = ADJUSTMENT_DEVICE_REQ;
-	podgov->p_user = 0;
 
 	/* Reset clock counters */
 	podgov->last_throughput_hint = now;
@@ -1117,21 +1013,9 @@ static int nvhost_pod_init(struct devfreq *df)
 	df->min_freq = ext_stat->min_freq;
 	df->max_freq = ext_stat->max_freq;
 
-	podgov->p_freq_request = ext_stat->max_freq;
-
-	/* Create sysfs entries for controlling this governor */
+	/* Create a sysfs entry for controlling this governor */
 	error = device_create_file(&d->dev,
 			&dev_attr_enable_3d_scaling);
-	if (error)
-		goto err_create_sysfs_entry;
-
-	error = device_create_file(&d->dev,
-			&dev_attr_user);
-	if (error)
-		goto err_create_sysfs_entry;
-
-	error = device_create_file(&d->dev,
-			&dev_attr_freq_request);
 	if (error)
 		goto err_create_sysfs_entry;
 
@@ -1143,8 +1027,7 @@ static int nvhost_pod_init(struct devfreq *df)
 			pr_err("%s: too many frequencies\n", __func__);
 			break;
 		}
-		rounded_rate =
-			clk_round_rate(clk_get_parent(pdata->clk[0]), rate);
+		rounded_rate = clk_round_rate(pdata->clk[0], rate);
 		freqs[podgov->freq_count++] = rounded_rate;
 		rate = rounded_rate + 2000;
 	}
@@ -1157,17 +1040,24 @@ static int nvhost_pod_init(struct devfreq *df)
 	memcpy(podgov->freqlist, freqs,
 		podgov->freq_count * sizeof(int));
 
-	podgov->idle_avg = 0;
-	podgov->hint_avg = 0;
+	podgov->busy_history = score_init(GR3D_FRAME_SPAN);
+	if (podgov->busy_history == NULL)
+		goto err_allocate_busy;
+
+	podgov->hint_history = score_init(GR3D_FRAME_SPAN);
+	if (podgov->hint_history == NULL)
+		goto err_allocate_hint;
 
 	nvhost_scale3d_debug_init(df);
 
 	return 0;
 
+err_allocate_hint:
+	score_delete(podgov->busy_history);
+err_allocate_busy:
+	kfree(podgov->freqlist);
 err_allocate_freq_list:
 	device_remove_file(&d->dev, &dev_attr_enable_3d_scaling);
-	device_remove_file(&d->dev, &dev_attr_user);
-	device_remove_file(&d->dev, &dev_attr_freq_request);
 err_create_sysfs_entry:
 	dev_err(&d->dev, "failed to create sysfs attributes");
 err_get_current_status:
@@ -1190,11 +1080,11 @@ static void nvhost_pod_exit(struct devfreq *df)
 	cancel_work_sync(&podgov->work);
 	cancel_delayed_work(&podgov->idle_timer);
 
+	score_delete(podgov->busy_history);
+	score_delete(podgov->hint_history);
 	kfree(podgov->freqlist);
 
 	device_remove_file(&d->dev, &dev_attr_enable_3d_scaling);
-	device_remove_file(&d->dev, &dev_attr_user);
-	device_remove_file(&d->dev, &dev_attr_freq_request);
 
 	nvhost_scale3d_debug_deinit(df);
 

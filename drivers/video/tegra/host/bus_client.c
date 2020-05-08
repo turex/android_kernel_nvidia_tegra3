@@ -3,7 +3,7 @@
  *
  * Tegra Graphics Host Client Module
  *
- * Copyright (c) 2010-2013, NVIDIA Corporation.
+ * Copyright (c) 2010-2012, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -58,35 +58,11 @@ static int validate_reg(struct platform_device *ndev, u32 offset, int count)
 	struct resource *r = platform_get_resource(ndev, IORESOURCE_MEM, 0);
 	int err = 0;
 
-	/* check if offset is u32 aligned */
-	if (offset & 3)
-		return -EINVAL;
-
 	if (offset + 4 * count > resource_size(r)
 			|| (offset + 4 * count < offset))
 		err = -EPERM;
 
 	return err;
-}
-
-int validate_max_size(struct platform_device *ndev, u32 size)
-{
-	struct resource *r;
-
-	/* check if size is non-zero and u32 aligned */
-	if (!size || size & 3)
-		return -EINVAL;
-
-	r = platform_get_resource(ndev, IORESOURCE_MEM, 0);
-	if (!r) {
-		dev_err(&ndev->dev, "failed to get memory resource\n");
-		return -ENODEV;
-	}
-
-	if (size > resource_size(r))
-		return -EPERM;
-
-	return 0;
 }
 
 int nvhost_read_module_regs(struct platform_device *ndev,
@@ -147,7 +123,6 @@ struct nvhost_channel_userctx {
 	u32 timeout;
 	u32 priority;
 	int clientid;
-	bool timeout_debug_dump;
 };
 
 static int nvhost_channelrelease(struct inode *inode, struct file *filp)
@@ -202,7 +177,6 @@ static int nvhost_channelopen(struct inode *inode, struct file *filp)
 	priv->clientid = atomic_add_return(1,
 			&nvhost_get_host(ch->dev)->clientid);
 	priv->timeout = CONFIG_TEGRA_GRHOST_DEFAULT_TIMEOUT;
-	priv->timeout_debug_dump = true;
 
 	return 0;
 fail:
@@ -232,18 +206,13 @@ static int set_submit(struct nvhost_channel_userctx *ctx)
 	}
 	ctx->job = nvhost_job_alloc(ctx->ch,
 			ctx->hwctx,
-			ctx->hdr.num_cmdbufs,
-			ctx->hdr.num_relocs,
-			ctx->hdr.num_waitchks,
-			ctx->memmgr);
+			&ctx->hdr,
+			ctx->memmgr,
+			ctx->priority,
+			ctx->clientid);
 	if (!ctx->job)
 		return -ENOMEM;
 	ctx->job->timeout = ctx->timeout;
-	ctx->job->syncpt_id = ctx->hdr.syncpt_id;
-	ctx->job->syncpt_incrs = ctx->hdr.syncpt_incrs;
-	ctx->job->priority = ctx->priority;
-	ctx->job->clientid = ctx->clientid;
-	ctx->job->timeout_debug_dump = ctx->timeout_debug_dump;
 
 	if (ctx->hdr.submit_version >= NVHOST_SUBMIT_VERSION_V2)
 		ctx->num_relocshifts = ctx->hdr.num_relocs;
@@ -431,103 +400,6 @@ fail:
 	return err;
 }
 
-static int nvhost_ioctl_channel_submit(struct nvhost_channel_userctx *ctx,
-		struct nvhost_submit_args *args)
-{
-	struct nvhost_job *job;
-	int num_cmdbufs = args->num_cmdbufs;
-	int num_relocs = args->num_relocs;
-	int num_waitchks = args->num_waitchks;
-	struct nvhost_cmdbuf __user *cmdbufs = args->cmdbufs;
-	struct nvhost_reloc __user *relocs = args->relocs;
-	struct nvhost_reloc_shift __user *reloc_shifts = args->reloc_shifts;
-	struct nvhost_waitchk __user *waitchks = args->waitchks;
-	struct nvhost_syncpt_incr syncpt_incr;
-	int err;
-
-	/* We don't yet support other than one nvhost_syncpt_incrs per submit */
-	if (args->num_syncpt_incrs != 1)
-		return -EINVAL;
-
-	job = nvhost_job_alloc(ctx->ch,
-			ctx->hwctx,
-			args->num_cmdbufs,
-			args->num_relocs,
-			args->num_waitchks,
-			ctx->memmgr);
-	if (!job)
-		return -ENOMEM;
-
-	job->num_relocs = args->num_relocs;
-	job->num_waitchk = args->num_waitchks;
-	job->priority = ctx->priority;
-	job->clientid = ctx->clientid;
-
-	while (num_cmdbufs) {
-		struct nvhost_cmdbuf cmdbuf;
-		err = copy_from_user(&cmdbuf, cmdbufs, sizeof(cmdbuf));
-		if (err)
-			goto fail;
-		nvhost_job_add_gather(job,
-				cmdbuf.mem, cmdbuf.words, cmdbuf.offset);
-		num_cmdbufs--;
-		cmdbufs++;
-	}
-
-	err = copy_from_user(job->relocarray,
-			relocs, sizeof(*relocs) * num_relocs);
-	if (err)
-		goto fail;
-
-	err = copy_from_user(job->relocshiftarray,
-			reloc_shifts, sizeof(*reloc_shifts) * num_relocs);
-	if (err)
-		goto fail;
-
-	err = copy_from_user(job->waitchk,
-			waitchks, sizeof(*waitchks) * num_waitchks);
-	if (err)
-		goto fail;
-
-	err = copy_from_user(&syncpt_incr,
-			args->syncpt_incrs, sizeof(syncpt_incr));
-	if (err)
-		goto fail;
-	job->syncpt_id = syncpt_incr.syncpt_id;
-	job->syncpt_incrs = syncpt_incr.syncpt_incrs;
-
-	trace_nvhost_channel_submit(ctx->ch->dev->name,
-		job->num_gathers, job->num_relocs, job->num_waitchk,
-		job->syncpt_id, job->syncpt_incrs);
-
-	err = nvhost_job_pin(job, &nvhost_get_host(ctx->ch->dev)->syncpt);
-	if (err)
-		goto fail;
-
-	if (args->timeout)
-		job->timeout = min(ctx->timeout, args->timeout);
-	else
-		job->timeout = ctx->timeout;
-
-	job->timeout_debug_dump = ctx->timeout_debug_dump;
-
-	err = nvhost_channel_submit(job);
-	if (err)
-		goto fail_submit;
-
-	args->fence = job->syncpt_end;
-
-	nvhost_job_put(job);
-
-	return 0;
-
-fail_submit:
-	nvhost_job_unpin(job);
-fail:
-	nvhost_job_put(job);
-	return err;
-}
-
 static int nvhost_ioctl_channel_read_3d_reg(struct nvhost_channel_userctx *ctx,
 	struct nvhost_read_3d_reg_args *args)
 {
@@ -551,17 +423,11 @@ static int moduleid_to_index(struct platform_device *dev, u32 moduleid)
 }
 
 static int nvhost_ioctl_channel_set_rate(struct nvhost_channel_userctx *ctx,
-	struct nvhost_clk_rate_args *arg)
+	u32 moduleid, u32 rate)
 {
-	u32 moduleid = (arg->moduleid >> NVHOST_MODULE_ID_BIT_POS)
-			& ((1 << NVHOST_MODULE_ID_BIT_WIDTH) - 1);
-	u32 attr = (arg->moduleid >> NVHOST_CLOCK_ATTR_BIT_POS)
-			& ((1 << NVHOST_CLOCK_ATTR_BIT_WIDTH) - 1);
-	int index = moduleid ?
-			moduleid_to_index(ctx->ch->dev, moduleid) : 0;
+	int index = moduleid ? moduleid_to_index(ctx->ch->dev, moduleid) : 0;
 
-	return nvhost_module_set_rate(ctx->ch->dev,
-			ctx, arg->rate, index, attr);
+	return nvhost_module_set_rate(ctx->ch->dev, ctx, rate, index);
 }
 
 static int nvhost_ioctl_channel_get_rate(struct nvhost_channel_userctx *ctx,
@@ -751,7 +617,8 @@ static long nvhost_channelctl(struct file *filp,
 		struct nvhost_clk_rate_args *arg =
 				(struct nvhost_clk_rate_args *)buf;
 
-		err = nvhost_ioctl_channel_set_rate(priv, arg);
+		err = nvhost_ioctl_channel_set_rate(priv,
+			arg->moduleid, arg->rate);
 		break;
 	}
 	case NVHOST_IOCTL_CHANNEL_SET_TIMEOUT:
@@ -771,19 +638,6 @@ static long nvhost_channelctl(struct file *filp,
 		break;
 	case NVHOST_IOCTL_CHANNEL_MODULE_REGRDWR:
 		err = nvhost_ioctl_channel_module_regrdwr(priv, (void *)buf);
-		break;
-	case NVHOST_IOCTL_CHANNEL_SUBMIT:
-		err = nvhost_ioctl_channel_submit(priv, (void *)buf);
-		break;
-	case NVHOST_IOCTL_CHANNEL_SET_TIMEOUT_EX:
-		priv->timeout = (u32)
-			((struct nvhost_set_timeout_ex_args *)buf)->timeout;
-		priv->timeout_debug_dump = !((u32)
-			((struct nvhost_set_timeout_ex_args *)buf)->flags &
-			(1 << NVHOST_TIMEOUT_FLAG_DISABLE_DUMP));
-		dev_dbg(&priv->ch->dev->dev,
-			"%s: setting buffer timeout (%d ms) for userctx 0x%p\n",
-			__func__, priv->timeout, priv);
 		break;
 	default:
 		err = -ENOTTY;
@@ -874,15 +728,7 @@ int nvhost_client_device_init(struct platform_device *dev)
 	if (err)
 		goto fail;
 
-	if (pdata->scaling_init)
-		pdata->scaling_init(dev);
-
 	nvhost_device_debug_init(dev);
-
-	/* reset syncpoint values for this unit */
-	nvhost_module_busy(nvhost_master->dev);
-	nvhost_syncpt_reset_client(dev);
-	nvhost_module_idle(nvhost_master->dev);
 
 	dev_info(&dev->dev, "initialized\n");
 

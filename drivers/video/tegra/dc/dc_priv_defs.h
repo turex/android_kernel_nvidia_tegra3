@@ -42,9 +42,18 @@
 
 #define NEED_UPDATE_EMC_ON_EVERY_FRAME (windows_idle_detection_time == 0)
 
+/* DDR: 8 bytes transfer per clock */
+#define DDR_BW_TO_FREQ(bw) ((bw) / 8)
+
 /* 29 bit offset for window clip number */
 #define CURSOR_CLIP_SHIFT_BITS(win)	(win << 29)
 #define CURSOR_CLIP_GET_WINDOW(reg)	((reg >> 29) & 3)
+
+#if defined(CONFIG_TEGRA_EMC_TO_DDR_CLOCK)
+#define EMC_BW_TO_FREQ(bw) (DDR_BW_TO_FREQ(bw) * CONFIG_TEGRA_EMC_TO_DDR_CLOCK)
+#else
+#define EMC_BW_TO_FREQ(bw) (DDR_BW_TO_FREQ(bw) * 2)
+#endif
 
 #ifndef CONFIG_TEGRA_FPGA_PLATFORM
 #define ALL_UF_INT (WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT)
@@ -84,8 +93,6 @@ struct tegra_dc_out_ops {
 	/* mode filter. to provide a list of supported modes*/
 	bool (*mode_filter)(const struct tegra_dc *dc,
 			struct fb_videomode *mode);
-	/* setup pixel clock and parent clock programming */
-	long (*setup_clk)(struct tegra_dc *dc, struct clk *clk);
 };
 
 struct tegra_dc_shift_clk_div {
@@ -106,8 +113,6 @@ struct tegra_dc {
 	int				emc_clk_rate;
 	int				new_emc_clk_rate;
 	struct tegra_dc_shift_clk_div	shift_clk_div;
-
-	u32				powergate_id;
 
 	bool				connected;
 	bool				enabled;
@@ -141,7 +146,6 @@ struct tegra_dc {
 		u32			max;
 	} syncpt[DC_N_WINDOWS];
 	u32				vblank_syncpt;
-	u32				win_syncpt[DC_N_WINDOWS];
 
 	unsigned long			underflow_mask;
 	struct work_struct		reset_work;
@@ -154,7 +158,6 @@ struct tegra_dc {
 
 	struct work_struct		vblank_work;
 	long				vblank_ref_count;
-	struct work_struct		vpulse2_work;
 	long				vpulse2_ref_count;
 
 	struct {
@@ -177,8 +180,6 @@ struct tegra_dc {
 	u32				one_shot_delay_ms;
 	struct delayed_work		one_shot_work;
 	s64				frame_end_timestamp;
-
-	bool				mode_dirty;
 };
 
 #endif

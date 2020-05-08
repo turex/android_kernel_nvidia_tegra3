@@ -126,8 +126,6 @@ struct nvhost_intr_ops {
 	void (*disable_all_syncpt_intrs)(struct nvhost_intr *);
 	int  (*request_host_general_irq)(struct nvhost_intr *);
 	void (*free_host_general_irq)(struct nvhost_intr *);
-	void (*enable_general_irq)(struct nvhost_intr *, int num);
-	void (*disable_general_irq)(struct nvhost_intr *, int num);
 	int (*free_syncpt_irq)(struct nvhost_intr *);
 };
 
@@ -156,7 +154,7 @@ struct nvhost_mem_ops {
 	void (*kunmap)(struct mem_handle *, unsigned int, void *);
 	int (*pin_array_ids)(struct mem_mgr *,
 			struct platform_device *,
-			u32 *,
+			long unsigned *,
 			dma_addr_t *,
 			u32,
 			struct nvhost_job_unpin *);
@@ -168,6 +166,7 @@ struct nvhost_actmon_ops {
 	int (*read_avg)(struct nvhost_master *host, u32 *val);
 	int (*above_wmark_count)(struct nvhost_master *host);
 	int (*below_wmark_count)(struct nvhost_master *host);
+	int (*isr)(u32 hintstatus, void __iomem *sync_regs);
 	int (*read_avg_norm)(struct nvhost_master *host, u32 *val);
 	void (*update_sample_period)(struct nvhost_master *host);
 	void (*set_sample_period_norm)(struct nvhost_master *host, long usecs);
@@ -179,6 +178,8 @@ struct nvhost_actmon_ops {
 };
 
 struct nvhost_tickctrl_ops {
+	int (*init_host)(struct nvhost_master *host);
+	void (*deinit_host)(struct nvhost_master *host);
 	int (*init_channel)(struct platform_device *dev);
 	void (*deinit_channel)(struct platform_device *dev);
 	int (*tickcount)(struct platform_device *dev, u64 *val);

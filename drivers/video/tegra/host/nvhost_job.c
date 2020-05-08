@@ -35,34 +35,43 @@
 /* Magic to use to fill freed handle slots */
 #define BAD_MAGIC 0xdeadbeef
 
-static size_t job_size(u32 num_cmdbufs, u32 num_relocs, u32 num_waitchks)
+static size_t job_size(struct nvhost_submit_hdr_ext *hdr)
 {
-	u64 num_unpins = (u64)num_cmdbufs + (u64)num_relocs;
-	u64 total;
+	s64 num_relocs = hdr ? (int)hdr->num_relocs : 0;
+	s64 num_waitchks = hdr ? (int)hdr->num_waitchks : 0;
+	s64 num_cmdbufs = hdr ? (int)hdr->num_cmdbufs : 0;
+	s64 num_unpins = num_cmdbufs + num_relocs;
+	s64 total;
 
-	total = sizeof(struct nvhost_job)
-			+ (u64)num_relocs * sizeof(struct nvhost_reloc)
-			+ (u64)num_relocs * sizeof(struct nvhost_reloc_shift)
-			+ num_unpins * sizeof(struct nvhost_job_unpin)
-			+ (u64)num_waitchks * sizeof(struct nvhost_waitchk)
-			+ (u64)num_cmdbufs * sizeof(struct nvhost_job_gather)
-			+ num_unpins * sizeof(dma_addr_t)
-			+ num_unpins * sizeof(u64 *);
-
-	if (total > UINT_MAX)
+	if(num_relocs < 0 || num_waitchks < 0 || num_cmdbufs < 0)
 		return 0;
 
+	total = sizeof(struct nvhost_job)
+			+ num_relocs * sizeof(struct nvhost_reloc)
+			+ num_relocs * sizeof(struct nvhost_reloc_shift)
+			+ num_unpins * sizeof(struct nvhost_job_unpin)
+			+ num_waitchks * sizeof(struct nvhost_waitchk)
+			+ num_cmdbufs * sizeof(struct nvhost_job_gather)
+			+ (num_relocs + num_cmdbufs) * sizeof(dma_addr_t);
+
+	if(total > ULONG_MAX)
+		return 0;
 	return (size_t)total;
 }
 
-
 static void init_fields(struct nvhost_job *job,
-		u32 num_cmdbufs, u32 num_relocs, u32 num_waitchks)
+		struct nvhost_submit_hdr_ext *hdr,
+		int priority, int clientid)
 {
+	int num_relocs = hdr ? hdr->num_relocs : 0;
+	int num_waitchks = hdr ? hdr->num_waitchks : 0;
+	int num_cmdbufs = hdr ? hdr->num_cmdbufs : 0;
 	int num_unpins = num_cmdbufs + num_relocs;
 	void *mem = job;
 
 	/* First init state to zero */
+	job->priority = priority;
+	job->clientid = clientid;
 
 	/*
 	 * Redistribute memory to the structs.
@@ -80,21 +89,29 @@ static void init_fields(struct nvhost_job *job,
 	mem += num_waitchks * sizeof(struct nvhost_waitchk);
 	job->gathers = num_cmdbufs ? mem : NULL;
 	mem += num_cmdbufs * sizeof(struct nvhost_job_gather);
-	job->addr_phys = num_unpins ? mem : NULL;
-	mem += num_unpins * sizeof(dma_addr_t);
-	job->pin_ids = num_unpins ? mem : NULL;
+	job->addr_phys = (num_cmdbufs || num_relocs) ? mem : NULL;
 
 	job->reloc_addr_phys = job->addr_phys;
 	job->gather_addr_phys = &job->addr_phys[num_relocs];
+
+
+	/* Copy information from header */
+	if (hdr) {
+		job->waitchk_mask = hdr->waitchk_mask;
+		job->syncpt_id = hdr->syncpt_id;
+		job->syncpt_incrs = hdr->syncpt_incrs;
+	}
 }
 
 struct nvhost_job *nvhost_job_alloc(struct nvhost_channel *ch,
 		struct nvhost_hwctx *hwctx,
-		int num_cmdbufs, int num_relocs, int num_waitchks,
-		struct mem_mgr *memmgr)
+		struct nvhost_submit_hdr_ext *hdr,
+		struct mem_mgr *memmgr,
+		int priority,
+		int clientid)
 {
 	struct nvhost_job *job = NULL;
-	size_t size = job_size(num_cmdbufs, num_relocs, num_waitchks);
+	size_t size = job_size(hdr);
 
 	if(!size)
 		return NULL;
@@ -109,7 +126,7 @@ struct nvhost_job *nvhost_job_alloc(struct nvhost_channel *ch,
 		hwctx->h->get(hwctx);
 	job->memmgr = memmgr ? mem_op().get_mgr(memmgr) : NULL;
 
-	init_fields(job, num_cmdbufs, num_relocs, num_waitchks);
+	init_fields(job, hdr, priority, clientid);
 
 	return job;
 }
@@ -173,10 +190,6 @@ static int do_waitchks(struct nvhost_job *job, struct nvhost_syncpt *sp,
 	for (i = 0; i < job->num_waitchk; i++) {
 		struct nvhost_waitchk *wait = &job->waitchk[i];
 
-		/* validate syncpt id */
-		if (wait->syncpt_id > nvhost_syncpt_nb_pts(sp))
-			continue;
-
 		/* skip all other gathers */
 		if (patch_mem != wait->mem)
 			continue;
@@ -229,24 +242,31 @@ static int pin_job_mem(struct nvhost_job *job)
 	int i;
 	int count = 0;
 	int result;
+	long unsigned *ids =
+			kmalloc(sizeof(u32 *) *
+				(job->num_relocs + job->num_gathers),
+				GFP_KERNEL);
+	if (!ids)
+		return -ENOMEM;
 
 	for (i = 0; i < job->num_relocs; i++) {
 		struct nvhost_reloc *reloc = &job->relocarray[i];
-		job->pin_ids[count] = reloc->target;
+		ids[count] = reloc->target;
 		count++;
 	}
 
 	for (i = 0; i < job->num_gathers; i++) {
 		struct nvhost_job_gather *g = &job->gathers[i];
-		job->pin_ids[count] = g->mem_id;
+		ids[count] = g->mem_id;
 		count++;
 	}
 
 	/* validate array and pin unique ids, get refs for unpinning */
 	result = mem_op().pin_array_ids(job->memmgr, job->ch->dev,
-		job->pin_ids, job->addr_phys,
+		ids, job->addr_phys,
 		count,
 		job->unpins);
+	kfree(ids);
 
 	if (result > 0)
 		job->num_unpins = result;
@@ -321,18 +341,11 @@ static int do_relocs(struct nvhost_job *job,
 int nvhost_job_pin(struct nvhost_job *job, struct nvhost_syncpt *sp)
 {
 	int err = 0, i = 0, j = 0;
-	unsigned long waitchk_mask[nvhost_syncpt_nb_pts(sp) / BITS_PER_LONG];
+	unsigned long waitchk_mask = job->waitchk_mask;
 
-	memset(&waitchk_mask[0], 0, sizeof(waitchk_mask));
-	for (i = 0; i < job->num_waitchk; i++) {
-		u32 syncpt_id = job->waitchk[i].syncpt_id;
-		if (syncpt_id < nvhost_syncpt_nb_pts(sp))
-			waitchk_mask[BIT_WORD(syncpt_id)]
-				|= BIT_MASK(syncpt_id);
-	}
 
 	/* get current syncpt values for waitchk */
-	for_each_set_bit(i, &waitchk_mask[0], sizeof(waitchk_mask))
+	for_each_set_bit(i, &waitchk_mask, sizeof(job->waitchk_mask))
 		nvhost_syncpt_update_min(sp, i);
 
 	/* pin memory */
@@ -399,18 +412,18 @@ void nvhost_job_unpin(struct nvhost_job *job)
  */
 void nvhost_job_dump(struct device *dev, struct nvhost_job *job)
 {
-	dev_info(dev, "    SYNCPT_ID   %d\n",
+	dev_dbg(dev, "    SYNCPT_ID   %d\n",
 		job->syncpt_id);
-	dev_info(dev, "    SYNCPT_VAL  %d\n",
+	dev_dbg(dev, "    SYNCPT_VAL  %d\n",
 		job->syncpt_end);
-	dev_info(dev, "    FIRST_GET   0x%x\n",
+	dev_dbg(dev, "    FIRST_GET   0x%x\n",
 		job->first_get);
-	dev_info(dev, "    TIMEOUT     %d\n",
+	dev_dbg(dev, "    TIMEOUT     %d\n",
 		job->timeout);
-	dev_info(dev, "    CTX 0x%p\n",
+	dev_dbg(dev, "    CTX 0x%p\n",
 		job->hwctx);
-	dev_info(dev, "    NUM_SLOTS   %d\n",
+	dev_dbg(dev, "    NUM_SLOTS   %d\n",
 		job->num_slots);
-	dev_info(dev, "    NUM_HANDLES %d\n",
+	dev_dbg(dev, "    NUM_HANDLES %d\n",
 		job->num_unpins);
 }

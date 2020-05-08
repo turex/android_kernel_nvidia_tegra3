@@ -60,13 +60,6 @@ static bool carveout_killer;
 #endif
 module_param(carveout_killer, bool, 0640);
 
-#ifdef CONFIG_NVMAP_CACHE_MAINT_BY_SET_WAYS
-size_t cache_maint_inner_threshold = 8 << PAGE_SHIFT;
-#endif
-#ifdef CONFIG_NVMAP_OUTER_CACHE_MAINT_BY_SET_WAYS
-size_t cache_maint_outer_threshold = SZ_1M;
-#endif
-
 struct nvmap_carveout_node {
 	unsigned int		heap_bit;
 	struct nvmap_heap	*carveout;
@@ -92,11 +85,9 @@ struct nvmap_device {
 	struct nvmap_share iovmm_master;
 	struct list_head clients;
 	spinlock_t	clients_lock;
-	struct nvmap_deferred_ops deferred_ops;
 };
 
 struct nvmap_device *nvmap_dev;
-EXPORT_SYMBOL(nvmap_dev);
 
 static struct backing_dev_info nvmap_bdi = {
 	.ra_pages	= 0,
@@ -150,12 +141,6 @@ struct device *nvmap_client_to_device(struct nvmap_client *client)
 struct nvmap_share *nvmap_get_share_from_dev(struct nvmap_device *dev)
 {
 	return &dev->iovmm_master;
-}
-
-struct nvmap_deferred_ops *nvmap_get_deferred_ops_from_dev(
-		struct nvmap_device *dev)
-{
-	return &dev->deferred_ops;
 }
 
 /* allocates a PTE for the caller's use; returns the PTE pointer or
@@ -317,14 +302,12 @@ int nvmap_flush_heap_block(struct nvmap_client *client,
 	if (prot == NVMAP_HANDLE_UNCACHEABLE || prot == NVMAP_HANDLE_WRITE_COMBINE)
 		goto out;
 
-#ifdef CONFIG_NVMAP_CACHE_MAINT_BY_SET_WAYS
-	if (len >= cache_maint_inner_threshold) {
+	if (len >= FLUSH_CLEAN_BY_SET_WAY_THRESHOLD_INNER) {
 		inner_flush_cache_all();
 		if (prot != NVMAP_HANDLE_INNER_CACHEABLE)
 			outer_flush_range(block->base, block->base + len);
 		goto out;
 	}
-#endif
 
 	pte = nvmap_alloc_pte((client ? client->dev : nvmap_dev), &addr);
 	if (IS_ERR(pte))
@@ -339,7 +322,7 @@ int nvmap_flush_heap_block(struct nvmap_client *client,
 
 		next = min(next, end);
 		set_pte_at(&init_mm, kaddr, *pte, pfn_pte(pfn, pgprot_kernel));
-		nvmap_flush_tlb_kernel_page(kaddr);
+		flush_tlb_kernel_page(kaddr);
 		__cpuc_flush_dcache_area(base, next - phys);
 		phys = next;
 	}
@@ -691,7 +674,6 @@ struct nvmap_client *nvmap_create_client(struct nvmap_device *dev,
 	spin_unlock(&dev->clients_lock);
 	return client;
 }
-EXPORT_SYMBOL(nvmap_create_client);
 
 static void destroy_client(struct nvmap_client *client)
 {
@@ -780,7 +762,6 @@ void nvmap_client_put(struct nvmap_client *client)
 	if (!atomic_dec_return(&client->count))
 		destroy_client(client);
 }
-EXPORT_SYMBOL(nvmap_client_put);
 
 static int nvmap_open(struct inode *inode, struct file *filp)
 {
@@ -926,7 +907,8 @@ static void nvmap_vma_open(struct vm_area_struct *vma)
 	BUG_ON(!priv);
 
 	atomic_inc(&priv->count);
-	nvmap_usecount_inc(priv->handle);
+	if(priv->handle)
+		nvmap_usecount_inc(priv->handle);
 }
 
 static void nvmap_vma_close(struct vm_area_struct *vma)
@@ -934,7 +916,10 @@ static void nvmap_vma_close(struct vm_area_struct *vma)
 	struct nvmap_vma_priv *priv = vma->vm_private_data;
 
 	if (priv) {
-		nvmap_usecount_dec(priv->handle);
+		if (priv->handle) {
+			BUG_ON(priv->handle->usecount == 0);
+			nvmap_usecount_dec(priv->handle);
+		}
 		if (!atomic_dec_return(&priv->count)) {
 			if (priv->handle)
 				nvmap_handle_put(priv->handle);
@@ -1021,16 +1006,10 @@ static void allocations_stringify(struct nvmap_client *client,
 			rb_entry(n, struct nvmap_handle_ref, node);
 		struct nvmap_handle *handle = ref->handle;
 		if (handle->alloc && handle->heap_pgalloc == iovmm) {
-			phys_addr_t base = iovmm ? 0 :
-					   (handle->carveout->base);
-			seq_printf(s,
-				"%-18s %-18s %8llx %10u %8x %6u %6u %6u\n",
-				"", "",
-				(unsigned long long)base, handle->size,
-				handle->userflags,
-				atomic_read(&handle->ref),
-				atomic_read(&ref->dupes),
-				atomic_read(&ref->pin));
+			unsigned long base = iovmm ? 0:
+				(unsigned long)(handle->carveout->base);
+			seq_printf(s, "%-18s %-18s %8lx %10u %8x\n", "", "",
+					base, handle->size, handle->userflags);
 		}
 	}
 }
@@ -1043,11 +1022,10 @@ static int nvmap_debug_allocations_show(struct seq_file *s, void *unused)
 	unsigned int total = 0;
 
 	spin_lock_irqsave(&node->clients_lock, flags);
-	seq_printf(s, "%-18s %18s %8s %10s\n",
-		"CLIENT", "PROCESS", "PID", "SIZE");
-	seq_printf(s, "%-18s %18s %8s %10s %8s %6s %6s %6s\n",
-			"", "", "BASE", "SIZE", "FLAGS", "REFS",
-			"DUPES", "PINS");
+	seq_printf(s, "%-18s %18s %8s %10s %8s\n", "CLIENT", "PROCESS", "PID",
+		"SIZE", "FLAGS");
+	seq_printf(s, "%-18s %18s %8s %10s\n", "", "",
+					"BASE", "SIZE");
 	list_for_each_entry(commit, &node->clients, list) {
 		struct nvmap_client *client =
 			get_client_from_carveout_commit(node, commit);
@@ -1095,6 +1073,7 @@ static int nvmap_debug_clients_show(struct seq_file *s, void *unused)
 	}
 	seq_printf(s, "%-18s %18s %8u %10u\n", "total", "", 0, total);
 	spin_unlock_irqrestore(&node->clients_lock, flags);
+
 	return 0;
 }
 
@@ -1153,11 +1132,10 @@ static int nvmap_debug_iovmm_allocations_show(struct seq_file *s, void *unused)
 	struct nvmap_device *dev = s->private;
 
 	spin_lock_irqsave(&dev->clients_lock, flags);
-	seq_printf(s, "%-18s %18s %8s %10s\n",
-		"CLIENT", "PROCESS", "PID", "SIZE");
-	seq_printf(s, "%-18s %18s %8s %10s %8s %6s %6s %6s\n",
-			"", "", "BASE", "SIZE", "FLAGS", "REFS",
-			"DUPES", "PINS");
+	seq_printf(s, "%-18s %18s %8s %10s %8s\n", "CLIENT", "PROCESS", "PID",
+		"SIZE", "FLAGS");
+	seq_printf(s, "%-18s %18s %8s %10s\n", "", "",
+					"BASE", "SIZE");
 	list_for_each_entry(client, &dev->clients, list) {
 		client_stringify(client, s);
 		seq_printf(s, " %10u\n", atomic_read(&client->iovm_commit));
@@ -1184,23 +1162,6 @@ static const struct file_operations debug_iovmm_allocations_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
-
-static void nvmap_deferred_ops_init(struct nvmap_deferred_ops *deferred_ops)
-{
-	INIT_LIST_HEAD(&deferred_ops->ops_list);
-	spin_lock_init(&deferred_ops->deferred_ops_lock);
-
-#ifdef CONFIG_NVMAP_DEFERRED_CACHE_MAINT
-	deferred_ops->enable_deferred_cache_maintenance = 1;
-#else
-	deferred_ops->enable_deferred_cache_maintenance = 0;
-#endif /* CONFIG_NVMAP_DEFERRED_CACHE_MAINT */
-
-	deferred_ops->deferred_maint_inner_requested = 0;
-	deferred_ops->deferred_maint_inner_flushed = 0;
-	deferred_ops->deferred_maint_outer_requested = 0;
-	deferred_ops->deferred_maint_outer_flushed = 0;
-}
 
 static int nvmap_probe(struct platform_device *pdev)
 {
@@ -1241,9 +1202,6 @@ static int nvmap_probe(struct platform_device *pdev)
 	init_waitqueue_head(&dev->pte_wait);
 
 	init_waitqueue_head(&dev->iovmm_master.pin_wait);
-
-	nvmap_deferred_ops_init(&dev->deferred_ops);
-
 	mutex_init(&dev->iovmm_master.pin_lock);
 #ifdef CONFIG_NVMAP_PAGE_POOLS
 	for (i = 0; i < NVMAP_NUM_POOLS; i++)
@@ -1332,26 +1290,6 @@ static int nvmap_probe(struct platform_device *pdev)
 	if (IS_ERR_OR_NULL(nvmap_debug_root))
 		dev_err(&pdev->dev, "couldn't create debug files\n");
 
-	debugfs_create_bool("enable_deferred_cache_maintenance",
-		S_IRUGO|S_IWUSR, nvmap_debug_root,
-		(u32 *)&dev->deferred_ops.enable_deferred_cache_maintenance);
-
-	debugfs_create_u64("deferred_maint_inner_requested", S_IRUGO|S_IWUSR,
-			nvmap_debug_root,
-			&dev->deferred_ops.deferred_maint_inner_requested);
-
-	debugfs_create_u64("deferred_maint_inner_flushed", S_IRUGO|S_IWUSR,
-			nvmap_debug_root,
-			&dev->deferred_ops.deferred_maint_inner_flushed);
-#ifdef CONFIG_OUTER_CACHE
-	debugfs_create_u64("deferred_maint_outer_requested", S_IRUGO|S_IWUSR,
-			nvmap_debug_root,
-			&dev->deferred_ops.deferred_maint_outer_requested);
-
-	debugfs_create_u64("deferred_maint_outer_flushed", S_IRUGO|S_IWUSR,
-			nvmap_debug_root,
-			&dev->deferred_ops.deferred_maint_outer_flushed);
-#endif /* CONFIG_OUTER_CACHE */
 	for (i = 0; i < plat->nr_carveouts; i++) {
 		struct nvmap_carveout_node *node = &dev->heaps[dev->nr_carveouts];
 		const struct nvmap_platform_carveout *co = &plat->carveouts[i];
@@ -1409,18 +1347,6 @@ static int nvmap_probe(struct platform_device *pdev)
 			}
 #endif
 		}
-#ifdef CONFIG_NVMAP_CACHE_MAINT_BY_SET_WAYS
-		debugfs_create_size_t("cache_maint_inner_threshold", 0600,
-				      nvmap_debug_root,
-				      &cache_maint_inner_threshold);
-		if (IS_ENABLED(CONFIG_ARCH_TEGRA_11x_SOC))
-			cache_maint_inner_threshold = SZ_2M;
-#endif
-#ifdef CONFIG_NVMAP_OUTER_CACHE_MAINT_BY_SET_WAYS
-		debugfs_create_size_t("cache_maint_outer_threshold", 0600,
-				      nvmap_debug_root,
-				      &cache_maint_outer_threshold);
-#endif
 	}
 
 	platform_set_drvdata(pdev, dev);

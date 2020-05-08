@@ -23,24 +23,17 @@
 extern void v7_flush_kern_cache_all(void *);
 extern void v7_clean_kern_cache_all(void *);
 
-extern size_t cache_maint_outer_threshold;
+#define FLUSH_CLEAN_BY_SET_WAY_THRESHOLD_INNER (8 * PAGE_SIZE)
+#define FLUSH_CLEAN_BY_SET_WAY_THRESHOLD_OUTER (1024 * 1024)
 
 static inline void inner_flush_cache_all(void)
 {
-#if defined(CONFIG_ARCH_TEGRA_11x_SOC)
-	v7_flush_kern_cache_all(NULL);
-#else
 	on_each_cpu(v7_flush_kern_cache_all, NULL, 1);
-#endif
 }
 
 static inline void inner_clean_cache_all(void)
 {
-#if defined(CONFIG_ARCH_TEGRA_11x_SOC)
-	v7_clean_kern_cache_all(NULL);
-#else
 	on_each_cpu(v7_clean_kern_cache_all, NULL, 1);
-#endif
 }
 
 extern void __flush_dcache_page(struct address_space *, struct page *);

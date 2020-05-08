@@ -490,16 +490,11 @@ int nvhost_gr3d_t30_read_reg(
 	}
 
 	mem_sgt = mem_op().pin(memmgr, mem);
-	if (IS_ERR_OR_NULL(mem_sgt)) {
-		err = -ENOMEM;
-		goto done;
-	}
-
-	mem_dma = sg_dma_address(mem_sgt->sgl);
 	if (IS_ERR_VALUE(mem_dma)) {
 		err = mem_dma;
 		goto done;
 	}
+	mem_dma = sg_dma_address(mem_sgt->sgl);
 
 	ctx_waiter = nvhost_intr_alloc_waiter();
 	read_waiter = nvhost_intr_alloc_waiter();
@@ -509,8 +504,9 @@ int nvhost_gr3d_t30_read_reg(
 		goto done;
 	}
 
-	job = nvhost_job_alloc(channel, hwctx, 0, 0, 0,
-			nvhost_get_host(dev)->memmgr);
+	job = nvhost_job_alloc(channel, hwctx,
+			NULL,
+			nvhost_get_host(dev)->memmgr, 0, 0);
 	if (!job) {
 		err = -ENOMEM;
 		goto done;
@@ -563,13 +559,6 @@ int nvhost_gr3d_t30_read_reg(
 			nvhost_opcode_gather(to_host1x_hwctx(channel->cur_ctx)
 				->restore_size),
 			to_host1x_hwctx(channel->cur_ctx)->restore_phys);
-
-	/* Wait for idle first */
-	nvhost_cdma_push(&channel->cdma,
-		nvhost_opcode_setclass(NV_HOST1X_CLASS_ID,
-			host1x_uclass_wait_syncpt_r(), 1),
-		nvhost_class_host_wait_syncpt(p->syncpt,
-			syncval - syncpt_incrs));
 
 	/* Switch to 3D - set up output to memory */
 	nvhost_cdma_push(&channel->cdma,

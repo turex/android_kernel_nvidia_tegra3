@@ -156,12 +156,9 @@ static u8 nvsd_get_bw_idx(struct tegra_dc_sd_settings *settings)
 static bool nvsd_phase_in_adjustments(struct tegra_dc *dc,
 	struct tegra_dc_sd_settings *settings)
 {
-	u8 step, cur_sd_brightness, commanded;
+	u8 step, cur_sd_brightness;
 	u16 target_k, cur_k;
 	u32 man_k, val;
-	char *blacklight_device_name;
-	struct backlight_device *bl;
-	bool below_min_brightness = false;
 
 	cur_sd_brightness = atomic_read(sd_brightness);
 
@@ -173,36 +170,6 @@ static bool nvsd_phase_in_adjustments(struct tegra_dc *dc,
 	/* read brightness value */
 	val = tegra_dc_readl(dc, DC_DISP_SD_BL_CONTROL);
 	val = SD_BLC_BRIGHTNESS(val);
-
-	if (settings->panel_min_brightness) {
-		blacklight_device_name = settings->bl_device_name;
-		bl = get_backlight_device_by_name(blacklight_device_name);
-		commanded = (cur_sd_brightness * bl->props.brightness) / 255;
-		/* Need to reduce how aggressive we are */
-		if (commanded < settings->panel_min_brightness) {
-			if (cur_k || cur_sd_brightness != 255)
-				below_min_brightness = true;
-			else
-				return false;
-		}
-		/* Return so we don't modify in the opposite direction */
-		if (commanded == settings->panel_min_brightness
-				&& target_k > cur_k)
-			return false;
-	}
-
-	/* Correct until brightness is high enough */
-	if (below_min_brightness) {
-		if (cur_sd_brightness != 255)
-			cur_sd_brightness++;
-		if (cur_k)
-			cur_k -= K_STEP;
-		man_k = SD_MAN_K_R(cur_k) |
-			SD_MAN_K_G(cur_k) | SD_MAN_K_B(cur_k);
-		tegra_dc_writel(dc, man_k, DC_DISP_SD_MAN_K_VALUES);
-		atomic_set(sd_brightness, cur_sd_brightness);
-		return true;
-	}
 
 	step = settings->phase_adj_step;
 	if (cur_sd_brightness != val || target_k != cur_k) {
@@ -1173,9 +1140,6 @@ static ssize_t nvsd_registers_show(struct kobject *kobj,
 	struct tegra_dc *dc = platform_get_drvdata(ndev);
 	ssize_t res = 0;
 
-	clk_enable(dc->clk);
-	tegra_dc_io_start(dc);
-
 	mutex_lock(&dc->lock);
 	if (!dc->enabled) {
 		mutex_unlock(&dc->lock);
@@ -1201,10 +1165,6 @@ static ssize_t nvsd_registers_show(struct kobject *kobj,
 	NVSD_PRINT_REG(DC_DISP_SD_SOFT_CLIPPING);
 	NVSD_PRINT_REG(DC_DISP_SD_SMOOTH_K);
 #endif
-
-	tegra_dc_io_end(dc);
-	clk_disable(dc->clk);
-
 	return res;
 }
 

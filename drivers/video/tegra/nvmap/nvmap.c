@@ -37,30 +37,30 @@
 
 #include "nvmap.h"
 #include "nvmap_mru.h"
-#include "nvmap_common.h"
 
 /* private nvmap_handle flag for pinning duplicate detection */
 #define NVMAP_HANDLE_VISITED (0x1ul << 31)
 
 /* map the backing pages for a heap_pgalloc handle into its IOVMM area */
-static int map_iovmm_area(struct nvmap_handle *h)
+static void map_iovmm_area(struct nvmap_handle *h)
 {
-	int err;
+	tegra_iovmm_addr_t va;
+	unsigned long i;
 
 	BUG_ON(!h->heap_pgalloc || !h->pgalloc.area);
 	BUG_ON(h->size & ~PAGE_MASK);
 	WARN_ON(!h->pgalloc.dirty);
 
-	err = tegra_iovmm_vm_insert_pages(h->pgalloc.area,
-					  h->pgalloc.area->iovm_start,
-					  h->pgalloc.pages,
-					  h->size >> PAGE_SHIFT);
-	if (err) {
-		tegra_iovmm_zap_vm(h->pgalloc.area);
-		return err;
+	for (va = h->pgalloc.area->iovm_start, i = 0;
+	     va < (h->pgalloc.area->iovm_start + h->size);
+	     i++, va += PAGE_SIZE) {
+		unsigned long pfn;
+
+		pfn = page_to_pfn(h->pgalloc.pages[i]);
+		BUG_ON(!pfn_valid(pfn));
+		tegra_iovmm_vm_insert_pfn(h->pgalloc.area, va, pfn);
 	}
 	h->pgalloc.dirty = false;
-	return 0;
 }
 
 /* must be called inside nvmap_pin_lock, to ensure that an entire stream
@@ -136,11 +136,6 @@ static int pin_array_locked(struct nvmap_client *client,
 	int pinned;
 	int i;
 	int err = 0;
-
-	/* Flush deferred cache maintenance if needed */
-	for (pinned = 0; pinned < count; pinned++)
-		if (nvmap_find_cache_maint_op(client->dev, h[pinned]))
-			nvmap_cache_maint_ops_flush(client->dev, h[pinned]);
 
 	nvmap_mru_lock(client->share);
 	for (pinned = 0; pinned < count; pinned++) {
@@ -270,7 +265,7 @@ int nvmap_pin_ids(struct nvmap_client *client,
 		  unsigned int nr, const unsigned long *ids)
 {
 	int ret = 0;
-	int i;
+	unsigned int i;
 	struct nvmap_handle **h = (struct nvmap_handle **)ids;
 	struct nvmap_handle_ref *ref;
 
@@ -327,11 +322,8 @@ int nvmap_pin_ids(struct nvmap_client *client,
 		ret = -EINTR;
 	} else {
 		for (i = 0; i < nr; i++) {
-			if (h[i]->heap_pgalloc && h[i]->pgalloc.dirty) {
-				ret = map_iovmm_area(h[i]);
-				while (ret && --i >= 0)
-					tegra_iovmm_zap_vm(h[i]->pgalloc.area);
-			}
+			if (h[i]->heap_pgalloc && h[i]->pgalloc.dirty)
+				map_iovmm_area(h[i]);
 		}
 	}
 
@@ -491,43 +483,24 @@ int nvmap_pin_array(struct nvmap_client *client,
 	mutex_unlock(&client->share->pin_lock);
 
 	if (WARN_ON(ret)) {
-		goto err_out;
+		for (i = 0; i < count; i++) {
+			/* pin ref */
+			nvmap_handle_put(unique_arr[i]);
+			/* remove duplicate */
+			atomic_dec(&unique_arr_refs[i]->dupes);
+			nvmap_handle_put(unique_arr[i]);
+		}
+		return ret;
 	} else {
 		for (i = 0; i < count; i++) {
 			if (unique_arr[i]->heap_pgalloc &&
-			    unique_arr[i]->pgalloc.dirty) {
-				ret = map_iovmm_area(unique_arr[i]);
-				while (ret && --i >= 0) {
-					tegra_iovmm_zap_vm(
-						unique_arr[i]->pgalloc.area);
-					atomic_dec(&unique_arr_refs[i]->pin);
-				}
-				if (ret)
-					goto err_out_unpin;
-			}
+			    unique_arr[i]->pgalloc.dirty)
+				map_iovmm_area(unique_arr[i]);
 
 			atomic_inc(&unique_arr_refs[i]->pin);
 		}
 	}
 	return count;
-
-err_out_unpin:
-	for (i = 0; i < count; i++) {
-		/* inc ref counter, because handle_unpin decrements it */
-		nvmap_handle_get(unique_arr[i]);
-		/* unpin handles and free vm */
-		handle_unpin(client, unique_arr[i], true);
-	}
-err_out:
-	for (i = 0; i < count; i++) {
-		/* pin ref */
-		nvmap_handle_put(unique_arr[i]);
-		/* remove duplicate */
-		atomic_dec(&unique_arr_refs[i]->dupes);
-		nvmap_handle_put(unique_arr[i]);
-	}
-
-	return ret;
 }
 
 static phys_addr_t handle_phys(struct nvmap_handle *h)
@@ -586,24 +559,15 @@ phys_addr_t _nvmap_pin(struct nvmap_client *client,
 	}
 
 	if (ret) {
-		goto err_out;
+		atomic_dec(&ref->pin);
+		nvmap_handle_put(h);
 	} else {
 		if (h->heap_pgalloc && h->pgalloc.dirty)
-			ret = map_iovmm_area(h);
-		if (ret)
-			goto err_out_unpin;
+			map_iovmm_area(h);
 		phys = handle_phys(h);
 	}
 
-	return phys;
-
-err_out_unpin:
-	nvmap_handle_get(h);
-	handle_unpin(client, h, true);
-err_out:
-	atomic_dec(&ref->pin);
-	nvmap_handle_put(h);
-	return ret;
+	return ret ?: phys;
 }
 
 phys_addr_t nvmap_pin(struct nvmap_client *client,
@@ -670,7 +634,7 @@ void nvmap_unpin_handles(struct nvmap_client *client,
 void *nvmap_kmap(struct nvmap_handle_ref *ref, unsigned int pagenum)
 {
 	struct nvmap_handle *h;
-	phys_addr_t paddr;
+	unsigned long paddr;
 	unsigned long kaddr;
 	pgprot_t prot;
 	pte_t **pte;
@@ -693,7 +657,7 @@ void *nvmap_kmap(struct nvmap_handle_ref *ref, unsigned int pagenum)
 
 	set_pte_at(&init_mm, kaddr, *pte,
 				pfn_pte(__phys_to_pfn(paddr), prot));
-	nvmap_flush_tlb_kernel_page(kaddr);
+	flush_tlb_kernel_page(kaddr);
 	return (void *)kaddr;
 out:
 	nvmap_handle_put(ref->handle);
@@ -704,20 +668,11 @@ void nvmap_kunmap(struct nvmap_handle_ref *ref, unsigned int pagenum,
 		  void *addr)
 {
 	struct nvmap_handle *h;
-	phys_addr_t paddr;
+	unsigned long paddr;
 	pte_t **pte;
 
 	BUG_ON(!addr || !ref);
 	h = ref->handle;
-
-	if (nvmap_find_cache_maint_op(h->dev, h)) {
-		struct nvmap_share *share = nvmap_get_share_from_dev(h->dev);
-		/* acquire pin lock to ensure maintenance is done before
-		 * handle is pinned */
-		mutex_lock(&share->pin_lock);
-		nvmap_cache_maint_ops_flush(h->dev, h);
-		mutex_unlock(&share->pin_lock);
-	}
 
 	if (h->heap_pgalloc)
 		paddr = page_to_phys(h->pgalloc.pages[pagenum]);
@@ -756,11 +711,6 @@ void *nvmap_mmap(struct nvmap_handle_ref *ref)
 
 	/* carveout - explicitly map the pfns into a vmalloc area */
 
-	if (!h->carveout) {
-		nvmap_handle_put(h);
-		return NULL;
-        }
-
 	nvmap_usecount_inc(h);
 
 	adj_size = h->carveout->base & ~PAGE_MASK;
@@ -796,7 +746,7 @@ void *nvmap_mmap(struct nvmap_handle_ref *ref)
 		if (!pte)
 			break;
 		set_pte_at(&init_mm, addr, pte, pfn_pte(pfn, prot));
-		nvmap_flush_tlb_kernel_page(addr);
+		flush_tlb_kernel_page(addr);
 	}
 
 	if (offs != adj_size) {
@@ -821,17 +771,6 @@ void nvmap_munmap(struct nvmap_handle_ref *ref, void *addr)
 
 	h = ref->handle;
 
-	if (nvmap_find_cache_maint_op(h->dev, h)) {
-		struct nvmap_share *share = nvmap_get_share_from_dev(h->dev);
-		/* acquire pin lock to ensure maintenance is done before
-		 * handle is pinned */
-		mutex_lock(&share->pin_lock);
-		nvmap_cache_maint_ops_flush(h->dev, h);
-		mutex_unlock(&share->pin_lock);
-	}
-
-	/* Handle can be locked by cache maintenance in
-	 * separate thread */
 	if (h->heap_pgalloc) {
 		vm_unmap_ram(addr, h->size >> PAGE_SHIFT);
 	} else {
@@ -900,10 +839,6 @@ struct nvmap_handle_ref *nvmap_alloc_iovm(struct nvmap_client *client,
 	err = mutex_lock_interruptible(&client->share->pin_lock);
 	if (WARN_ON(err))
 		goto fail;
-
-	/* Flush deferred cache maintenance if needed */
-	if (nvmap_find_cache_maint_op(client->dev, h))
-		nvmap_cache_maint_ops_flush(client->dev, h);
 
 	nvmap_mru_lock(client->share);
 	err = pin_locked(client, h);

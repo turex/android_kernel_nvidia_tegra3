@@ -1,7 +1,7 @@
 /*
  * drivers/video/tegra/dc/ext/cursor.c
  *
- * Copyright (c) 2011-2013, NVIDIA CORPORATION, All rights reserved.
+ * Copyright (c) 2011-2012, NVIDIA CORPORATION, All rights reserved.
  *
  * Author: Robert Morell <rmorell@nvidia.com>
  *
@@ -62,7 +62,6 @@ static void set_cursor_image_hw(struct tegra_dc *dc,
 				struct tegra_dc_ext_cursor_image *args,
 				dma_addr_t phys_addr)
 {
-	unsigned long val;
 	int clip_win;
 
 	tegra_dc_writel(dc,
@@ -78,37 +77,15 @@ static void set_cursor_image_hw(struct tegra_dc *dc,
 
 	BUG_ON(phys_addr & ~CURSOR_START_ADDR_MASK);
 
-	switch (TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE(args->flags)) {
-	case TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE_64x64:
-		val = CURSOR_SIZE_64;
-		break;
-	case TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE_128x128:
-		val = CURSOR_SIZE_128;
-		break;
-	case TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE_256x256:
-		val = CURSOR_SIZE_256;
-		break;
-	default:
-		val = 0;
-	}
-
 	/* Get the cursor clip window number */
 	clip_win = CURSOR_CLIP_GET_WINDOW(tegra_dc_readl(dc,
 					  DC_DISP_CURSOR_START_ADDR));
-	val |= clip_win;
 
-	tegra_dc_writel(dc,
-		val | CURSOR_START_ADDR(((unsigned long) phys_addr)),
+	tegra_dc_writel(dc, CURSOR_CLIP_SHIFT_BITS(clip_win) |
+		CURSOR_START_ADDR(((unsigned long) phys_addr)) |
+		((args->flags & TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE_64x64) ?
+			CURSOR_SIZE_64 : 0),
 		DC_DISP_CURSOR_START_ADDR);
-
-	if (args->flags & TEGRA_DC_EXT_CURSOR_FLAGS_RGBA_NORMAL)
-		tegra_dc_writel(dc,
-				CURSOR_MODE_SELECT(1),
-				DC_DISP_BLEND_CURSOR_CONTROL);
-	else
-		tegra_dc_writel(dc,
-				CURSOR_MODE_SELECT(0),
-				DC_DISP_BLEND_CURSOR_CONTROL);
 }
 
 int tegra_dc_ext_set_cursor_image(struct tegra_dc_ext_user *user,
@@ -124,23 +101,12 @@ int tegra_dc_ext_set_cursor_image(struct tegra_dc_ext_user *user,
 	if (!user->nvmap)
 		return -EFAULT;
 
-	size = TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE(args->flags);
-#if defined(CONFIG_ARCH_TEGRA_2x_SOC) || defined(CONFIG_ARCH_TEGRA_3x_SOC)
+	size = args->flags & (TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE_32x32 |
+			      TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE_64x64);
+
 	if (size != TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE_32x32 &&
 	    size !=  TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE_64x64)
 		return -EINVAL;
-#else
-	if (size != TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE_32x32 &&
-	    size !=  TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE_64x64 &&
-	    size !=  TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE_128x128 &&
-	    size !=  TEGRA_DC_EXT_CURSOR_IMAGE_FLAGS_SIZE_256x256)
-		return -EINVAL;
-#endif
-
-#if defined(CONFIG_ARCH_TEGRA_2x_SOC) || defined(CONFIG_ARCH_TEGRA_3x_SOC)
-	if (args->flags & TEGRA_DC_EXT_CURSOR_FLAGS_RGBA_NORMAL)
-		return -EINVAL;
-#endif
 
 	mutex_lock(&ext->cursor.lock);
 
@@ -197,7 +163,7 @@ int tegra_dc_ext_set_cursor(struct tegra_dc_ext_user *user,
 {
 	struct tegra_dc_ext *ext = user->ext;
 	struct tegra_dc *dc = ext->dc;
-	u32 val;
+	u32 win_options;
 	bool enable;
 	int ret;
 
@@ -219,12 +185,12 @@ int tegra_dc_ext_set_cursor(struct tegra_dc_ext_user *user,
 	tegra_dc_io_start(dc);
 	tegra_dc_hold_dc_out(dc);
 
-	val = tegra_dc_readl(dc, DC_DISP_DISP_WIN_OPTIONS);
-	if (!!(val & CURSOR_ENABLE) != enable) {
-		val &= ~CURSOR_ENABLE;
+	win_options = tegra_dc_readl(dc, DC_DISP_DISP_WIN_OPTIONS);
+	if (!!(win_options & CURSOR_ENABLE) != enable) {
+		win_options &= ~CURSOR_ENABLE;
 		if (enable)
-			val |= CURSOR_ENABLE;
-		tegra_dc_writel(dc, val, DC_DISP_DISP_WIN_OPTIONS);
+			win_options |= CURSOR_ENABLE;
+		tegra_dc_writel(dc, win_options, DC_DISP_DISP_WIN_OPTIONS);
 	}
 
 	tegra_dc_writel(dc, CURSOR_POSITION(args->x, args->y),

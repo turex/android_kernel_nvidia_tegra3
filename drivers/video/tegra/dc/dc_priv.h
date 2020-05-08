@@ -4,7 +4,7 @@
  * Copyright (C) 2010 Google, Inc.
  * Author: Erik Gilling <konkers@android.com>
  *
- * Copyright (c) 2010-2013, NVIDIA CORPORATION, All rights reserved.
+ * Copyright (c) 2010-2012, NVIDIA CORPORATION, All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -24,7 +24,6 @@
 #ifndef CREATE_TRACE_POINTS
 # include <trace/events/display.h>
 #endif
-#include <mach/powergate.h>
 
 static inline void tegra_dc_io_start(struct tegra_dc *dc)
 {
@@ -185,21 +184,6 @@ static inline u32 tegra_dc_unmask_interrupt(struct tegra_dc *dc, u32 int_val)
 	return val;
 }
 
-static inline u32 tegra_dc_flush_interrupt(struct tegra_dc *dc, u32 int_val)
-{
-	u32 val;
-	unsigned long flag;
-
-	local_irq_save(flag);
-
-	val = tegra_dc_readl(dc, DC_CMD_INT_STATUS);
-	tegra_dc_writel(dc, (val | int_val), DC_CMD_INT_STATUS);
-
-	local_irq_restore(flag);
-
-	return val;
-}
-
 static inline u32 tegra_dc_mask_interrupt(struct tegra_dc *dc, u32 int_val)
 {
 	u32 val;
@@ -221,40 +205,6 @@ static inline unsigned long tegra_dc_clk_get_rate(struct tegra_dc *dc)
 #else
 	return dc->mode.pclk;
 #endif
-}
-
-#if !defined(CONFIG_ARCH_TEGRA_2x_SOC) && !defined(CONFIG_ARCH_TEGRA_3x_SOC)
-static inline void tegra_dc_powergate_locked(struct tegra_dc *dc)
-{
-	tegra_powergate_partition(dc->powergate_id);
-}
-
-static inline void tegra_dc_unpowergate_locked(struct tegra_dc *dc)
-{
-	tegra_unpowergate_partition(dc->powergate_id);
-}
-
-static inline bool tegra_dc_is_powered(struct tegra_dc *dc)
-{
-	return tegra_powergate_is_powered(dc->powergate_id);
-}
-
-void tegra_dc_powergate_locked(struct tegra_dc *dc);
-void tegra_dc_unpowergate_locked(struct tegra_dc *dc);
-#else
-static inline void tegra_dc_powergate_locked(struct tegra_dc *dc) { }
-static inline void tegra_dc_unpowergate_locked(struct tegra_dc *dc) { }
-static inline bool tegra_dc_is_powered(struct tegra_dc *dc)
-{
-	return true;
-}
-#endif
-
-
-static inline void tegra_dc_hotplug_init(struct tegra_dc *dc)
-{
-	if (dc->out && dc->out->hotplug_init)
-		dc->out->hotplug_init(&dc->ndev->dev);
 }
 
 extern struct tegra_dc_out_ops tegra_dc_rgb_ops;
@@ -293,15 +243,13 @@ void tegra_dc_clear_bandwidth(struct tegra_dc *dc);
 void tegra_dc_program_bandwidth(struct tegra_dc *dc, bool use_new);
 int tegra_dc_set_dynamic_emc(struct tegra_dc_win *windows[], int n);
 
-/* defined in mode.c, used in dc.c and window.c */
+/* defined in mode.c, used in dc.c */
 int tegra_dc_program_mode(struct tegra_dc *dc, struct tegra_dc_mode *mode);
 int tegra_dc_calc_refresh(const struct tegra_dc_mode *m);
-int tegra_dc_update_mode(struct tegra_dc *dc);
 
-/* defined in clock.c, used in dc.c, rgb.c, dsi.c and hdmi.c */
+/* defined in clock.c, used in dc.c, dsi.c and hdmi.c */
 void tegra_dc_setup_clk(struct tegra_dc *dc, struct clk *clk);
 unsigned long tegra_dc_pclk_round_rate(struct tegra_dc *dc, int pclk);
-unsigned long tegra_dc_pclk_predict_rate(struct clk *parent, int pclk);
 
 /* defined in lut.c, used in dc.c */
 void tegra_dc_init_lut_defaults(struct tegra_dc_lut *lut);
@@ -317,7 +265,6 @@ void tegra_dc_trigger_windows(struct tegra_dc *dc);
 void tegra_dc_set_color_control(struct tegra_dc *dc);
 #ifdef CONFIG_TEGRA_DC_CMU
 void tegra_dc_cmu_enable(struct tegra_dc *dc, bool cmu_enable);
-int tegra_dc_update_cmu(struct tegra_dc *dc, struct tegra_dc_cmu *cmu);
 #endif
 
 #endif

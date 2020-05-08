@@ -3,7 +3,7 @@
  *
  * Tegra Graphics Host Syncpoints
  *
- * Copyright (c) 2010-2013, NVIDIA CORPORATION, All rights reserved.
+ * Copyright (c) 2010-2012, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -48,26 +48,6 @@ void nvhost_syncpt_reset(struct nvhost_syncpt *sp)
 		syncpt_op().reset_wait_base(sp, i);
 	wmb();
 }
-
-/**
- * Resets syncpoint and waitbase values of a
- * single client to sw shadows
- */
-void nvhost_syncpt_reset_client(struct platform_device *pdev)
-{
-	struct nvhost_device_data *pdata = platform_get_drvdata(pdev);
-	struct nvhost_master *nvhost_master = nvhost_get_host(pdev);
-	u32 id;
-
-	BUG_ON(!(syncpt_op().reset && syncpt_op().reset_wait_base));
-
-	for_each_set_bit(id, (unsigned long *)&pdata->syncpts, BITS_PER_LONG)
-		syncpt_op().reset(&nvhost_master->syncpt, id);
-	for_each_set_bit(id, (unsigned long *)&pdata->waitbases, BITS_PER_LONG)
-		syncpt_op().reset_wait_base(&nvhost_master->syncpt, id);
-	wmb();
-}
-
 
 /**
  * Updates sw shadow state for client managed registers
@@ -440,10 +420,6 @@ int nvhost_syncpt_init(struct platform_device *dev,
 		min->attr.attr.name = min_name;
 		min->attr.attr.mode = S_IRUGO;
 		min->attr.show = syncpt_min_show;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-		sysfs_attr_init(&min->attr.attr);
-		sysfs_attr_init(&max->attr.attr);
-#endif
 		if (sysfs_create_file(kobj, &min->attr.attr)) {
 			err = -EIO;
 			goto fail;
@@ -513,7 +489,7 @@ u32 nvhost_syncpt_incr_max_ext(struct platform_device *dev, u32 id, u32 incrs)
 	struct platform_device *pdev;
 	struct nvhost_syncpt *sp;
 
-	BUG_ON(!nvhost_get_parent(dev));
+	BUG_ON(!dev->dev.parent);
 
 	/* get the parent */
 	pdev = to_platform_device(dev->dev.parent);
@@ -527,7 +503,7 @@ void nvhost_syncpt_cpu_incr_ext(struct platform_device *dev, u32 id)
 	struct platform_device *pdev;
 	struct nvhost_syncpt *sp;
 
-	BUG_ON(!nvhost_get_parent(dev));
+	BUG_ON(!dev->dev.parent);
 
 	/* get the parent */
 	pdev = to_platform_device(dev->dev.parent);
@@ -541,7 +517,7 @@ u32 nvhost_syncpt_read_ext(struct platform_device *dev, u32 id)
 	struct platform_device *pdev;
 	struct nvhost_syncpt *sp;
 
-	BUG_ON(!nvhost_get_parent(dev));
+	BUG_ON(!dev->dev.parent);
 
 	/* get the parent */
 	pdev = to_platform_device(dev->dev.parent);
@@ -556,7 +532,7 @@ int nvhost_syncpt_wait_timeout_ext(struct platform_device *dev, u32 id,
 	struct platform_device *pdev;
 	struct nvhost_syncpt *sp;
 
-	BUG_ON(!nvhost_get_parent(dev));
+	BUG_ON(!dev->dev.parent);
 
 	/* get the parent */
 	pdev = to_platform_device(dev->dev.parent);

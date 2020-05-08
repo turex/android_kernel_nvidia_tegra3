@@ -3,7 +3,7 @@
  *
  * Tegra Graphics Host Driver Entrypoint
  *
- * Copyright (c) 2010-2013, NVIDIA CORPORATION, All rights reserved.
+ * Copyright (c) 2010-2012, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -26,12 +26,6 @@
 #include <linux/clk.h>
 #include <linux/hrtimer.h>
 #include <linux/module.h>
-#include <linux/pm_runtime.h>
-#include <linux/of.h>
-#include <linux/of_device.h>
-#include <linux/of_platform.h>
-#include <linux/vmalloc.h>
-#include <linux/mm.h>
 
 #include "dev.h"
 #include <trace/events/nvhost.h>
@@ -45,9 +39,6 @@
 #include "nvhost_channel.h"
 #include "nvhost_job.h"
 #include "chip_support.h"
-#include "t20/t20.h"
-#include "t30/t30.h"
-#include "t114/t114.h"
 
 #define DRIVER_NAME		"host1x"
 
@@ -175,83 +166,52 @@ static int nvhost_ioctl_ctrl_module_regrdwr(struct nvhost_ctrl_userctx *ctx,
 	u32 num_offsets = args->num_offsets;
 	u32 *offsets = args->offsets;
 	u32 *values = args->values;
-	u32 *vals;
-	u32 count;
-	int err;
+	u32 vals[64];
 	struct platform_device *ndev;
 
 	trace_nvhost_ioctl_ctrl_module_regrdwr(args->id,
 			args->num_offsets, args->write);
 
-	/* Check that there is something to read */
-	if (num_offsets == 0)
+	/* Check that there is something to read and that block size is
+	 * u32 aligned */
+	if (num_offsets == 0 || args->block_size & 3)
 		return -EINVAL;
 
 	ndev = nvhost_device_list_match_by_id(args->id);
-
 	BUG_ON(!ndev);
 
-	err = validate_max_size(ndev, args->block_size);
-	if (err)
-		return err;
-
-	count = args->block_size >> 2;
-
-	vals = kmalloc(args->block_size, GFP_KERNEL);
-	if (!vals) {
-		vals = vmalloc(args->block_size);
-		if (!vals)
-			return -ENOMEM;
-	}
-
-	if (args->write) {
-		while (num_offsets--) {
-			u32 offs;
-
-			if (copy_from_user((char *)vals,
-					(char __user *)values,
-					args->block_size)) {
-				kvfree(vals);
-				return -EFAULT;
+	while (num_offsets--) {
+		int err;
+		int remaining = args->block_size >> 2;
+		u32 offs;
+		if (get_user(offs, offsets))
+			return -EFAULT;
+		offsets++;
+		while (remaining) {
+			int batch = min(remaining, 64);
+			if (args->write) {
+				if (copy_from_user(vals, values,
+							batch*sizeof(u32)))
+					return -EFAULT;
+				err = nvhost_write_module_regs(ndev,
+						offs, batch, vals);
+				if (err)
+					return err;
+			} else {
+				err = nvhost_read_module_regs(ndev,
+						offs, batch, vals);
+				if (err)
+					return err;
+				if (copy_to_user(values, vals,
+							batch*sizeof(u32)))
+					return -EFAULT;
 			}
-			if (get_user(offs, offsets)) {
-				kvfree(vals);
-				return -EFAULT;
-			}
-			err = nvhost_write_module_regs(ndev,
-					offs, count, vals);
-			if (err) {
-				kvfree(vals);
-				return err;
-			}
-			offsets++;
-			values += count;
-		}
-	} else {
-		while (num_offsets--) {
-			u32 offs;
-			if (get_user(offs, offsets)) {
-				kvfree(vals);
-				return -EFAULT;
-			}
-			err = nvhost_read_module_regs(ndev,
-					offs, count, vals);
-			if (err) {
-				kvfree(vals);
-				return err;
-			}
-			if (copy_to_user((void __user *)values,
-					(void const *)vals,
-					args->block_size)) {
-				kvfree(vals);
-				return -EFAULT;
-			}
-			offsets++;
-			values += count;
+			remaining -= batch;
+			offs += batch*sizeof(u32);
+			values += batch;
 		}
 	}
 
-	kvfree(vals);
 	return 0;
 }
 
@@ -337,12 +297,16 @@ static void power_on_host(struct platform_device *dev)
 	struct nvhost_master *host = nvhost_get_private_data(dev);
 
 	nvhost_syncpt_reset(&host->syncpt);
+	if (tickctrl_op().init_host)
+		tickctrl_op().init_host(host);
 }
 
 static int power_off_host(struct platform_device *dev)
 {
 	struct nvhost_master *host = nvhost_get_private_data(dev);
 
+	if (tickctrl_op().deinit_host)
+		tickctrl_op().deinit_host(host);
 	nvhost_syncpt_save(&host->syncpt);
 	return 0;
 }
@@ -434,44 +398,14 @@ static int __devinit nvhost_alloc_resources(struct nvhost_master *host)
 	return 0;
 }
 
-void nvhost_host1x_update_clk(struct platform_device *pdev)
-{
-	struct nvhost_master *host = nvhost_get_host(pdev);
-
-	actmon_op().update_sample_period(host);
-}
-
-static struct of_device_id tegra_host1x_of_match[] __devinitdata = {
-	{ .compatible = "nvidia,tegra20-host1x",
-		.data = (struct nvhost_device_data *)&t20_host1x_info },
-	{ .compatible = "nvidia,tegra30-host1x",
-		.data = (struct nvhost_device_data *)&t30_host1x_info },
-	{ .compatible = "nvidia,tegra114-host1x",
-		.data = (struct nvhost_device_data *)&t11_host1x_info },
-	{ },
-};
-
 static int __devinit nvhost_probe(struct platform_device *dev)
 {
 	struct nvhost_master *host;
 	struct resource *regs, *intr0, *intr1;
 	int i, err;
-	struct nvhost_device_data *pdata = NULL;
+	struct nvhost_device_data *pdata =
+		(struct nvhost_device_data *)dev->dev.platform_data;
 
-	if (dev->dev.of_node) {
-		const struct of_device_id *match;
-
-		match = of_match_device(tegra_host1x_of_match, &dev->dev);
-		if (match)
-			pdata = (struct nvhost_device_data *)match->data;
-	} else
-		pdata = (struct nvhost_device_data *)dev->dev.platform_data;
-
-	WARN_ON(!pdata);
-	if (!pdata) {
-		dev_info(&dev->dev, "no platform data\n");
-		return -ENODATA;
-	}
 	regs = platform_get_resource(dev, IORESOURCE_MEM, 0);
 	intr0 = platform_get_resource(dev, IORESOURCE_IRQ, 0);
 	intr1 = platform_get_resource(dev, IORESOURCE_IRQ, 1);
@@ -557,16 +491,15 @@ static int __devinit nvhost_probe(struct platform_device *dev)
 	for (i = 0; i < pdata->num_clks; i++)
 		clk_disable_unprepare(pdata->clk[i]);
 
-	pm_runtime_use_autosuspend(&dev->dev);
-	pm_runtime_set_autosuspend_delay(&dev->dev, 100);
-	pm_runtime_enable(&dev->dev);
-
 	nvhost_device_list_init();
 	err = nvhost_device_list_add(dev);
 	if (err)
 		goto fail;
 
 	nvhost_debug_init(host);
+
+	if (tickctrl_op().init_host)
+		tickctrl_op().init_host(host);
 
 	dev_info(&dev->dev, "initialized\n");
 	return 0;
@@ -612,10 +545,7 @@ static struct platform_driver platform_driver = {
 	.resume = nvhost_resume,
 	.driver = {
 		.owner = THIS_MODULE,
-		.name = DRIVER_NAME,
-#ifdef CONFIG_OF
-		.of_match_table = tegra_host1x_of_match,
-#endif
+		.name = DRIVER_NAME
 	},
 };
 

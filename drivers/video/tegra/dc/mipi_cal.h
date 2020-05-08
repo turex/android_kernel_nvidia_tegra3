@@ -1,7 +1,7 @@
 /*
  * drivers/video/tegra/dc/mipi_cal.h
  *
- * Copyright (c) 2012-2013, NVIDIA CORPORATION, All rights reserved.
+ * Copyright (c) 2012, NVIDIA CORPORATION, All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -23,24 +23,26 @@ struct tegra_mipi_cal {
 	struct tegra_dc *dc;
 	struct resource *res;
 	struct clk *clk;
-	struct clk *fixed_clk;
 	void __iomem *base;
 	struct mutex lock;
+	bool power_on;
 };
 
 #ifdef CONFIG_TEGRA_MIPI_CAL
-static inline void tegra_mipi_cal_clk_enable(struct tegra_mipi_cal *mipi_cal)
+static inline void tegra_mipi_cal_clk_enable(struct tegra_mipi_cal  *mipi_cal)
 {
-	BUG_ON(IS_ERR_OR_NULL(mipi_cal));
-	clk_prepare_enable(mipi_cal->fixed_clk);
-	clk_prepare_enable(mipi_cal->clk);
+	if (!mipi_cal->power_on) {
+		clk_enable(mipi_cal->clk);
+		mipi_cal->power_on = true;
+	}
 }
 
-static inline void tegra_mipi_cal_clk_disable(struct tegra_mipi_cal *mipi_cal)
+static inline void tegra_mipi_cal_clk_disable(struct tegra_mipi_cal  *mipi_cal)
 {
-	BUG_ON(IS_ERR_OR_NULL(mipi_cal));
-	clk_disable_unprepare(mipi_cal->clk);
-	clk_disable_unprepare(mipi_cal->fixed_clk);
+	if (mipi_cal->power_on) {
+		clk_disable(mipi_cal->clk);
+		mipi_cal->power_on = false;
+	}
 }
 
 /* reg is word offset */
@@ -48,8 +50,6 @@ static inline unsigned long tegra_mipi_cal_read(
 					struct tegra_mipi_cal *mipi_cal,
 					unsigned long reg)
 {
-	BUG_ON(IS_ERR_OR_NULL(mipi_cal) ||
-		!tegra_is_clk_enabled(mipi_cal->clk));
 	return readl(mipi_cal->base + reg);
 }
 
@@ -58,21 +58,18 @@ static inline void tegra_mipi_cal_write(struct tegra_mipi_cal *mipi_cal,
 							unsigned long val,
 							unsigned long reg)
 {
-	BUG_ON(IS_ERR_OR_NULL(mipi_cal) ||
-		!tegra_is_clk_enabled(mipi_cal->clk));
-	writel(val, mipi_cal->base + reg);
+	writel(val,  mipi_cal->base + reg);
 }
 
 extern struct tegra_mipi_cal *tegra_mipi_cal_init_sw(struct tegra_dc *dc);
-extern int tegra_mipi_cal_init_hw(struct tegra_mipi_cal *mipi_cal);
-extern void tegra_mipi_cal_destroy(struct tegra_dc *dc);
+extern void tegra_mipi_cal_init_hw(struct tegra_mipi_cal *mipi_cal);
 #else
-static inline void tegra_mipi_cal_clk_enable(struct tegra_mipi_cal *mipi_cal)
+static inline void tegra_mipi_cal_clk_enable(struct tegra_mipi_cal  *mipi_cal)
 {
 	/* dummy */
 }
 
-static inline void tegra_mipi_cal_clk_disable(struct tegra_mipi_cal *mipi_cal)
+static inline void tegra_mipi_cal_clk_disable(struct tegra_mipi_cal  *mipi_cal)
 {
 	/* dummy */
 }
@@ -98,13 +95,7 @@ struct tegra_mipi_cal *tegra_mipi_cal_init_sw(struct tegra_dc *dc)
 	return NULL;
 }
 
-int tegra_mipi_cal_init_hw(struct tegra_mipi_cal *mipi_cal)
-{
-	/* dummy */
-	return 0;
-}
-
-void tegra_mipi_cal_destroy(struct tegra_dc *dc)
+void tegra_mipi_cal_init_hw(struct tegra_mipi_cal *mipi_cal)
 {
 	/* dummy */
 }

@@ -1,7 +1,7 @@
 /*
  * drivers/video/tegra/dc/nvhdcp.c
  *
- * Copyright (c) 2010-2013, NVIDIA CORPORATION, All rights reserved.
+ * Copyright (c) 2010-2012, NVIDIA CORPORATION, All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -470,27 +470,6 @@ static int verify_ksv(u64 k)
 	return  (i != 20) ? -EINVAL : 0;
 }
 
-static int get_nvhdcp_state(struct tegra_nvhdcp *nvhdcp,
-			struct tegra_nvhdcp_packet *pkt)
-{
-	int	i;
-
-	mutex_lock(&nvhdcp->lock);
-	if (nvhdcp->state != STATE_LINK_VERIFY) {
-		memset(pkt, 0, sizeof *pkt);
-		pkt->packet_results = TEGRA_NVHDCP_RESULT_LINK_FAILED;
-	} else {
-		pkt->num_bksv_list = nvhdcp->num_bksv_list;
-		for (i = 0; i < pkt->num_bksv_list; i++)
-			pkt->bksv_list[i] = nvhdcp->bksv_list[i];
-		pkt->b_status = nvhdcp->b_status;
-		memcpy(pkt->v_prime, nvhdcp->v_prime, sizeof(nvhdcp->v_prime));
-		pkt->packet_results = TEGRA_NVHDCP_RESULT_SUCCESS;
-	}
-	mutex_unlock(&nvhdcp->lock);
-	return 0;
-}
-
 /* get Status and Kprime signature - READ_S on TMDS0_LINK0 only */
 static int get_s_prime(struct tegra_nvhdcp *nvhdcp, struct tegra_nvhdcp_packet *pkt)
 {
@@ -782,7 +761,7 @@ static int get_repeater_info(struct tegra_nvhdcp *nvhdcp)
 {
 	int e, retries;
 	u8 b_caps;
-	u16 b_status = 0;
+	u16 b_status;
 
 	nvhdcp_vdbg("repeater found:fetching repeater info\n");
 
@@ -850,14 +829,12 @@ static void nvhdcp_downstream_worker(struct work_struct *work)
 	struct tegra_nvhdcp *nvhdcp =
 		container_of(to_delayed_work(work), struct tegra_nvhdcp, work);
 	struct tegra_dc_hdmi_data *hdmi = nvhdcp->hdmi;
-	struct tegra_dc *dc = tegra_dc_hdmi_get_dc(hdmi);
 	int e;
 	u8 b_caps;
 	u32 tmp;
 	u32 res;
 
 	nvhdcp_vdbg("%s():started thread %s\n", __func__, nvhdcp->name);
-	tegra_dc_io_start(dc);
 
 	mutex_lock(&nvhdcp->lock);
 	if (nvhdcp->state == STATE_OFF) {
@@ -1020,10 +997,8 @@ static void nvhdcp_downstream_worker(struct work_struct *work)
 			goto failure;
 		}
 		mutex_unlock(&nvhdcp->lock);
-		tegra_dc_io_end(dc);
 		wait_event_interruptible_timeout(wq_worker,
 			!nvhdcp_is_plugged(nvhdcp), msecs_to_jiffies(1500));
-		tegra_dc_io_start(dc);
 		mutex_lock(&nvhdcp->lock);
 
 	}
@@ -1046,13 +1021,11 @@ lost_hdmi:
 
 err:
 	mutex_unlock(&nvhdcp->lock);
-	tegra_dc_io_end(dc);
 	return;
 disable:
 	nvhdcp->state = STATE_OFF;
 	nvhdcp_set_plugged(nvhdcp, false);
 	mutex_unlock(&nvhdcp->lock);
-	tegra_dc_io_end(dc);
 	return;
 }
 
@@ -1179,18 +1152,6 @@ static long nvhdcp_dev_ioctl(struct file *filp,
 	case TEGRAIO_NVHDCP_RENEGOTIATE:
 		e = tegra_nvhdcp_renegotiate(nvhdcp);
 		break;
-
-	case TEGRAIO_NVHDCP_HDCP_STATE:
-		pkt = kmalloc(sizeof(*pkt), GFP_KERNEL);
-		if (!pkt)
-			return -ENOMEM;
-		e = get_nvhdcp_state(nvhdcp, pkt);
-		if (copy_to_user((void __user *)arg, pkt, sizeof(*pkt))) {
-			e = -EFAULT;
-			goto kfree_pkt;
-		}
-		kfree(pkt);
-		return e;
 	}
 
 	return e;

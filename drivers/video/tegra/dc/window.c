@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2010 Google, Inc.
  *
- * Copyright (c) 2010-2013, NVIDIA CORPORATION, All rights reserved.
+ * Copyright (c) 2010-2012, NVIDIA CORPORATION, All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -50,14 +50,12 @@ static bool tegra_dc_windows_are_clean(struct tegra_dc_win *windows[],
 
 int tegra_dc_config_frame_end_intr(struct tegra_dc *dc, bool enable)
 {
-	tegra_dc_io_start(dc);
 	tegra_dc_writel(dc, FRAME_END_INT, DC_CMD_INT_STATUS);
 	if (enable) {
 		atomic_inc(&frame_end_ref);
 		tegra_dc_unmask_interrupt(dc, FRAME_END_INT);
 	} else if (!atomic_dec_return(&frame_end_ref))
 		tegra_dc_mask_interrupt(dc, FRAME_END_INT);
-	tegra_dc_io_end(dc);
 	return 0;
 }
 
@@ -132,6 +130,8 @@ static void tegra_dc_blend_parallel(struct tegra_dc *dc,
 				DC_CMD_DISPLAY_WINDOW_HEADER);
 		tegra_dc_writel(dc, BLEND(NOKEY, FIX, 0xff, 0xff),
 				DC_WIN_BLEND_NOKEY);
+		tegra_dc_writel(dc, BLEND(NOKEY, FIX, 0xff, 0xff),
+				DC_WIN_BLEND_1WIN);
 		tegra_dc_writel(dc, blend_2win(idx, mask, blend->flags, 0,
 				win_num), DC_WIN_BLEND_2WIN_X);
 		tegra_dc_writel(dc, blend_2win(idx, mask, blend->flags, 1,
@@ -354,7 +354,6 @@ int tegra_dc_update_windows(struct tegra_dc_win *windows[], int n)
 
 	for (i = 0; i < n; i++) {
 		struct tegra_dc_win *win = windows[i];
-		struct tegra_dc_win *dc_win = tegra_dc_get_window(dc, win->idx);
 		bool scan_column = 0;
 		fixed20_12 h_offset, v_offset;
 		bool invert_h = (win->flags & TEGRA_WIN_FLAG_INVERT_H) != 0;
@@ -368,15 +367,6 @@ int tegra_dc_update_windows(struct tegra_dc_win *windows[], int n)
 		const bool filter_v = win_use_v_filter(dc, win);
 #if defined(CONFIG_TEGRA_DC_SCAN_COLUMN)
 		scan_column = (win->flags & TEGRA_WIN_FLAG_SCAN_COLUMN);
-#endif
-
-#ifdef CONFIG_MACH_GROUPER
-		if (win->dc->ndev->id == 0) {
-			invert_h = !invert_h;
-			invert_v = !invert_v;
-			win->out_x = win->dc->pdata->fb->xres - (win->out_x + win->out_w);
-			win->out_y = win->dc->pdata->fb->yres - (win->out_y + win->out_h);
-		}
 #endif
 
 		/* Update blender */
@@ -398,13 +388,9 @@ int tegra_dc_update_windows(struct tegra_dc_win *windows[], int n)
 		if (!no_vsync)
 			update_mask |= WIN_A_ACT_REQ << win->idx;
 
-		if (!WIN_IS_ENABLED(win) || !win->phys_addr) {
-			dc_win->dirty = no_vsync ? 0 : 1;
-#ifdef CONFIG_MACH_GROUPER
-			tegra_dc_writel(dc, TEGRA_WIN_FLAG_INVERT_H|TEGRA_WIN_FLAG_INVERT_V, DC_WIN_WIN_OPTIONS);
-#else
+		if (!WIN_IS_ENABLED(win)) {
+			dc->windows[i].dirty = 1;
 			tegra_dc_writel(dc, 0, DC_WIN_WIN_OPTIONS);
-#endif
 			continue;
 		}
 
@@ -501,20 +487,6 @@ int tegra_dc_update_windows(struct tegra_dc_win *windows[], int n)
 			win_options |= CP_ENABLE;
 		}
 #endif
-		if (!tegra_dc_feature_is_gen2_blender(dc, win->idx)) {
-			if (win->flags &
-					TEGRA_WIN_FLAG_BLEND_COVERAGE) {
-				tegra_dc_writel(dc,
-					BLEND(NOKEY, ALPHA, 0xff, 0xff),
-					DC_WIN_BLEND_1WIN);
-			} else {
-				/* global_alpha is 255 if not in use */
-				tegra_dc_writel(dc,
-					BLEND(NOKEY, FIX, win->global_alpha,
-						win->global_alpha),
-					DC_WIN_BLEND_1WIN);
-			}
-		}
 
 		if (win->ppflags & TEGRA_WIN_PPFLAG_CP_ENABLE)
 			win_options |= CP_ENABLE;
@@ -524,7 +496,7 @@ int tegra_dc_update_windows(struct tegra_dc_win *windows[], int n)
 
 		tegra_dc_writel(dc, win_options, DC_WIN_WIN_OPTIONS);
 
-		dc_win->dirty = no_vsync ? 0 : 1;
+		win->dirty = no_vsync ? 0 : 1;
 
 		trace_window_update(dc, win);
 	}
@@ -550,14 +522,14 @@ int tegra_dc_update_windows(struct tegra_dc_win *windows[], int n)
 		set_bit(V_BLANK_FLIP, &dc->vblank_ref_count);
 		tegra_dc_unmask_interrupt(dc,
 			FRAME_END_INT | V_BLANK_INT | ALL_UF_INT);
-#if !defined(CONFIG_ARCH_TEGRA_2x_SOC) && !defined(CONFIG_ARCH_TEGRA_3x_SOC)
+#ifdef CONFIG_ARCH_TEGRA_11x_SOC
 		set_bit(V_PULSE2_FLIP, &dc->vpulse2_ref_count);
 		tegra_dc_unmask_interrupt(dc, V_PULSE2_INT);
 #endif
 	} else {
 		clear_bit(V_BLANK_FLIP, &dc->vblank_ref_count);
 		tegra_dc_mask_interrupt(dc, V_BLANK_INT | ALL_UF_INT);
-#if !defined(CONFIG_ARCH_TEGRA_2x_SOC) && !defined(CONFIG_ARCH_TEGRA_3x_SOC)
+#ifdef CONFIG_ARCH_TEGRA_11x_SOC
 		clear_bit(V_PULSE2_FLIP, &dc->vpulse2_ref_count);
 		tegra_dc_mask_interrupt(dc, V_PULSE2_INT);
 #endif

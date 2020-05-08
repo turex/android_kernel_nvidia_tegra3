@@ -1,7 +1,7 @@
 /*
  * drivers/video/tegra/dc/dsi.h
  *
- * Copyright (c) 2011-2013, NVIDIA CORPORATION, All rights reserved.
+ * Copyright (c) 2011-2012, NVIDIA CORPORATION, All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -63,7 +63,6 @@ struct tegra_dc_dsi_data {
 	struct clk *dc_clk;
 	struct clk *dsi_clk;
 	struct clk *dsi_fixed_clk;
-	struct clk *dsi_lp_clk;
 	bool clk_ref;
 
 	struct mutex lock;
@@ -83,10 +82,11 @@ struct tegra_dc_dsi_data {
 	bool ulpm;
 	bool enabled;
 	bool host_suspended;
-	struct mutex host_lock;
+	struct mutex host_resume_lock;
 	struct delayed_work idle_work;
 	unsigned long idle_delay;
-	atomic_t host_ref;
+	spinlock_t host_ref_lock;
+	u8 host_ref;
 
 	u8 driven_mode;
 	u8 controller_index;
@@ -107,8 +107,6 @@ struct tegra_dc_dsi_data {
 
 	u16 current_bit_clk_ns;
 	u32 current_dsi_clk_khz;
-
-	struct regulator *avdd_dsi_csi;
 
 	u32 dsi_control_val;
 };
@@ -386,7 +384,7 @@ T_TLPX_NS_DEFAULT, clk_ns, T_TLPX_HW_INC))
 T_CLKPREPARE_NS_DEFAULT, clk_ns, T_CLKPREPARE_HW_INC))
 
 #define T_CLKPRE_DEFAULT	0x1
-#define T_WAKEUP_DEFAULT	0xff
+#define T_WAKEUP_DEFAULT	0x7f
 
 #define T_TAGO_DEFAULT(clk_ns) \
 (DSI_CONVERT_T_PHY_NS_TO_T_PHY( \

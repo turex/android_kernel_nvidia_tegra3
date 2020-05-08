@@ -6,7 +6,7 @@
  *         Colin Cross <ccross@android.com>
  *         Travis Geiselbrecht <travis@palm.com>
  *
- * Copyright (c) 2010-2013, NVIDIA CORPORATION, All rights reserved.
+ * Copyright (c) 2010-2012, NVIDIA CORPORATION, All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -57,8 +57,6 @@ struct tegra_fb_info {
 
 	int			xres;
 	int			yres;
-	int			curr_xoffset;
-	int			curr_yoffset;
 };
 
 /* palette array used by the fbcon */
@@ -187,6 +185,11 @@ static int tegra_fb_set_par(struct fb_info *info)
 			return -EINVAL;
 		}
 
+		/* Reflect mode chnage on DC HW */
+		if (dc->enabled)
+			tegra_dc_disable(dc);
+		tegra_dc_enable(dc);
+
 		tegra_fb->win->w.full = dfixed_const(info->mode->xres);
 		tegra_fb->win->h.full = dfixed_const(info->mode->yres);
 		tegra_fb->win->out_w = info->mode->xres;
@@ -283,15 +286,10 @@ static int tegra_fb_blank(int blank, struct fb_info *info)
 		dev_dbg(&tegra_fb->ndev->dev, "unblank\n");
 		tegra_fb->win->flags = TEGRA_WIN_FLAG_ENABLED;
 		tegra_dc_enable(tegra_fb->win->dc);
-		tegra_dc_update_windows(&tegra_fb->win, 1);
-		tegra_dc_sync_windows(&tegra_fb->win, 1);
 		return 0;
 
 	case FB_BLANK_NORMAL:
 		dev_dbg(&tegra_fb->ndev->dev, "blank - normal\n");
-		/* To pan fb at the unblank */
-		if (tegra_fb->win->dc->enabled)
-			tegra_fb->curr_xoffset = -1;
 		tegra_dc_blank(tegra_fb->win->dc);
 		return 0;
 
@@ -299,9 +297,6 @@ static int tegra_fb_blank(int blank, struct fb_info *info)
 	case FB_BLANK_HSYNC_SUSPEND:
 	case FB_BLANK_POWERDOWN:
 		dev_dbg(&tegra_fb->ndev->dev, "blank - powerdown\n");
-		/* To pan fb while switching from X */
-		if (!tegra_fb->win->dc->suspended && tegra_fb->win->dc->enabled)
-			tegra_fb->curr_xoffset = -1;
 		tegra_dc_disable(tegra_fb->win->dc);
 		return 0;
 
@@ -318,27 +313,12 @@ static int tegra_fb_pan_display(struct fb_var_screeninfo *var,
 	char __iomem *flush_end;
 	u32 addr;
 
-	/*
-	 * Do nothing if display parameters are same as current values.
-	 */
-#if defined(CONFIG_ANDROID)
-	if ((var->xoffset == tegra_fb->curr_xoffset) &&
-	    (var->yoffset == tegra_fb->curr_yoffset))
-		return 0;
-#endif
-
 	if (!tegra_fb->win->cur_handle) {
 		flush_start = info->screen_base + (var->yoffset * info->fix.line_length);
 		flush_end = flush_start + (var->yres * info->fix.line_length);
 
 		info->var.xoffset = var->xoffset;
 		info->var.yoffset = var->yoffset;
-		/*
-		 * Save previous values of xoffset and yoffset so we can
-		 * pan display only when needed.
-		 */
-		tegra_fb->curr_xoffset = var->xoffset;
-		tegra_fb->curr_yoffset = var->yoffset;
 
 		addr = info->fix.smem_start + (var->yoffset * info->fix.line_length) +
 			(var->xoffset * (var->bits_per_pixel/8));
@@ -375,7 +355,6 @@ static void tegra_fb_imageblit(struct fb_info *info,
 static int tegra_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 {
 	struct tegra_fb_info *tegra_fb = (struct tegra_fb_info *)info->par;
-	struct tegra_dc *dc = tegra_fb->win->dc;
 	struct tegra_fb_modedb modedb;
 	struct fb_modelist *modelist;
 	struct fb_vblank vblank = {};
@@ -398,8 +377,6 @@ static int tegra_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long 
 			memset(&var, 0x0, sizeof(var));
 
 			fb_videomode_to_var(&var, &modelist->mode);
-			var.width = tegra_dc_get_out_width(dc);
-			var.height = tegra_dc_get_out_height(dc);
 
 			if (copy_to_user((void __user *)&modedb.modedb[i],
 					 &var, sizeof(var)))
@@ -442,8 +419,6 @@ static int tegra_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long 
 }
 
 int tegra_fb_get_mode(struct tegra_dc *dc) {
-	if (!dc->fb->info->mode)
-		return -1;
 	return dc->fb->info->mode->refresh;
 }
 
@@ -490,12 +465,6 @@ static struct fb_ops tegra_fb_ops = {
 	.fb_imageblit = tegra_fb_imageblit,
 	.fb_ioctl = tegra_fb_ioctl,
 };
-
-/* Enabling the pan_display by resetting the cache of offset */
-void tegra_fb_pan_display_reset(struct tegra_fb_info *fb_info)
-{
-	fb_info->curr_xoffset = -1;
-}
 
 void tegra_fb_update_monspecs(struct tegra_fb_info *fb_info,
 			      struct fb_monspecs *specs,
@@ -544,14 +513,7 @@ void tegra_fb_update_monspecs(struct tegra_fb_info *fb_info,
 	event.info = fb_info->info;
 #ifdef CONFIG_FRAMEBUFFER_CONSOLE
 	console_lock();
-	if ((fb_info->win->dc->out != NULL) &&
-	    (fb_info->win->dc->out->type == TEGRA_DC_OUT_HDMI))
-		tegra_fb_blank(FB_BLANK_POWERDOWN, fb_info->info);
-	/* fb_call chain is blocking call */
 	fb_notifier_call_chain(FB_EVENT_NEW_MODELIST, &event);
-	if ((fb_info->win->dc->out != NULL) &&
-	    (fb_info->win->dc->out->type == TEGRA_DC_OUT_HDMI))
-		tegra_fb_blank(FB_BLANK_UNBLANK, fb_info->info);
 	console_unlock();
 #else
 	fb_notifier_call_chain(FB_EVENT_NEW_MODELIST, &event);
@@ -571,9 +533,7 @@ struct tegra_fb_info *tegra_fb_register(struct platform_device *ndev,
 	unsigned long fb_size = 0;
 	unsigned long fb_phys = 0;
 	int ret = 0;
-	int mode_idx;
 	unsigned stride;
-	struct fb_videomode m;
 
 	win = tegra_dc_get_window(dc, fb_data->win);
 	if (!win) {
@@ -629,17 +589,14 @@ struct tegra_fb_info *tegra_fb_register(struct platform_device *ndev,
 	info->fix.smem_len	= fb_size;
 	info->fix.line_length = stride;
 
-	INIT_LIST_HEAD(&info->modelist);
-	/* pick first mode as the default for initialization */
-	tegra_dc_to_fb_videomode(&m, &dc->mode);
-	fb_videomode_to_var(&info->var, &m);
+	info->var.xres			= fb_data->xres;
+	info->var.yres			= fb_data->yres;
 	info->var.xres_virtual		= fb_data->xres;
 	info->var.yres_virtual		= fb_data->yres * 2;
 	info->var.bits_per_pixel	= fb_data->bits_per_pixel;
 	info->var.activate		= FB_ACTIVATE_VBL;
 	info->var.height		= tegra_dc_get_out_height(dc);
 	info->var.width			= tegra_dc_get_out_width(dc);
-#if defined(CONFIG_MACH_GROUPER) || defined(CONFIG_MACH_TRANSFORMER)
 	info->var.pixclock		= 0;
 	info->var.left_margin		= 0;
 	info->var.right_margin		= 0;
@@ -647,7 +604,7 @@ struct tegra_fb_info *tegra_fb_register(struct platform_device *ndev,
 	info->var.lower_margin		= 0;
 	info->var.hsync_len		= 0;
 	info->var.vsync_len		= 0;
-#endif
+	info->var.vmode			= FB_VMODE_NONINTERLACED;
 
 	win->x.full = dfixed_const(0);
 	win->y.full = dfixed_const(0);
@@ -666,7 +623,6 @@ struct tegra_fb_info *tegra_fb_register(struct platform_device *ndev,
 	win->stride = info->fix.line_length;
 	win->stride_uv = 0;
 	win->flags = TEGRA_WIN_FLAG_ENABLED;
-	win->global_alpha = 0xFF;
 
 	if (fb_mem)
 		tegra_fb_set_par(info);
@@ -686,16 +642,24 @@ struct tegra_fb_info *tegra_fb_register(struct platform_device *ndev,
 		tegra_dc_sync_windows(&tegra_fb->win, 1);
 	}
 
-	for (mode_idx = 1; mode_idx < dc->out->n_modes; mode_idx++) {
-		struct tegra_dc_mode mode = dc->out->modes[mode_idx];
+	if (dc->mode.pclk > 1000) {
+		struct tegra_dc_mode *mode = &dc->mode;
 		struct fb_videomode vmode;
 
-		mode.pclk = dc->mode.pclk;
+		if (dc->out->flags & TEGRA_DC_OUT_ONE_SHOT_MODE)
+			info->var.pixclock = KHZ2PICOS(mode->rated_pclk / 1000);
+		else
+			info->var.pixclock = KHZ2PICOS(mode->pclk / 1000);
+		info->var.left_margin = mode->h_back_porch;
+		info->var.right_margin = mode->h_front_porch;
+		info->var.upper_margin = mode->v_back_porch;
+		info->var.lower_margin = mode->v_front_porch;
+		info->var.hsync_len = mode->h_sync_width;
+		info->var.vsync_len = mode->v_sync_width;
 
-		if (mode.pclk > 1000) {
-			tegra_dc_to_fb_videomode(&vmode, &mode);
-			fb_add_videomode(&vmode, &info->modelist);
-		}
+		/* Keep info->var consistent with info->modelist. */
+		fb_var_to_videomode(&vmode, &info->var);
+		fb_add_videomode(&vmode, &info->modelist);
 	}
 
 	return tegra_fb;

@@ -31,7 +31,6 @@ config TEGRA_GRHOST_DEFAULT_TIMEOUT
 config TEGRA_DC
 	tristate "Tegra Display Contoller"
 	depends on ARCH_TEGRA && TEGRA_GRHOST
-	select BACKLIGHT_CLASS_DEVICE
 	select FB_MODE_HELPERS
 	select I2C
 	help
@@ -41,11 +40,6 @@ config TEGRA_DC_CMU
     bool
     default n if ARCH_TEGRA_2x_SOC || ARCH_TEGRA_3x_SOC
     default y
-
-config TEGRA_DC_WIN_H
-    bool
-    default y if ARCH_TEGRA_14x_SOC
-    default n
 
 config TEGRA_MIPI_CAL
     bool
@@ -177,17 +171,6 @@ config NVMAP_OUTER_CACHE_MAINT_BY_SET_WAYS
 	  bigger than size of outer cache. This option has no effect on
 	  system without outer cache.
 
-config NVMAP_DEFERRED_CACHE_MAINT
-	bool "Enable deferred cache maintenance"
-	depends on TEGRA_NVMAP
-	help
-	  Say Y here if you want to defer flush requests for
-	  nvmap memory buffer. Cache maintenance of deferred requests
-	  is more efficient since there is a high chance that cache lines
-	  of earlier requests are already flushed. Also, if total size of
-	  deferred ranges is big enough, we flush whole inner or outer
-	  cache.
-
 config NVMAP_VPR
 	bool "Enable VPR Heap."
 	depends on TEGRA_NVMAP
@@ -235,11 +218,3 @@ config TEGRA_HDMI_74MHZ_LIMIT
 
 endif
 
-config TEGRA_CAMERA
-	bool "Enable support for tegra camera/isp hardware"
-	depends on ARCH_TEGRA
-	default y
-	help
-	  Enables support for the Tegra camera interface
-
-	  If unsure, say Y

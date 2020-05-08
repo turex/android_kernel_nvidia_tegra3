@@ -3,7 +3,7 @@
  *
  * Tegra Graphics Host 3D clock scaling
  *
- * Copyright (c) 2010-2013, NVIDIA Corporation. All rights reserved.
+ * Copyright (c) 2010-2012, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -35,7 +35,6 @@
 #include <linux/clk.h>
 #include <linux/export.h>
 #include <linux/slab.h>
-#include <linux/platform_data/tegra_edp.h>
 
 #include <chip_support.h>
 #include <host1x/host1x.h>
@@ -49,7 +48,6 @@
 #include "pod_scaling.h"
 #include "scale3d_actmon.h"
 #include "dev.h"
-#include "nvhost_acm.h"
 
 #define POW2(x) ((x) * (x))
 
@@ -64,13 +62,6 @@ struct power_profile_gr3d {
 
 	int				init;
 
-	/*
-	 * Use emc_slope and emc_dip_slope as unsigned fixed point<20,12> to
-	 * have finer granularity. Without doing this, emc_dip_slope is zero all
-	 * the time. Need to scale down emc_offset and emc_dip_offset
-	 * from Hz to MHz to avoid integer overflow due to
-	 * increased emc_slope and emc_dip_slope values.
-	 */
 	unsigned long			max_rate_3d;
 	unsigned long			min_rate_3d;
 	long				emc_slope;
@@ -79,7 +70,6 @@ struct power_profile_gr3d {
 	long				emc_dip_offset;
 	long				emc_xmid;
 
-	struct platform_device		*dev;
 	struct clk			*clk_3d;
 	struct clk			*clk_3d2;
 	struct clk			*clk_3d_emc;
@@ -96,44 +86,6 @@ struct power_profile_gr3d {
  ******************************************************************************/
 
 static struct power_profile_gr3d power_profile;
-
-/* Convert struct clk to clk index */
-static inline int clk_to_idx(struct clk *clk)
-{
-	struct nvhost_device_data *pdata =
-		platform_get_drvdata(power_profile.dev);
-	int i;
-
-	for (i = 0; i < NVHOST_MODULE_MAX_CLOCKS; i++) {
-		if (clk == pdata->clk[i])
-			break;
-	}
-
-	if (i == NVHOST_MODULE_MAX_CLOCKS)
-		pr_err("scale3d: there is no such clk!\n");
-
-	return i;
-}
-
-/*******************************************************************************
- * Export load info in sysfs
- ******************************************************************************/
-
-static ssize_t nvhost_scale3d_load_show(struct device *dev,
-				      struct device_attribute *attr,
-				      char *buf)
-{
-	struct nvhost_master *host = nvhost_get_host(to_platform_device(dev));
-	u32 avg;
-	ssize_t res;
-
-	actmon_op().read_avg_norm(host, &avg);
-	res = snprintf(buf, PAGE_SIZE, "%u\n", avg);
-
-	return res;
-}
-
-static DEVICE_ATTR(load, S_IRUGO, nvhost_scale3d_load_show, NULL);
 
 /*******************************************************************************
  * nvhost_scale3d_notify(dev, busy)
@@ -184,7 +136,7 @@ void nvhost_scale3d_actmon_notify_busy(struct platform_device *dev)
 static int nvhost_scale3d_target(struct device *d, unsigned long *freq,
 				u32 flags)
 {
-	long hz;
+	unsigned long hz;
 	long after;
 
 	/* Inform that the clock is disabled */
@@ -205,27 +157,18 @@ static int nvhost_scale3d_target(struct device *d, unsigned long *freq,
 
 	/* Set GPU clockrate */
 	if (tegra_get_chipid() == TEGRA_CHIPID_TEGRA3)
-		nvhost_module_set_devfreq_rate(power_profile.dev,
-					clk_to_idx(power_profile.clk_3d2), 0);
-	nvhost_module_set_devfreq_rate(power_profile.dev,
-				clk_to_idx(power_profile.clk_3d), *freq);
+		clk_set_rate(power_profile.clk_3d2, 0);
+	clk_set_rate(power_profile.clk_3d, *freq);
 
 	/* Set EMC clockrate */
 	after = (long) clk_get_rate(power_profile.clk_3d);
-	after = INT_TO_FX(HZ_TO_MHZ(after));
-	hz = FXMUL(after, power_profile.emc_slope) +
+	hz = after * power_profile.emc_slope +
 		power_profile.emc_offset;
 
-	hz -= FXMUL(power_profile.emc_dip_slope,
-		FXMUL(after - power_profile.emc_xmid,
-			after - power_profile.emc_xmid)) +
-		power_profile.emc_dip_offset;
-
-	hz = MHZ_TO_HZ(FX_TO_INT(hz + FX_HALF)); /* round to nearest */
-	hz = (hz < 0) ? 0 : hz;
-
-	nvhost_module_set_devfreq_rate(power_profile.dev,
-			clk_to_idx(power_profile.clk_3d_emc), hz);
+	hz -= (power_profile.emc_dip_slope *
+		POW2(after / 1000 - power_profile.emc_xmid) +
+		power_profile.emc_dip_offset);
+	clk_set_rate(power_profile.clk_3d_emc, hz);
 
 	/* Get the new clockrate */
 	*freq = clk_get_rate(power_profile.clk_3d);
@@ -271,8 +214,6 @@ static int nvhost_scale3d_get_dev_status(struct device *d,
 	power_profile.dev_stat->total_time = 0;
 	power_profile.dev_stat->busy_time = 0;
 	power_profile.last_event_type = DEVICE_UNKNOWN;
-
-	tegra_edp_notify_gpu_load(avg);
 
 	return 0;
 }
@@ -337,40 +278,33 @@ static struct devfreq_dev_profile nvhost_scale3d_devfreq_profile = {
 static void nvhost_scale3d_calibrate_emc(void)
 {
 	long correction;
-	unsigned long max_emc;
-	unsigned long min_emc;
-	unsigned long min_rate_3d;
-	unsigned long max_rate_3d;
+	unsigned long max_emc = clk_round_rate(power_profile.clk_3d_emc,
+		UINT_MAX);
+	unsigned long min_emc = clk_round_rate(power_profile.clk_3d_emc, 0);
 
-	max_emc = clk_round_rate(power_profile.clk_3d_emc, UINT_MAX);
-	max_emc = INT_TO_FX(HZ_TO_MHZ(max_emc));
-
-	min_emc = clk_round_rate(power_profile.clk_3d_emc, 0);
-	min_emc = INT_TO_FX(HZ_TO_MHZ(min_emc));
-
-	max_rate_3d = INT_TO_FX(HZ_TO_MHZ(power_profile.max_rate_3d));
-	min_rate_3d = INT_TO_FX(HZ_TO_MHZ(power_profile.min_rate_3d));
-
-	power_profile.emc_slope =
-		FXDIV((max_emc - min_emc), (max_rate_3d - min_rate_3d));
+	power_profile.emc_slope = (max_emc - min_emc) /
+		(power_profile.max_rate_3d -
+		power_profile.min_rate_3d);
 	power_profile.emc_offset = max_emc -
-		FXMUL(power_profile.emc_slope, max_rate_3d);
+		power_profile.emc_slope * power_profile.max_rate_3d;
 	/* Guarantee max 3d rate maps to max emc rate */
 	power_profile.emc_offset += max_emc -
-		(FXMUL(power_profile.emc_slope, max_rate_3d) +
+		(power_profile.emc_slope * power_profile.max_rate_3d +
 		power_profile.emc_offset);
 
 	power_profile.emc_dip_offset = (max_emc - min_emc) / 4;
 	power_profile.emc_dip_slope =
-		-4 * FXDIV(power_profile.emc_dip_offset,
-		(FXMUL(max_rate_3d - min_rate_3d,
-			max_rate_3d - min_rate_3d)));
-	power_profile.emc_xmid = (max_rate_3d + min_rate_3d) / 2;
+		-4 * (power_profile.emc_dip_offset /
+		(POW2(power_profile.max_rate_3d -
+		power_profile.min_rate_3d)));
+	power_profile.emc_xmid =
+		(power_profile.max_rate_3d +
+		power_profile.min_rate_3d) / 2;
 	correction =
 		power_profile.emc_dip_offset +
-			FXMUL(power_profile.emc_dip_slope,
-			FXMUL(max_rate_3d - power_profile.emc_xmid,
-				max_rate_3d - power_profile.emc_xmid));
+			power_profile.emc_dip_slope *
+			POW2(power_profile.max_rate_3d -
+			power_profile.emc_xmid);
 	power_profile.emc_dip_offset -= correction;
 }
 
@@ -390,7 +324,6 @@ void nvhost_scale3d_actmon_init(struct platform_device *dev)
 		return;
 
 	/* Get clocks */
-	power_profile.dev = dev;
 	power_profile.clk_3d = pdata->clk[0];
 	if (tegra_get_chipid() == TEGRA_CHIPID_TEGRA3) {
 		power_profile.clk_3d2 = pdata->clk[1];
@@ -403,7 +336,6 @@ void nvhost_scale3d_actmon_init(struct platform_device *dev)
 		clk_round_rate(power_profile.clk_3d, UINT_MAX);
 	power_profile.min_rate_3d =
 		clk_round_rate(power_profile.clk_3d, 0);
-
 	nvhost_scale3d_devfreq_profile.initial_freq = power_profile.max_rate_3d;
 
 	if (power_profile.max_rate_3d == power_profile.min_rate_3d) {
@@ -431,9 +363,6 @@ void nvhost_scale3d_actmon_init(struct platform_device *dev)
 
 	nvhost_scale3d_calibrate_emc();
 
-	if (device_create_file(&dev->dev, &dev_attr_load))
-		goto err_create_sysfs_entry;
-
 	/* Start using devfreq */
 	pdata->power_manager = devfreq_add_device(&dev->dev,
 				&nvhost_scale3d_devfreq_profile,
@@ -443,7 +372,6 @@ void nvhost_scale3d_actmon_init(struct platform_device *dev)
 	power_profile.init = 1;
 	return;
 
-err_create_sysfs_entry:
 err_devfreq_ext_stat_alloc:
 	kfree(power_profile.dev_stat);
 err_devfreq_alloc:
@@ -468,8 +396,6 @@ void nvhost_scale3d_actmon_deinit(struct platform_device *dev)
 
 	if (pdata->power_manager)
 		devfreq_remove_device(pdata->power_manager);
-
-	device_remove_file(&dev->dev, &dev_attr_load);
 
 	kfree(power_profile.dev_stat->private_data);
 	kfree(power_profile.dev_stat);

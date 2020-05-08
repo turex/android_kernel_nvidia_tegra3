@@ -3,7 +3,7 @@
  *
  * Tegra Graphics Host Automatic Clock Management
  *
- * Copyright (c) 2010-2013, NVIDIA Corporation. All rights reserved.
+ * Copyright (c) 2010-2012, NVIDIA Corporation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -26,14 +26,11 @@
 #include <linux/device.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
-#include <linux/pm.h>
-#include <linux/pm_runtime.h>
 #include <trace/events/nvhost.h>
 
 #include <mach/powergate.h>
 #include <mach/clk.h>
 #include <mach/hardware.h>
-#include <mach/mc.h>
 
 #include "nvhost_acm.h"
 #include "dev.h"
@@ -58,13 +55,8 @@ static void do_powergate_locked(int id)
 
 static void do_unpowergate_locked(int id)
 {
-	int ret = 0;
-	if (id != -1) {
-		ret = tegra_unpowergate_partition(id);
-		if (ret)
-			pr_err("%s: unpowergate failed: id = %d\n",
-					__func__, id);
-	}
+	if (id != -1)
+		tegra_unpowergate_partition(id);
 }
 
 static void do_module_reset_locked(struct platform_device *dev)
@@ -72,36 +64,30 @@ static void do_module_reset_locked(struct platform_device *dev)
 	struct nvhost_device_data *pdata = platform_get_drvdata(dev);
 
 	/* assert module and mc client reset */
-	if (pdata->powergate_ids[0] != -1)
-		tegra_powergate_mc_flush(pdata->powergate_ids[0]);
-	if (pdata->powergate_ids[0] != -1)
+	if (pdata->powergate_ids[0] != -1) {
 		tegra_powergate_mc_disable(pdata->powergate_ids[0]);
-	if (pdata->clocks[0].reset)
 		tegra_periph_reset_assert(pdata->clk[0]);
-
-	if (pdata->powergate_ids[1] != -1)
-		tegra_powergate_mc_flush(pdata->powergate_ids[1]);
-	if (pdata->powergate_ids[1] != -1)
+		tegra_powergate_mc_flush(pdata->powergate_ids[0]);
+	}
+	if (pdata->powergate_ids[1] != -1) {
 		tegra_powergate_mc_disable(pdata->powergate_ids[1]);
-	if (pdata->clocks[1].reset)
 		tegra_periph_reset_assert(pdata->clk[1]);
+		tegra_powergate_mc_flush(pdata->powergate_ids[1]);
+	}
 
 	udelay(POWERGATE_DELAY);
 
 	/* deassert reset */
-	if (pdata->clocks[0].reset)
-		tegra_periph_reset_deassert(pdata->clk[0]);
-	if (pdata->powergate_ids[0] != -1)
-		tegra_powergate_mc_enable(pdata->powergate_ids[0]);
-	if (pdata->powergate_ids[0] != -1)
+	if (pdata->powergate_ids[0] != -1) {
 		tegra_powergate_mc_flush_done(pdata->powergate_ids[0]);
-
-	if (pdata->clocks[1].reset)
-		tegra_periph_reset_deassert(pdata->clk[1]);
-	if (pdata->powergate_ids[1] != -1)
-		tegra_powergate_mc_enable(pdata->powergate_ids[1]);
-	if (pdata->powergate_ids[1] != -1)
+		tegra_periph_reset_deassert(pdata->clk[0]);
+		tegra_powergate_mc_enable(pdata->powergate_ids[0]);
+	}
+	if (pdata->powergate_ids[1] != -1) {
 		tegra_powergate_mc_flush_done(pdata->powergate_ids[1]);
+		tegra_periph_reset_deassert(pdata->clk[1]);
+		tegra_powergate_mc_enable(pdata->powergate_ids[1]);
+	}
 }
 
 void nvhost_module_reset(struct platform_device *dev)
@@ -116,9 +102,6 @@ void nvhost_module_reset(struct platform_device *dev)
 	mutex_lock(&pdata->lock);
 	do_module_reset_locked(dev);
 	mutex_unlock(&pdata->lock);
-
-	if (pdata->finalize_poweron)
-		pdata->finalize_poweron(dev);
 
 	dev_dbg(&dev->dev, "%s: module %s out of reset\n",
 		__func__, dev_name(&dev->dev));
@@ -141,13 +124,8 @@ static void to_state_clockgated_locked(struct platform_device *dev)
 		for (i = 0; i < pdata->num_clks; i++)
 			clk_disable_unprepare(pdata->clk[i]);
 
-		if (nvhost_get_parent(dev))
+		if (dev->dev.parent)
 			nvhost_module_idle(to_platform_device(dev->dev.parent));
-
-		if (!pdata->can_powergate) {
-			pm_runtime_mark_last_busy(&dev->dev);
-			pm_runtime_put_autosuspend(&dev->dev);
-		}
 	} else if (pdata->powerstate == NVHOST_POWER_STATE_POWERGATED
 			&& pdata->can_powergate) {
 		do_unpowergate_locked(pdata->powergate_ids[0]);
@@ -164,18 +142,13 @@ static void to_state_running_locked(struct platform_device *dev)
 	struct nvhost_device_data *pdata = platform_get_drvdata(dev);
 	int prev_state = pdata->powerstate;
 
-	if (pdata->powerstate == NVHOST_POWER_STATE_POWERGATED) {
-		pm_runtime_get_sync(&dev->dev);
+	if (pdata->powerstate == NVHOST_POWER_STATE_POWERGATED)
 		to_state_clockgated_locked(dev);
-	}
 
 	if (pdata->powerstate == NVHOST_POWER_STATE_CLOCKGATED) {
 		int i;
 
-		if (!pdata->can_powergate)
-			pm_runtime_get_sync(&dev->dev);
-
-		if (nvhost_get_parent(dev))
+		if (dev->dev.parent)
 			nvhost_module_busy(to_platform_device(dev->dev.parent));
 
 		for (i = 0; i < pdata->num_clks; i++) {
@@ -226,8 +199,6 @@ static int to_state_powergated_locked(struct platform_device *dev)
 	}
 
 	pdata->powerstate = NVHOST_POWER_STATE_POWERGATED;
-	pm_runtime_mark_last_busy(&dev->dev);
-	pm_runtime_put_autosuspend(&dev->dev);
 	return 0;
 }
 
@@ -297,39 +268,20 @@ void nvhost_module_idle_mult(struct platform_device *dev, int refs)
 	bool kick = false;
 
 	mutex_lock(&pdata->lock);
-
 	pdata->refcount -= refs;
-
-	/* submits on the fly -> exit */
-	if (pdata->refcount)
-		goto out;
-
-	if (pdata->idle) {
-		/* give a reference for idle(). otherwise the dev can be
-		 * clockgated */
-		pdata->refcount++;
-		mutex_unlock(&pdata->lock);
-		pdata->idle(dev);
-		mutex_lock(&pdata->lock);
-		pdata->refcount--;
+	if (pdata->refcount == 0) {
+		if (nvhost_module_powered(dev))
+			schedule_clockgating_locked(dev);
+		kick = true;
 	}
-
-	/* check that we don't have any new submits on the channel */
-	if (pdata->refcount)
-		goto out;
-
-	/* no new submits. just schedule clock gating */
-	kick = true;
-	if (nvhost_module_powered(dev))
-		schedule_clockgating_locked(dev);
-
-out:
 	mutex_unlock(&pdata->lock);
 
-	/* wake up a waiting thread if we actually went to idle state */
-	if (kick)
+	if (kick) {
 		wake_up(&pdata->idle_wq);
 
+		if (pdata->idle)
+			pdata->idle(dev);
+	}
 }
 
 int nvhost_module_get_rate(struct platform_device *dev, unsigned long *rate,
@@ -356,7 +308,6 @@ static int nvhost_module_update_rate(struct platform_device *dev, int index)
 	struct nvhost_module_client *m;
 	unsigned long devfreq_rate, default_rate;
 	struct nvhost_device_data *pdata = platform_get_drvdata(dev);
-	int ret;
 
 	if (!pdata->clk[index])
 		return -EINVAL;
@@ -379,17 +330,11 @@ static int nvhost_module_update_rate(struct platform_device *dev, int index)
 	trace_nvhost_module_update_rate(dev->name,
 			pdata->clocks[index].name, rate);
 
-	ret = clk_set_rate(pdata->clk[index], rate);
-
-	if (pdata->update_clk)
-		pdata->update_clk(dev);
-
-	return ret;
-
+	return clk_set_rate(pdata->clk[index], rate);
 }
 
 int nvhost_module_set_rate(struct platform_device *dev, void *priv,
-		unsigned long rate, int index, int bBW)
+		unsigned long rate, int index)
 {
 	struct nvhost_module_client *m;
 	int ret = 0;
@@ -397,25 +342,9 @@ int nvhost_module_set_rate(struct platform_device *dev, void *priv,
 
 	mutex_lock(&client_list_lock);
 	list_for_each_entry(m, &pdata->client_list, node) {
-		if (m->priv == priv) {
-			if (bBW) {
-				/*
-				 * If client sets BW, then we need to
-				 * convert it to freq.
-				 * rate is Bps and input param of
-				 * tegra_emc_bw_to_freq_req is KBps.
-				 */
-				unsigned int freq_khz =
-				tegra_emc_bw_to_freq_req
-					((unsigned long)(rate >> 10));
-
-				m->rate[index] =
-					clk_round_rate(pdata->clk[index],
-					(unsigned long)(freq_khz << 10));
-			} else
-				m->rate[index] =
-					clk_round_rate(pdata->clk[index], rate);
-		}
+		if (m->priv == priv)
+			m->rate[index] =
+				clk_round_rate(pdata->clk[index], rate);
 	}
 
 	ret = nvhost_module_update_rate(dev, index);
@@ -613,9 +542,6 @@ int nvhost_module_init(struct platform_device *dev)
 	init_waitqueue_head(&pdata->idle_wq);
 	INIT_DELAYED_WORK(&pdata->powerstate_down, powerstate_down_handler);
 
-	/* reset the module */
-	do_module_reset_locked(dev);
-
 	/* power gate units that we can power gate */
 	if (pdata->can_powergate) {
 		do_powergate_locked(pdata->powergate_ids[0]);
@@ -648,9 +574,6 @@ int nvhost_module_init(struct platform_device *dev)
 	attr->attr.mode = S_IWUSR | S_IRUGO;
 	attr->show = clockgate_delay_show;
 	attr->store = clockgate_delay_store;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	sysfs_attr_init(&attr->attr);
-#endif
 	if (sysfs_create_file(pdata->power_kobj, &attr->attr)) {
 		dev_err(&dev->dev, "Could not create sysfs attribute clockgate_delay\n");
 		err = -EIO;
@@ -662,9 +585,6 @@ int nvhost_module_init(struct platform_device *dev)
 	attr->attr.mode = S_IWUSR | S_IRUGO;
 	attr->show = powergate_delay_show;
 	attr->store = powergate_delay_store;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	sysfs_attr_init(&attr->attr);
-#endif
 	if (sysfs_create_file(pdata->power_kobj, &attr->attr)) {
 		dev_err(&dev->dev, "Could not create sysfs attribute powergate_delay\n");
 		err = -EIO;
@@ -675,9 +595,6 @@ int nvhost_module_init(struct platform_device *dev)
 	attr->attr.name = "refcount";
 	attr->attr.mode = S_IRUGO;
 	attr->show = refcount_show;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	sysfs_attr_init(&attr->attr);
-#endif
 	if (sysfs_create_file(pdata->power_kobj, &attr->attr)) {
 		dev_err(&dev->dev, "Could not create sysfs attribute refcount\n");
 		err = -EIO;
@@ -744,6 +661,9 @@ void nvhost_module_deinit(struct platform_device *dev)
 	int i;
 	struct nvhost_device_data *pdata = platform_get_drvdata(dev);
 
+	if (pdata->deinit)
+		pdata->deinit(dev);
+
 	nvhost_module_suspend(dev);
 	for (i = 0; i < pdata->num_clks; i++)
 		clk_put(pdata->clk[i]);
@@ -755,7 +675,7 @@ bool nvhost_module_powered_ext(struct platform_device *dev)
 {
 	struct platform_device *pdev;
 
-	BUG_ON(!nvhost_get_parent(dev));
+	BUG_ON(!dev->dev.parent);
 
 	/* get the parent */
 	pdev = to_platform_device(dev->dev.parent);
@@ -767,7 +687,7 @@ void nvhost_module_busy_ext(struct platform_device *dev)
 {
 	struct platform_device *pdev;
 
-	BUG_ON(!nvhost_get_parent(dev));
+	BUG_ON(!dev->dev.parent);
 
 	/* get the parent */
 	pdev = to_platform_device(dev->dev.parent);
@@ -779,7 +699,7 @@ void nvhost_module_idle_ext(struct platform_device *dev)
 {
 	struct platform_device *pdev;
 
-	BUG_ON(!nvhost_get_parent(dev));
+	BUG_ON(!dev->dev.parent);
 
 	/* get the parent */
 	pdev = to_platform_device(dev->dev.parent);

@@ -45,10 +45,7 @@ struct mem_handle *nvhost_dmabuf_alloc(size_t size, size_t align, int flags)
 
 void nvhost_dmabuf_put(struct mem_handle *handle)
 {
-	struct dma_buf_attachment *attach = to_dmabuf_att(handle);
-	struct dma_buf *dmabuf = attach->dmabuf;
-	dma_buf_detach(dmabuf, attach);
-	dma_buf_put(dmabuf);
+	dma_buf_put(to_dmabuf(handle));
 }
 
 struct sg_table *nvhost_dmabuf_pin(struct mem_handle *handle)
@@ -102,9 +99,9 @@ struct mem_handle *nvhost_dmabuf_get(u32 id, struct platform_device *dev)
 }
 
 int nvhost_dmabuf_pin_array_ids(struct platform_device *dev,
-		u32 *ids,
-		u32 id_type_mask,
-		u32 id_type,
+		long unsigned *ids,
+		long unsigned id_type_mask,
+		long unsigned id_type,
 		u32 count,
 		struct nvhost_job_unpin *unpin_data,
 		dma_addr_t *phys_addr) {
