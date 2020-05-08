@@ -1849,7 +1849,7 @@ struct resource tegra_nvavp_resources[] = {
 	},
 };
 
-struct platform_device nvavp_device = {
+struct nvhost_device nvavp_device = {
 	.name           = "nvavp",
 	.id             = -1,
 	.resource       = tegra_nvavp_resources,
@@ -2048,7 +2048,7 @@ static struct resource tegra_disp1_resources[] = {
 	},
 };
 
-struct platform_device tegra_disp1_device = {
+struct nvhost_device tegra_disp1_device = {
 	.name		= "tegradc",
 	.id		= 0,
 	.resource	= tegra_disp1_resources,
@@ -2082,7 +2082,7 @@ static struct resource tegra_disp2_resources[] = {
 	},
 };
 
-struct platform_device tegra_disp2_device = {
+struct nvhost_device tegra_disp2_device = {
 	.name		= "tegradc",
 	.id		= 1,
 	.resource	= tegra_disp2_resources,

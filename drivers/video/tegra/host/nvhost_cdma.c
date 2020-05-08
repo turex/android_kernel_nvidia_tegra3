@@ -242,13 +242,12 @@ static void update_cdma_locked(struct nvhost_cdma *cdma)
 }
 
 void nvhost_cdma_update_sync_queue(struct nvhost_cdma *cdma,
-		struct nvhost_syncpt *syncpt, struct platform_device *dev)
+		struct nvhost_syncpt *syncpt, struct nvhost_device *dev)
 {
 	u32 get_restart;
 	u32 syncpt_incrs;
 	struct nvhost_job *job = NULL;
 	u32 syncpt_val;
-	struct nvhost_device_data *pdata = platform_get_drvdata(dev);
 
 	syncpt_val = nvhost_syncpt_update_min(syncpt, cdma->timeout.syncpt_id);
 
@@ -318,7 +317,7 @@ void nvhost_cdma_update_sync_queue(struct nvhost_cdma *cdma,
 				syncpt_incrs,
 				job->syncpt_end,
 				job->num_slots,
-				pdata->waitbases);
+				dev->waitbases);
 
 		syncpt_val += syncpt_incrs;
 	}

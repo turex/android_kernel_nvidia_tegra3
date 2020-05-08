@@ -31,7 +31,7 @@ enum gr2d_ip_ver {
 };
 
 struct gr2d_desc {
-	void (*finalize_poweron)(struct platform_device *dev);
+	void (*finalize_poweron)(struct nvhost_device *dev);
 };
 
 static const struct gr2d_desc gr2d[] = {
@@ -40,57 +40,50 @@ static const struct gr2d_desc gr2d[] = {
 	},
 	[gr2d_02] = {
 		.finalize_poweron = nvhost_gr2d_t114_finalize_poweron,
-	},
+	}
 };
 
-static struct platform_device_id gr2d_id[] = {
-	{ "gr2d01", gr2d_01 },
-	{ "gr2d02", gr2d_02 },
+static struct nvhost_device_id gr2d_id[] = {
+	{ "gr2d", gr2d_01 },
+	{ "gr2d", gr2d_02 },
 	{ },
 };
 
 MODULE_DEVICE_TABLE(nvhost, gr2d_id);
 
-static int __devinit gr2d_probe(struct platform_device *dev)
+static int __devinit gr2d_probe(struct nvhost_device *dev,
+	struct nvhost_device_id *id_table)
 {
 	int index = 0;
-	struct nvhost_device_data *pdata =
-		(struct nvhost_device_data *)dev->dev.platform_data;
+	struct nvhost_driver *drv = to_nvhost_driver(dev->dev.driver);
 
-	/* HACK: reset device name */
-	dev_set_name(&dev->dev, "%s", "gr2d");
+	index = id_table->version;
 
-	index = (int)(platform_get_device_id(dev)->driver_data);
-	BUG_ON(index > gr2d_02);
-
-	pdata->pdev = dev;
-	pdata->finalize_poweron = gr2d[index].finalize_poweron;
-
-	platform_set_drvdata(dev, pdata);
+	drv->finalize_poweron = gr2d[index].finalize_poweron;
 
 	return nvhost_client_device_init(dev);
 }
 
-static int __exit gr2d_remove(struct platform_device *dev)
+static int __exit gr2d_remove(struct nvhost_device *dev)
 {
 	/* Add clean-up */
 	return 0;
 }
 
 #ifdef CONFIG_PM
-static int gr2d_suspend(struct platform_device *dev, pm_message_t state)
+static int gr2d_suspend(struct nvhost_device *dev, pm_message_t state)
 {
 	return nvhost_client_device_suspend(dev);
 }
 
-static int gr2d_resume(struct platform_device *dev)
+static int gr2d_resume(struct nvhost_device *dev)
 {
 	dev_info(&dev->dev, "resuming\n");
 	return 0;
 }
 #endif
 
-static struct platform_driver gr2d_driver = {
+static struct nvhost_driver gr2d_driver = {
 	.probe = gr2d_probe,
 	.remove = __exit_p(gr2d_remove),
 #ifdef CONFIG_PM
@@ -106,12 +99,12 @@ static struct platform_driver gr2d_driver = {
 
 static int __init gr2d_init(void)
 {
-	return platform_driver_register(&gr2d_driver);
+	return nvhost_driver_register(&gr2d_driver);
 }
 
 static void __exit gr2d_exit(void)
 {
-	platform_driver_unregister(&gr2d_driver);
+	nvhost_driver_unregister(&gr2d_driver);
 }
 
 module_init(gr2d_init);

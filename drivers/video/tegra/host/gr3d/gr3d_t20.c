@@ -411,7 +411,8 @@ fail_alloc:
 	return NULL;
 }
 
-int nvhost_gr3d_t20_read_reg(struct platform_device *dev,
+int nvhost_gr3d_t20_read_reg(
+	struct nvhost_device *dev,
 	struct nvhost_channel *channel,
 	struct nvhost_hwctx *hwctx,
 	u32 offset,

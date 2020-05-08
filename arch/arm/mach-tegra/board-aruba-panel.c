@@ -170,7 +170,7 @@ static struct tegra_dc_platform_data aruba_disp1_pdata = {
 	.fb		= &aruba_fb_data,
 };
 
-static struct platform_device aruba_disp1_device = {
+static struct nvhost_device aruba_disp1_device = {
 	.name		= "tegradc",
 	.id		= 0,
 	.resource	= aruba_disp1_resources,
@@ -219,24 +219,23 @@ int __init aruba_panel_init(void)
 {
 	int err;
 	struct resource __maybe_unused *res;
-	struct platform_device *phost1x;
 
 #if defined(CONFIG_TEGRA_NVMAP)
 	aruba_carveouts[1].base = tegra_carveout_start;
 	aruba_carveouts[1].size = tegra_carveout_size;
 #endif
 
-	err = platform_add_devices(aruba_gfx_devices,
-		ARRAY_SIZE(aruba_gfx_devices));
-
 #ifdef CONFIG_TEGRA_GRHOST
-	phost1x = tegra2_register_host1x_devices();
-	if (!phost1x)
-		return -EINVAL;
+	err = tegra2_register_host1x_devices();
+	if (err)
+		return err;
 #endif
 
+	err = platform_add_devices(aruba_gfx_devices,
+				   ARRAY_SIZE(aruba_gfx_devices));
+
 #if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_DC)
-	res = platform_get_resource_byname(&aruba_disp1_device,
+	res = nvhost_get_resource_byname(&aruba_disp1_device,
 					 IORESOURCE_MEM, "fbmem");
 	res->start = tegra_fb_start;
 	res->end = tegra_fb_start + tegra_fb_size - 1;
@@ -248,10 +247,8 @@ int __init aruba_panel_init(void)
 				min(tegra_fb_size, tegra_bootloader_fb_size));
 
 #if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_DC)
-	if (!err) {
-		aruba_disp1_device.dev.parent = &phost1x->dev;
-		err = platform_device_register(&aruba_disp1_device);
-	}
+	if (!err)
+		err = nvhost_device_register(&aruba_disp1_device);
 #endif
 
 	return err;

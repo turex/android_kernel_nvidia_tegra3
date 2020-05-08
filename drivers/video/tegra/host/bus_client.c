@@ -53,9 +53,9 @@
 #include "nvhost_job.h"
 #include "nvhost_hwctx.h"
 
-static int validate_reg(struct platform_device *ndev, u32 offset, int count)
+static int validate_reg(struct nvhost_device *ndev, u32 offset, int count)
 {
-	struct resource *r = platform_get_resource(ndev, IORESOURCE_MEM, 0);
+	struct resource *r = nvhost_get_resource(ndev, IORESOURCE_MEM, 0);
 	int err = 0;
 
 	if (offset + 4 * count > resource_size(r)
@@ -65,11 +65,10 @@ static int validate_reg(struct platform_device *ndev, u32 offset, int count)
 	return err;
 }
 
-int nvhost_read_module_regs(struct platform_device *ndev,
+int nvhost_read_module_regs(struct nvhost_device *ndev,
 			u32 offset, int count, u32 *values)
 {
-	struct nvhost_device_data *pdata = platform_get_drvdata(ndev);
-	void __iomem *p = pdata->aperture + offset;
+	void __iomem *p = ndev->aperture + offset;
 	int err;
 
 	/* verify offset */
@@ -88,14 +87,11 @@ int nvhost_read_module_regs(struct platform_device *ndev,
 	return 0;
 }
 
-int nvhost_write_module_regs(struct platform_device *ndev,
+int nvhost_write_module_regs(struct nvhost_device *ndev,
 			u32 offset, int count, const u32 *values)
 {
-	void __iomem *p;
+	void __iomem *p = ndev->aperture + offset;
 	int err;
-	struct nvhost_device_data *pdata = platform_get_drvdata(ndev);
-
-	p = pdata->aperture + offset;
 
 	/* verify offset */
 	err = validate_reg(ndev, offset, count);
@@ -129,7 +125,7 @@ static int nvhost_channelrelease(struct inode *inode, struct file *filp)
 {
 	struct nvhost_channel_userctx *priv = filp->private_data;
 
-	trace_nvhost_channel_release(dev_name(&priv->ch->dev->dev));
+	trace_nvhost_channel_release(priv->ch->dev->name);
 
 	filp->private_data = NULL;
 
@@ -156,7 +152,7 @@ static int nvhost_channelopen(struct inode *inode, struct file *filp)
 	ch = nvhost_getchannel(ch);
 	if (!ch)
 		return -ENOMEM;
-	trace_nvhost_channel_open(dev_name(&ch->dev->dev));
+	trace_nvhost_channel_open(ch->dev->name);
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv) {
@@ -186,7 +182,7 @@ fail:
 
 static int set_submit(struct nvhost_channel_userctx *ctx)
 {
-	struct platform_device *ndev = ctx->ch->dev;
+	struct nvhost_device *ndev = ctx->ch->dev;
 	struct nvhost_master *host = nvhost_get_host(ndev);
 
 	/* submit should have at least 1 cmdbuf */
@@ -357,7 +353,7 @@ static int nvhost_ioctl_channel_flush(
 	struct nvhost_get_param_args *args,
 	int null_kickoff)
 {
-	struct platform_device *ndev = to_platform_device(&ctx->ch->dev->dev);
+	struct nvhost_device *ndev = to_nvhost_device(&ctx->ch->dev->dev);
 	int err;
 
 	trace_nvhost_ioctl_channel_flush(ctx->ch->dev->name);
@@ -407,13 +403,12 @@ static int nvhost_ioctl_channel_read_3d_reg(struct nvhost_channel_userctx *ctx,
 			args->offset, &args->value);
 }
 
-static int moduleid_to_index(struct platform_device *dev, u32 moduleid)
+static int moduleid_to_index(struct nvhost_device *dev, u32 moduleid)
 {
 	int i;
-	struct nvhost_device_data *pdata = platform_get_drvdata(dev);
 
 	for (i = 0; i < NVHOST_MODULE_MAX_CLOCKS; i++) {
-		if (pdata->clocks[i].moduleid == moduleid)
+		if (dev->clocks[i].moduleid == moduleid)
 			return i;
 	}
 
@@ -447,7 +442,7 @@ static int nvhost_ioctl_channel_module_regrdwr(
 	u32 *offsets = args->offsets;
 	u32 *values = args->values;
 	u32 vals[64];
-	struct platform_device *ndev;
+	struct nvhost_device *ndev;
 
 	trace_nvhost_ioctl_channel_module_regrdwr(args->id,
 		args->num_offsets, args->write);
@@ -559,31 +554,19 @@ static long nvhost_channelctl(struct file *filp,
 		break;
 	}
 	case NVHOST_IOCTL_CHANNEL_GET_SYNCPOINTS:
-	{
 		/* host syncpt ID is used by the RM (and never be given out) */
-		struct nvhost_device_data *pdata = \
-			platform_get_drvdata(priv->ch->dev);
-		BUG_ON(pdata->syncpts & (1 << NVSYNCPT_GRAPHICS_HOST));
+		BUG_ON(priv->ch->dev->syncpts & (1 << NVSYNCPT_GRAPHICS_HOST));
 		((struct nvhost_get_param_args *)buf)->value =
-			pdata->syncpts;
+			priv->ch->dev->syncpts;
 		break;
-	}
 	case NVHOST_IOCTL_CHANNEL_GET_WAITBASES:
-	{
-		struct nvhost_device_data *pdata = \
-			platform_get_drvdata(priv->ch->dev);
 		((struct nvhost_get_param_args *)buf)->value =
-			pdata->waitbases;
+			priv->ch->dev->waitbases;
 		break;
-	}
 	case NVHOST_IOCTL_CHANNEL_GET_MODMUTEXES:
-	{
-		struct nvhost_device_data *pdata = \
-			platform_get_drvdata(priv->ch->dev);
 		((struct nvhost_get_param_args *)buf)->value =
-			pdata->modulemutexes;
+			priv->ch->dev->modulemutexes;
 		break;
-	}
 	case NVHOST_IOCTL_CHANNEL_SET_NVMAP_FD:
 	{
 		int fd = (int)((struct nvhost_set_nvmap_fd_args *)buf)->fd;
@@ -658,12 +641,11 @@ static const struct file_operations nvhost_channelops = {
 	.unlocked_ioctl = nvhost_channelctl
 };
 
-int nvhost_client_user_init(struct platform_device *dev)
+int nvhost_client_user_init(struct nvhost_device *dev)
 {
 	int err, devno;
-	struct nvhost_device_data *pdata = platform_get_drvdata(dev);
 
-	struct nvhost_channel *ch = pdata->channel;
+	struct nvhost_channel *ch = dev->channel;
 	err = alloc_chrdev_region(&devno, 0, 1, IFACE_NAME);
 	if (err < 0) {
 		dev_err(&dev->dev, "failed to allocate devno\n");
@@ -676,17 +658,16 @@ int nvhost_client_user_init(struct platform_device *dev)
 	err = cdev_add(&ch->cdev, devno, 1);
 	if (err < 0) {
 		dev_err(&dev->dev,
-			"failed to add chan %i cdev\n", pdata->index);
+			"failed to add chan %i cdev\n", dev->index);
 		goto fail;
 	}
 	ch->node = device_create(nvhost_get_host(dev)->nvhost_class,
 			NULL, devno, NULL,
-			IFACE_NAME "-%s", dev_name(&dev->dev));
+			IFACE_NAME "-%s", dev->name);
 	if (IS_ERR(ch->node)) {
 		err = PTR_ERR(ch->node);
 		dev_err(&dev->dev,
-			"failed to create %s channel device\n",
-			dev_name(&dev->dev));
+			"failed to create %s channel device\n", dev->name);
 		goto fail;
 	}
 
@@ -695,12 +676,11 @@ fail:
 	return err;
 }
 
-int nvhost_client_device_init(struct platform_device *dev)
+int nvhost_client_device_init(struct nvhost_device *dev)
 {
 	int err;
 	struct nvhost_master *nvhost_master = nvhost_get_host(dev);
 	struct nvhost_channel *ch;
-	struct nvhost_device_data *pdata = platform_get_drvdata(dev);
 
 	ch = nvhost_alloc_channel(dev);
 	if (ch == NULL)
@@ -709,7 +689,7 @@ int nvhost_client_device_init(struct platform_device *dev)
 	/* store the pointer to this device for channel */
 	ch->dev = dev;
 
-	err = nvhost_channel_init(ch, nvhost_master, pdata->index);
+	err = nvhost_channel_init(ch, nvhost_master, dev->index);
 	if (err)
 		goto fail;
 
@@ -724,10 +704,6 @@ int nvhost_client_device_init(struct platform_device *dev)
 	if (tickctrl_op().init_channel)
 		tickctrl_op().init_channel(dev);
 
-	err = nvhost_device_list_add(dev);
-	if (err)
-		goto fail;
-
 	nvhost_device_debug_init(dev);
 
 	dev_info(&dev->dev, "initialized\n");
@@ -740,12 +716,11 @@ fail:
 	return err;
 }
 
-int nvhost_client_device_suspend(struct platform_device *dev)
+int nvhost_client_device_suspend(struct nvhost_device *dev)
 {
 	int ret = 0;
-	struct nvhost_device_data *pdata = platform_get_drvdata(dev);
 
-	ret = nvhost_channel_suspend(pdata->channel);
+	ret = nvhost_channel_suspend(dev->channel);
 	if (ret)
 		return ret;
 
@@ -754,14 +729,13 @@ int nvhost_client_device_suspend(struct platform_device *dev)
 	return ret;
 }
 
-int nvhost_client_device_get_resources(struct platform_device *dev)
+int nvhost_client_device_get_resources(struct nvhost_device *dev)
 {
 	struct resource *r = NULL;
 	void __iomem *regs = NULL;
 	struct resource *reg_mem = NULL;
-	struct nvhost_device_data *pdata = platform_get_drvdata(dev);
 
-	r = platform_get_resource(dev, IORESOURCE_MEM, 0);
+	r = nvhost_get_resource(dev, IORESOURCE_MEM, 0);
 	if (!r)
 		goto fail;
 
@@ -773,8 +747,8 @@ int nvhost_client_device_get_resources(struct platform_device *dev)
 	if (!regs)
 		goto fail;
 
-	pdata->reg_mem = reg_mem;
-	pdata->aperture = regs;
+	dev->reg_mem = reg_mem;
+	dev->aperture = regs;
 
 	return 0;
 
@@ -789,17 +763,14 @@ fail:
 	return -ENXIO;
 }
 
-void nvhost_client_device_put_resources(struct platform_device *dev)
+void nvhost_client_device_put_resources(struct nvhost_device *dev)
 {
 	struct resource *r;
-	struct nvhost_device_data *pdata = platform_get_drvdata(dev);
 
-	BUG_ON(!pdata);
-
-	r = platform_get_resource(dev, IORESOURCE_MEM, 0);
+	r = nvhost_get_resource(dev, IORESOURCE_MEM, 0);
 	BUG_ON(!r);
 
-	iounmap(pdata->aperture);
+	iounmap(dev->aperture);
 
 	release_mem_region(r->start, resource_size(r));
 }
@@ -809,7 +780,7 @@ void nvhost_client_device_put_resources(struct platform_device *dev)
  * The caller is responsible for calling release_firmware later.
  */
 const struct firmware *
-nvhost_client_request_firmware(struct platform_device *dev, const char *fw_name)
+nvhost_client_request_firmware(struct nvhost_device *dev, const char *fw_name)
 {
 	struct nvhost_chip_support *op = nvhost_get_chip_ops();
 	const struct firmware *fw;
@@ -821,7 +792,7 @@ nvhost_client_request_firmware(struct platform_device *dev, const char *fw_name)
 
 	if (op->soc_name) {
 		path_len = strlen(fw_name) + strlen(op->soc_name);
-		path_len += 2; /* for the path separator and zero terminator*/
+		path_len +=2; /* for the path separator and zero terminator*/
 
 		fw_path = kzalloc(sizeof(*fw_path) * path_len,
 				     GFP_KERNEL);

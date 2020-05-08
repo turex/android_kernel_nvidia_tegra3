@@ -27,19 +27,19 @@ enum power_profile_status {
 	DEVICE_BUSY = 2
 };
 
-struct platform_device;
+struct nvhost_device;
 struct device;
 struct dentry;
 
 /* Initialization and de-initialization for module */
-void nvhost_scale3d_init(struct platform_device *);
-void nvhost_scale3d_deinit(struct platform_device *);
+void nvhost_scale3d_init(struct nvhost_device *);
+void nvhost_scale3d_deinit(struct nvhost_device *);
 
 /*
  * call when performing submit to notify scaling mechanism that 3d module is
  * in use
  */
-void nvhost_scale3d_notify_busy(struct platform_device *);
-void nvhost_scale3d_notify_idle(struct platform_device *);
+void nvhost_scale3d_notify_busy(struct nvhost_device *);
+void nvhost_scale3d_notify_idle(struct nvhost_device *);
 
 #endif

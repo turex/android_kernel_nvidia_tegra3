@@ -145,7 +145,7 @@ struct nvavp_info {
 	u32				syncpt_id;
 	u32				syncpt_value;
 
-	struct platform_device		*nvhost_dev;
+	struct nvhost_device		*nvhost_dev;
 	struct miscdevice		video_misc_dev;
 #if defined(CONFIG_TEGRA_NVAVP_AUDIO)
 	struct miscdevice		audio_misc_dev;
@@ -302,7 +302,7 @@ static int nvavp_unpowergate_vde(struct nvavp_info *nvavp)
 static void nvavp_clks_enable(struct nvavp_info *nvavp)
 {
 	if (nvavp->clk_enabled++ == 0) {
-		nvhost_module_busy_ext(nvavp->nvhost_dev);
+		nvhost_module_busy_ext(nvhost_get_parent(nvavp->nvhost_dev));
 		clk_prepare_enable(nvavp->bsev_clk);
 		clk_prepare_enable(nvavp->vde_clk);
 		nvavp_unpowergate_vde(nvavp);
@@ -326,7 +326,7 @@ static void nvavp_clks_disable(struct nvavp_info *nvavp)
 		else
 			clk_set_rate(nvavp->sclk, 0);
 		nvavp_powergate_vde(nvavp);
-		nvhost_module_idle_ext(nvavp->nvhost_dev);
+		nvhost_module_idle_ext(nvhost_get_parent(nvavp->nvhost_dev));
 		dev_dbg(&nvavp->nvhost_dev->dev, "%s: resetting emc_clk "
 				"and sclk\n", __func__);
 	}
@@ -1631,16 +1631,16 @@ static const struct file_operations tegra_audio_nvavp_fops = {
 #endif
 
 static ssize_t boost_sclk_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", boost_sclk);
 }
 
 static ssize_t boost_sclk_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
+		struct device_attribute *attr, const char *buf, size_t count)
 {
-	struct platform_device *ndev = to_platform_device(dev);
-	struct nvavp_info *nvavp = platform_get_drvdata(ndev);
+	struct nvhost_device *ndev = to_nvhost_device(dev);
+	struct nvavp_info *nvavp = nvhost_get_drvdata(ndev);
 	unsigned long val = 0;
 
 	if (kstrtoul(buf, 10, &val) < 0)
@@ -1656,9 +1656,10 @@ static ssize_t boost_sclk_store(struct device *dev,
 	return count;
 }
 
-DEVICE_ATTR(boost_sclk, S_IRUGO | S_IWUSR, boost_sclk_show, boost_sclk_store);
+DEVICE_ATTR(boost_sclk, S_IRUGO|S_IWUSR, boost_sclk_show, boost_sclk_store);
 
-static int tegra_nvavp_probe(struct platform_device *ndev)
+static int tegra_nvavp_probe(struct nvhost_device *ndev,
+	struct nvhost_device_id *id_table)
 {
 	struct nvavp_info *nvavp;
 	int irq;
@@ -1666,7 +1667,7 @@ static int tegra_nvavp_probe(struct platform_device *ndev)
 	u32 iovmm_addr;
 	int ret = 0, channel_id;
 
-	irq = platform_get_irq_byname(ndev, "mbox_from_nvavp_pending");
+	irq = nvhost_get_irq_byname(ndev, "mbox_from_nvavp_pending");
 	if (irq < 0) {
 		dev_err(&ndev->dev, "invalid nvhost data\n");
 		return -EINVAL;
@@ -1864,8 +1865,8 @@ static int tegra_nvavp_probe(struct platform_device *ndev)
 	}
 	disable_irq(nvavp->mbox_from_avp_pend_irq);
 
+	nvhost_set_drvdata(ndev, nvavp);
 	nvavp->nvhost_dev = ndev;
-	platform_set_drvdata(ndev, nvavp);
 
 	ret = device_create_file(&ndev->dev, &dev_attr_boost_sclk);
 	if (ret) {
@@ -1916,9 +1917,9 @@ err_get_syncpt:
 	return ret;
 }
 
-static int tegra_nvavp_remove(struct platform_device *ndev)
+static int tegra_nvavp_remove(struct nvhost_device *ndev)
 {
-	struct nvavp_info *nvavp = platform_get_drvdata(ndev);
+	struct nvavp_info *nvavp = nvhost_get_drvdata(ndev);
 
 	if (!nvavp)
 		return 0;
@@ -1956,9 +1957,9 @@ static int tegra_nvavp_remove(struct platform_device *ndev)
 }
 
 #ifdef CONFIG_PM
-static int tegra_nvavp_suspend(struct platform_device *ndev, pm_message_t state)
+static int tegra_nvavp_suspend(struct nvhost_device *ndev, pm_message_t state)
 {
-	struct nvavp_info *nvavp = platform_get_drvdata(ndev);
+	struct nvavp_info *nvavp = nvhost_get_drvdata(ndev);
 	int ret = 0;
 
 	mutex_lock(&nvavp->open_lock);
@@ -1988,9 +1989,9 @@ static int tegra_nvavp_suspend(struct platform_device *ndev, pm_message_t state)
 	return ret;
 }
 
-static int tegra_nvavp_resume(struct platform_device *ndev)
+static int tegra_nvavp_resume(struct nvhost_device *ndev)
 {
-	struct nvavp_info *nvavp = platform_get_drvdata(ndev);
+	struct nvavp_info *nvavp = nvhost_get_drvdata(ndev);
 
 	mutex_lock(&nvavp->open_lock);
 
@@ -2006,7 +2007,7 @@ static int tegra_nvavp_resume(struct platform_device *ndev)
 }
 #endif
 
-static struct platform_driver tegra_nvavp_driver = {
+static struct nvhost_driver tegra_nvavp_driver = {
 	.driver	= {
 		.name	= TEGRA_NVAVP_NAME,
 		.owner	= THIS_MODULE,
@@ -2021,12 +2022,12 @@ static struct platform_driver tegra_nvavp_driver = {
 
 static int __init tegra_nvavp_init(void)
 {
-	return platform_driver_register(&tegra_nvavp_driver);
+	return nvhost_driver_register(&tegra_nvavp_driver);
 }
 
 static void __exit tegra_nvavp_exit(void)
 {
-	platform_driver_unregister(&tegra_nvavp_driver);
+	nvhost_driver_unregister(&tegra_nvavp_driver);
 }
 
 module_init(tegra_nvavp_init);

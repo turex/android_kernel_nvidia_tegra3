@@ -1,9 +1,9 @@
 /*
- * drivers/video/tegra/host/gr2d/gr2d_t114.h
+ * drivers/video/tegra/host/bus.h
  *
- * Tegra Graphics Host 2D Tegra11 specific parts
+ * Tegra Graphics Host bus API header
  *
- * Copyright (c) 2012, NVIDIA Corporation.
+ * Copyright (c) 2010-2012, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -18,11 +18,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __NVHOST_2D_T114_H
-#define __NVHOST_2D_T114_H
+#ifndef __NVHOST_BUS_H
+#define __NVHOST_BUS_H
 
-struct nvhost_device;
+#include <linux/types.h>
+#include <linux/device.h>
 
-void nvhost_gr2d_t114_finalize_poweron(struct nvhost_device *dev);
+#include "chip_support.h"
+
+struct nvhost_bus {
+	struct nvhost_chip_support *nvhost_chip_ops;
+	struct bus_type nvhost_bus_type;
+};
+
+struct nvhost_bus *nvhost_bus_get(void);
+
+extern struct nvhost_bus *nvhost_bus_inst;
 
 #endif
