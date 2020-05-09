@@ -140,7 +140,6 @@ static struct nvhost_device tegra_gr3d03_device = {
 
 static struct nvhost_device tegra_gr2d03_device = {
 	.name	       = "gr2d",
-	.version       = 2,
 	.id            = -1,
 	.index         = 2,
 	.syncpts       = BIT(NVSYNCPT_2D_0) | BIT(NVSYNCPT_2D_1),
@@ -150,10 +149,8 @@ static struct nvhost_device tegra_gr2d03_device = {
 	.clocks        = { {"gr2d", 0, 7},
 			{"epp", 0, 10},
 			{"emc", 300000000, 75 } },
-	.powergate_ids = { TEGRA_POWERGATE_HEG, -1 },
+	NVHOST_MODULE_NO_POWERGATE_IDS,
 	.clockgate_delay = 0,
-	.can_powergate  = false,
-	.powergate_delay = 100,
 	.moduleid	= NVHOST_MODULE_NONE,
 	.serialize	= true,
 };
