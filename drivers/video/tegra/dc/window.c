@@ -34,16 +34,11 @@ static bool tegra_dc_windows_are_clean(struct tegra_dc_win *windows[],
 					     int n)
 {
 	int i;
-	struct tegra_dc *dc = windows[0]->dc;
 
-	mutex_lock(&dc->lock);
 	for (i = 0; i < n; i++) {
-		if (windows[i]->dirty) {
-			mutex_unlock(&dc->lock);
+		if (windows[i]->dirty)
 			return false;
-		}
 	}
-	mutex_unlock(&dc->lock);
 
 	return true;
 }
@@ -122,7 +117,6 @@ static void tegra_dc_blend_parallel(struct tegra_dc *dc,
 	int win_num = dc->gen1_blend_num;
 	unsigned long mask = BIT(win_num) - 1;
 
-	tegra_dc_io_start(dc);
 	while (mask) {
 		int idx = get_topmost_window(blend->z, &mask, win_num);
 
@@ -139,7 +133,6 @@ static void tegra_dc_blend_parallel(struct tegra_dc *dc,
 		tegra_dc_writel(dc, blend_3win(idx, mask, blend->flags,
 				win_num), DC_WIN_BLEND_3WIN_XY);
 	}
-	tegra_dc_io_end(dc);
 }
 
 static void tegra_dc_blend_sequential(struct tegra_dc *dc,
@@ -147,7 +140,6 @@ static void tegra_dc_blend_sequential(struct tegra_dc *dc,
 {
 	int i;
 
-	tegra_dc_io_start(dc);
 	for (i = 0; i < DC_N_WINDOWS; i++) {
 		if (!tegra_dc_feature_is_gen2_blender(dc, i))
 			continue;
@@ -197,7 +189,6 @@ static void tegra_dc_blend_sequential(struct tegra_dc *dc,
 					DC_WINBUF_BLEND_LAYER_CONTROL);
 		}
 	}
-	tegra_dc_io_end(dc);
 }
 
 /* does not support syncing windows on multiple dcs in one call */
@@ -220,8 +211,6 @@ int tegra_dc_sync_windows(struct tegra_dc_win *windows[], int n)
 		tegra_dc_windows_are_clean(windows, n),
 		HZ);
 #endif
-	/* tegra_dc_io_start() done in update_windows */
-	tegra_dc_io_end(windows[0]->dc);
 	return ret;
 }
 EXPORT_SYMBOL(tegra_dc_sync_windows);
@@ -312,8 +301,7 @@ static inline void tegra_dc_update_scaling(struct tegra_dc *dc,
 		H_DDA_INC(h_dda), DC_WIN_DDA_INCREMENT);
 }
 
-/* Does not support updating windows on multiple dcs in one call.
- * Requires a matching sync_windows to avoid leaking ref-count on clocks. */
+/* does not support updating windows on multiple dcs in one call */
 int tegra_dc_update_windows(struct tegra_dc_win *windows[], int n)
 {
 	struct tegra_dc *dc;
@@ -342,7 +330,6 @@ int tegra_dc_update_windows(struct tegra_dc_win *windows[], int n)
 		return -EFAULT;
 	}
 
-	tegra_dc_io_start(dc);
 	tegra_dc_hold_dc_out(dc);
 
 	if (no_vsync)
@@ -555,7 +542,6 @@ int tegra_dc_update_windows(struct tegra_dc_win *windows[], int n)
 	tegra_dc_writel(dc, update_mask, DC_CMD_STATE_CONTROL);
 
 	tegra_dc_release_dc_out(dc);
-	/* tegra_dc_io_end() is called in tegra_dc_sync_windows() */
 	mutex_unlock(&dc->lock);
 	if (dc->out->flags & TEGRA_DC_OUT_ONE_SHOT_MODE)
 		mutex_unlock(&dc->one_shot_lock);
