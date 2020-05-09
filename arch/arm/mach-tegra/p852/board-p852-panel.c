@@ -42,7 +42,7 @@
 	.buddy_size = 0, /* no buddy allocation for IRAM */\
 }
 
-static int p852_panel_enable(struct device *dev)
+static int p852_panel_enable(void)
 {
 	pr_info("%s\n", __func__);
 	return 0;
