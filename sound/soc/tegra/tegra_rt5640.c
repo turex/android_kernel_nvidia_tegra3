@@ -37,6 +37,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/delay.h>
 #include <linux/edp.h>
+#include <linux/io.h>
 #if defined(CONFIG_SWITCH) && !defined(CONFIG_HEADSET_FUNCTION)
 #include <linux/switch.h>
 #endif
