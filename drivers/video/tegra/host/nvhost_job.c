@@ -107,10 +107,10 @@ struct nvhost_job *nvhost_job_alloc(struct nvhost_channel *ch,
 	size_t size = job_size(hdr);
 
 	if(!size)
-		return NULL;
+		goto error;
 	job = vzalloc(size);
 	if (!job)
-		return NULL;
+		goto error;
 
 	kref_init(&job->ref);
 	job->ch = ch;
@@ -122,6 +122,11 @@ struct nvhost_job *nvhost_job_alloc(struct nvhost_channel *ch,
 	init_fields(job, hdr, priority, clientid);
 
 	return job;
+
+error:
+	if (job)
+		nvhost_job_put(job);
+	return NULL;
 }
 
 void nvhost_job_get(struct nvhost_job *job)
