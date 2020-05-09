@@ -33,7 +33,6 @@
 
 #include <mach/iovmm.h>
 #include <linux/nvmap.h>
-#include <trace/events/nvmap.h>
 
 #include "nvmap.h"
 #include "nvmap_mru.h"
@@ -87,7 +86,6 @@ static int pin_locked(struct nvmap_client *client, struct nvmap_handle *h)
 			h->pgalloc.area = area;
 		}
 	}
-	trace_handle_pin(client, h, atomic_read(&h->pin));
 	nvmap_mru_unlock(client->share);
 	return 0;
 }
@@ -101,7 +99,6 @@ static int handle_unpin(struct nvmap_client *client,
 	nvmap_mru_lock(client->share);
 
 	if (atomic_read(&h->pin) == 0) {
-		trace_handle_unpin_error(client, h, atomic_read(&h->pin));
 		nvmap_err(client, "%s unpinning unpinned handle %p\n",
 			  current->group_leader->comm, h);
 		nvmap_mru_unlock(client->share);
@@ -127,7 +124,6 @@ static int handle_unpin(struct nvmap_client *client,
 		}
 	}
 
-	trace_handle_unpin(client, h, atomic_read(&h->pin));
 	nvmap_mru_unlock(client->share);
 	nvmap_handle_put(h);
 	return ret;
