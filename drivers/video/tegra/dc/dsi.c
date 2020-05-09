@@ -2562,15 +2562,9 @@ static int tegra_dsi_send_panel_cmd(struct tegra_dc *dc,
 		struct tegra_dsi_cmd *cur_cmd;
 		cur_cmd = &cmd[i];
 
-		/*
-		 * Some Panels need reset midway in the command sequence.
-		 */
-		if (cur_cmd->cmd_type == TEGRA_DSI_GPIO_SET) {
-			gpio_set_value(cur_cmd->sp_len_dly.gpio,
-				       cur_cmd->data_id);
-		} else if (cur_cmd->cmd_type == TEGRA_DSI_DELAY_MS) {
+		if (cur_cmd->cmd_type == TEGRA_DSI_DELAY_MS)
 			mdelay(cur_cmd->sp_len_dly.delay_ms);
-		} else {
+		else {
 			err = tegra_dsi_write_data(dc, dsi,
 						cur_cmd->pdata,
 						cur_cmd->data_id,
@@ -3485,10 +3479,7 @@ static int _tegra_dc_dsi_init(struct tegra_dc *dc)
 	int err = 0;
 	int dsi_enum = -1;
 
-	if (dc->pdata->default_out->dsi->dsi_instance)
-		dsi_enum = 1;
-	else
-		dsi_enum = tegra_dsi_get_enumeration();
+	dsi_enum = tegra_dsi_get_enumeration();
 	if (dsi_enum < 0) {
 		err = -EINVAL;
 		dev_err(&dc->ndev->dev, "dsi: invalid enum retured\n");
