@@ -24,6 +24,7 @@
 #include <linux/pwm_backlight.h>
 #include <linux/nvhost.h>
 #include <linux/nvmap.h>
+#include <linux/fb.h>
 #include <mach/iomap.h>
 #include <mach/dc.h>
 
