@@ -654,8 +654,7 @@ static int cache_maint(struct nvmap_client *client, struct nvmap_handle *h,
 
 	if (start > h->size || end > h->size) {
 		nvmap_warn(client, "cache maintenance outside handle\n");
-		err = -EINVAL;
-		goto out;
+		return -EINVAL;
 	}
 
 	/* lock carveout from relocation by mapcount */
