@@ -383,12 +383,7 @@ static void tegra_dc_ext_flip_worker(struct work_struct *work)
 			list_del(&data->timestamp_node);
 		mutex_unlock(&ext_win->queue_lock);
 
-		if (skip_flip)
-			old_handle = flip_win->handle[TEGRA_DC_Y];
-		else
-			old_handle = ext_win->cur_handle[TEGRA_DC_Y];
-
-		if (old_handle) {
+		if (win->flags & TEGRA_WIN_FLAG_ENABLED) {
 			int j;
 			for (j = 0; j < TEGRA_DC_NUM_PLANES; j++) {
 				if (skip_flip)
