@@ -427,13 +427,6 @@ static ssize_t cmu_enable_store(struct device *dev,
 
 static DEVICE_ATTR(cmu_enable, S_IRUGO|S_IWUSR, NULL, cmu_enable_store);
 #endif
-static ssize_t smart_panel_show(struct device *device,
-	struct device_attribute *attr, char  *buf)
-{
-	return snprintf(buf, PAGE_SIZE, "1\n");
-}
-
-static DEVICE_ATTR(smart_panel, S_IRUGO, smart_panel_show, NULL);
 
 void __devexit tegra_dc_remove_sysfs(struct device *dev)
 {
@@ -458,9 +451,6 @@ void __devexit tegra_dc_remove_sysfs(struct device *dev)
 
 	if (sd_settings)
 		nvsd_remove_sysfs(dev);
-
-	if (dc->out->flags & TEGRA_DC_OUT_ONE_SHOT_MODE)
-		device_remove_file(dev, &dev_attr_smart_panel);
 }
 
 void tegra_dc_create_sysfs(struct device *dev)
@@ -487,9 +477,6 @@ void tegra_dc_create_sysfs(struct device *dev)
 
 	if (sd_settings)
 		error |= nvsd_create_sysfs(dev);
-
-	if (dc->out->flags & TEGRA_DC_OUT_ONE_SHOT_MODE)
-		error |= device_create_file(dev, &dev_attr_smart_panel);
 
 	if (error)
 		dev_err(&ndev->dev, "Failed to create sysfs attributes!\n");
