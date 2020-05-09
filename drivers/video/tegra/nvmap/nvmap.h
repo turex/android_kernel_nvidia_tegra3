@@ -30,7 +30,6 @@
 #include <linux/sched.h>
 #include <linux/wait.h>
 #include <linux/atomic.h>
-#include <linux/dma-buf.h>
 #include <linux/nvmap.h>
 #include "nvmap_heap.h"
 
