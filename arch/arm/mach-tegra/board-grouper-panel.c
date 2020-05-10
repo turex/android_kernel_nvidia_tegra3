@@ -153,10 +153,10 @@ static int grouper_panel_postpoweron(void)
 	return 0;
 }
 
-static int grouper_panel_enable(void)
+static int grouper_panel_enable(struct device *dev)
 {
 	if (grouper_lvds_vdd_panel == NULL) {
-		grouper_lvds_vdd_panel = regulator_get(NULL, "vdd_lcd_panel");
+		grouper_lvds_vdd_panel = regulator_get(dev, "vdd_lcd_panel");
 		if (WARN_ON(IS_ERR(grouper_lvds_vdd_panel)))
 			pr_err("%s: couldn't get regulator vdd_lcd_panel: %ld\n",
 				__func__, PTR_ERR(grouper_lvds_vdd_panel));
